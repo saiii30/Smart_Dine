@@ -1,0 +1,281 @@
+import { useEffect, useState, useMemo } from 'react'
+import axios from 'axios'
+import { Plus, Edit, Trash2, MapPin, Search, Users } from 'lucide-react'
+import { Trip, Company } from '../types'
+import TripModal from '../components/TripModal'
+
+const Trips = () => {
+  const [trips, setTrips] = useState<Trip[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState<string>('')
+
+  useEffect(() => {
+    fetchTrips()
+    fetchCompanies()
+  }, [])
+
+  const fetchTrips = async () => {
+    try {
+      const params = selectedCompany ? { company_id: parseInt(selectedCompany) } : {}
+      const response = await axios.get('/api/trips/', { params })
+      setTrips(response.data)
+    } catch (error) {
+      console.error('Failed to fetch trips:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchCompanies = async () => {
+    try {
+      const response = await axios.get('/api/trips/companies/')
+      setCompanies(response.data)
+    } catch (error) {
+      console.error('Failed to fetch companies:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchTrips()
+  }, [selectedCompany])
+
+  const handleCreate = () => {
+    setEditingTrip(null)
+    setIsModalOpen(true)
+  }
+
+  const handleEdit = (trip: Trip) => {
+    setEditingTrip(trip)
+    setIsModalOpen(true)
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this trip?')) return
+
+    try {
+      await axios.delete(`/api/trips/${id}`)
+      fetchTrips()
+    } catch (error) {
+      console.error('Failed to delete trip:', error)
+      alert('Failed to delete trip')
+    }
+  }
+
+  const handleModalClose = () => {
+    setIsModalOpen(false)
+    setEditingTrip(null)
+  }
+
+  const handleModalSuccess = () => {
+    fetchTrips()
+    handleModalClose()
+  }
+
+  // Filter trips based on search query
+  const filteredTrips = useMemo(() => {
+    let filtered = trips
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = trips.filter((trip) => {
+        const nameMatch = trip.name.toLowerCase().includes(query)
+        const companyMatch = trip.company_name?.toLowerCase().includes(query)
+        const addressMatch = trip.address?.toLowerCase().includes(query)
+        const codeMatch = trip.trip_code.toLowerCase().includes(query)
+        return nameMatch || companyMatch || addressMatch || codeMatch
+      })
+    }
+    return filtered
+  }, [trips, searchQuery])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 dark:border-primary-400"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Trips</h1>
+        <div className="flex flex-1 md:max-w-2xl items-center gap-4 w-full md:w-auto">
+          {/* Company Filter */}
+          <div className="relative">
+            <select
+              value={selectedCompany}
+              onChange={(e) => setSelectedCompany(e.target.value)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">All Companies</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id.toString()}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Search Bar */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search trips..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <button
+            onClick={handleCreate}
+            className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
+          >
+            <Plus className="mr-2 h-5 w-5" />
+            Add Trip
+          </button>
+        </div>
+      </div>
+
+      {filteredTrips.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+          <MapPin className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            {searchQuery.trim() || selectedCompany ? 'No trips found' : 'No trips'}
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">
+            {searchQuery.trim() || selectedCompany
+              ? 'Try adjusting your search criteria.'
+              : 'Get started by adding your first trip.'}
+          </p>
+          {!searchQuery.trim() && !selectedCompany && (
+            <button
+              onClick={handleCreate}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              Add Trip
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredTrips.map((trip) => (
+            <div
+              key={trip.id}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{trip.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{trip.company_name}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">ID: {trip.trip_code}</p>
+                </div>
+                <span
+                  className={`px-2 py-1 text-xs font-medium rounded ${
+                    trip.is_active
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                  }`}
+                >
+                  {trip.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              {trip.address && (
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+                  {trip.address}
+                </p>
+              )}
+
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                  <MapPin className="mr-2 h-4 w-4" />
+                  <span>{trip.schedules.length} schedule{trip.schedules.length !== 1 ? 's' : ''}</span>
+                </div>
+                {trip.schedules.length > 0 && (
+                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                    <Users className="mr-2 h-4 w-4" />
+                    <span>
+                      {trip.schedules.reduce((sum, s) => sum + s.passenger_count, 0)} total passengers
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Schedules Preview */}
+              {trip.schedules.length > 0 && (
+                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Schedules:</p>
+                  <div className="space-y-2">
+                    {trip.schedules.slice(0, 3).map((schedule, idx) => (
+                      <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600 pb-2 last:border-0">
+                        <div className="font-medium text-primary-600 dark:text-primary-400 mb-1">
+                          {trip.trip_code} - {schedule.destination}
+                        </div>
+                        <div className="text-gray-500 dark:text-gray-500">
+                          {new Date(schedule.departure_datetime).toLocaleString()}
+                        </div>
+                        {schedule.vehicle_number && (
+                          <div className="text-gray-500 dark:text-gray-500">
+                            Vehicle: {schedule.vehicle_number}
+                          </div>
+                        )}
+                        {schedule.driver_name && (
+                          <div className="text-gray-500 dark:text-gray-500">
+                            Driver: {schedule.driver_name}
+                          </div>
+                        )}
+                        {schedule.passenger_count > 0 && (
+                          <div className="text-gray-500 dark:text-gray-500">
+                            Passengers: {schedule.passenger_count}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {trip.schedules.length > 3 && (
+                      <div className="text-xs text-gray-500 dark:text-gray-500 pt-1">
+                        +{trip.schedules.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex space-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => handleEdit(trip)}
+                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(trip.id)}
+                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isModalOpen && (
+        <TripModal
+          trip={editingTrip}
+          onClose={handleModalClose}
+          onSuccess={handleModalSuccess}
+        />
+      )}
+    </div>
+  )
+}
+
+export default Trips
+
