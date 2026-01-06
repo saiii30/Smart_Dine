@@ -1,4 +1,10 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr
+
+# compatibility: prefer pydantic v2 `field_validator`, fall back to v1 `validator`
+try:
+    from pydantic import field_validator
+except Exception:
+    from pydantic import validator as field_validator
 from datetime import datetime
 from typing import Optional, List
 from app.models import VehicleType, UserRole
@@ -13,7 +19,6 @@ class UserCreate(UserBase):
     password: str
     
     @field_validator('password')
-    @classmethod
     def validate_password(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
@@ -179,6 +184,12 @@ class CompanyResponse(CompanyBase):
     
     class Config:
         from_attributes = True
+
+# Lightweight schema for login dropdown (id + name only)
+class CompanyDropdown(BaseModel):
+    id: int
+    name: str
+    owner_id: int
 
 # Trip Schedule Schemas
 class TripScheduleBase(BaseModel):

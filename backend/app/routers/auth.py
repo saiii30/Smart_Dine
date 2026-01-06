@@ -1,6 +1,7 @@
 from datetime import timedelta
 import json
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from typing import List
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
@@ -65,4 +66,12 @@ def test_register(data: dict):
         return {"message": "Validation passed", "user": user.dict()}
     except Exception as e:
         return {"error": str(e), "data_received": data}
+
+
+# Public endpoint for login dropdown: returns active companies (id and name)
+@router.get("/companies", response_model=List[schemas.CompanyDropdown])
+def public_companies(db: Session = Depends(get_db)):
+    companies = db.query(models.Company).filter(models.Company.is_active == True).all()
+    # Return minimal fields for dropdown including parent user id
+    return [{"id": c.id, "name": c.name, "owner_id": c.owner_id} for c in companies]
 
