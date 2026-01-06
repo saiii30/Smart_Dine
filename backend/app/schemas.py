@@ -9,15 +9,16 @@ from datetime import datetime
 from typing import Optional, List
 from app.models import VehicleType, UserRole
 
-# User Schemas
+# User Schemas (aligned with SQL schema)
 class UserBase(BaseModel):
-    email: EmailStr
-    full_name: str
-    company_name: Optional[str] = None
+    parent_id: Optional[str] = None
+    name: str
+    email: Optional[EmailStr] = None
+    contact_number: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
-    
+
     @field_validator('password')
     def validate_password(cls, v: str) -> str:
         if len(v) < 8:
@@ -26,12 +27,18 @@ class UserCreate(UserBase):
             raise ValueError('Password is too long (maximum 72 bytes). Please use a shorter password.')
         return v
 
-class UserResponse(UserBase):
-    id: int
-    role: UserRole
+class UserResponse(BaseModel):
+    id: str
+    parent_id: Optional[str] = None
+    name: str
+    email: Optional[EmailStr] = None
+    contact_number: Optional[str] = None
+    role: Optional[str] = None
     is_active: bool
+    last_login: Optional[datetime] = None
     created_at: datetime
-    
+    updated_at: Optional[datetime] = None
+
     class Config:
         from_attributes = True
 
@@ -185,11 +192,42 @@ class CompanyResponse(CompanyBase):
     class Config:
         from_attributes = True
 
-# Lightweight schema for login dropdown (id + name only)
-class CompanyDropdown(BaseModel):
+# Lightweight schema for agency dropdown (id + agency_name only)
+class AgencyDropdown(BaseModel):
+    id: str
+    agency_name: str
+
+# Agency Schemas
+class AgencyBase(BaseModel):
+    agency_name: str
+    agency_phone: Optional[str] = None
+    agency_address: Optional[str] = None
+    agency_EmailId: Optional[EmailStr] = None
+    description: Optional[str] = None
+    plan: Optional[str] = None
+    subscription: Optional[str] = None
+    status: Optional[str] = None
+
+class AgencyCreate(AgencyBase):
+    pass
+
+class AgencyUpdate(BaseModel):
+    agency_name: Optional[str] = None
+    agency_phone: Optional[str] = None
+    agency_address: Optional[str] = None
+    agency_EmailId: Optional[EmailStr] = None
+    description: Optional[str] = None
+    plan: Optional[str] = None
+    subscription: Optional[str] = None
+    status: Optional[str] = None
+
+class AgencyResponse(AgencyBase):
     id: int
-    name: str
-    owner_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 # Trip Schedule Schemas
 class TripScheduleBase(BaseModel):

@@ -68,10 +68,10 @@ def test_register(data: dict):
         return {"error": str(e), "data_received": data}
 
 
-# Public endpoint for login dropdown: returns active companies (id and name)
-@router.get("/companies", response_model=List[schemas.CompanyDropdown])
-def public_companies(db: Session = Depends(get_db)):
-    companies = db.query(models.Company).filter(models.Company.is_active == True).all()
-    # Return minimal fields for dropdown including parent user id
-    return [{"id": c.id, "name": c.name, "owner_id": c.owner_id} for c in companies]
+# Public endpoint for login dropdown: returns all agencies (id and agency_name)
+@router.get("/agencies", response_model=List[schemas.AgencyDropdown])
+def public_agencies(db: Session = Depends(get_db)):
+    agencies = db.query(models.Agency).all()
+    # Return minimal fields for dropdown
+    return [{"id": a.id, "agency_name": a.agency_name} for a in agencies]
 

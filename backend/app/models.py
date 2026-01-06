@@ -116,6 +116,22 @@ class Company(Base):
     owner = relationship("User", back_populates="companies")
     trips = relationship("Trip", back_populates="company", cascade="all, delete-orphan")
 
+
+class Agency(Base):
+    __tablename__ = "agencies"
+
+    id = Column(String, primary_key=True, index=True)
+    agency_name = Column(String, nullable=False)
+    agency_phone = Column(String, nullable=True)
+    agency_address = Column(Text, nullable=True)
+    agency_EmailId = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+    plan = Column(String, nullable=True)
+    subscription = Column(String, nullable=True)
+    status = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
 class Trip(Base):
     __tablename__ = "trips"
     
