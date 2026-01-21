@@ -12,35 +12,87 @@ export type VehicleType = 'Sedan' | 'SUV' | 'Van' | 'Bus' | 'Mini_Bus' | 'Hatchb
 
 export interface Vehicle {
   id: number
-  owner_id: number
-  vehicle_number: string
-  vehicle_type: VehicleType
-  make: string
-  model: string
-  year: number
+  user_id: string
+  vehicle_type: string
+  vehicle_brand: string
+  vehicle_model: string
+  manufacturing_year: number
   color?: string
+  vehicle_registration_number: string
+  rc_number?: string
   seating_capacity: number
-  registration_number: string
-  insurance_number?: string
-  insurance_expiry?: string
+  fuel_type: string
+  gps_device_id?: string
+  vehicle_status: string
   is_active: boolean
+  assigned_driver_id?: string
+
+  insurance_number?: string
+  insurance_date?: string
+  insurance_expiry?: string
+  insurance_copy?: string
+
+  registration_date?: string
+  registration_expiry?: string
+  registration_certificate?: string
+
+  pollution_certificate?: string
+
+  fire_extinguisher_available: boolean
+  first_aid_kit_available: boolean
+  emergency_support_number?: string
+
+  policy_certificate?: string
+
   notes?: string
-  created_at: string
+  service_expiry?: string
+  puc_expiry?: string
+  insurance_renewal_date?: string
+  category?: string
+  owner_name?: string
+  ownership_type?: string
+
+  created_at?: string
   updated_at?: string
 }
 
 export interface Driver {
-  id: number
-  owner_id: number
+  id: string
+  user_id: string
   full_name: string
+  phone_number: string
   email?: string
-  phone: string
-  license_number: string
-  license_expiry: string
-  address?: string
-  emergency_contact_name?: string
-  emergency_contact_phone?: string
+
+  date_of_birth?: string
+  gender?: string
+  blood_group?: string
+
+  aadhar_number?: string
+  driving_license_number: string
+  license_expiry_date: string
+
+  aadhar_document?: string
+  driver_photo?: string
+  police_verification_certificate?: string
+  medical_fitness_certificate?: string
+
+  verification_status?: string
+  status?: string
   is_active: boolean
+
+  current_address?: string
+  city?: string
+  state?: string
+  pincode?: string
+
+  emergency_contact_name?: string
+  emergency_contact_number?: string
+
+  previous_employer_experience?: string
+  languages_spoken?: string
+  shift_preference?: string
+  assigned_vehicle_id?: number
+
   notes?: string
   created_at: string
   updated_at?: string
@@ -48,7 +100,7 @@ export interface Driver {
 
 export interface Company {
   id: number
-  owner_id: number
+  agency_id: string
   name: string
   address?: string
   service_start_date: string
@@ -65,7 +117,7 @@ export interface TripSchedule {
   destination: string
   departure_datetime: string
   vehicle_id?: number
-  driver_id?: number
+  driver_id?: string
   passenger_count: number
   notes?: string
   created_at: string
@@ -76,8 +128,8 @@ export interface TripSchedule {
 
 export interface Trip {
   id: number
-  owner_id: number
-  company_id: number
+  user_id: string
+  company_id: string
   trip_code: string
   name: string
   address?: string
@@ -87,4 +139,3 @@ export interface Trip {
   company_name?: string
   schedules: TripSchedule[]
 }
-

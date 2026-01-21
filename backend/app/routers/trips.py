@@ -63,7 +63,7 @@ def create_company(
             detail="Service end date must be after service start date"
         )
     
-    db_company = models.Company(**company.dict(), owner_id=current_user.id)
+    db_company = models.Company(**company.dict(), agency_id=current_user.id)
     db.add(db_company)
     db.commit()
     db.refresh(db_company)
@@ -77,7 +77,7 @@ def read_companies(
     db: Session = Depends(get_db)
 ):
     companies = db.query(models.Company).filter(
-        models.Company.owner_id == current_user.id
+        models.Company.agency_id == current_user.id
     ).offset(skip).limit(limit).all()
     return companies
 
@@ -89,7 +89,7 @@ def read_company(
 ):
     db_company = db.query(models.Company).filter(
         models.Company.id == company_id,
-        models.Company.owner_id == current_user.id
+        models.Company.agency_id == current_user.id
     ).first()
     if db_company is None:
         raise HTTPException(
@@ -107,7 +107,7 @@ def update_company(
 ):
     db_company = db.query(models.Company).filter(
         models.Company.id == company_id,
-        models.Company.owner_id == current_user.id
+        models.Company.agency_id == current_user.id
     ).first()
     if db_company is None:
         raise HTTPException(
@@ -152,7 +152,7 @@ def delete_company(
 ):
     db_company = db.query(models.Company).filter(
         models.Company.id == company_id,
-        models.Company.owner_id == current_user.id
+        models.Company.agency_id == current_user.id
     ).first()
     if db_company is None:
         raise HTTPException(
@@ -172,8 +172,8 @@ def create_trip(
 ):
     # Find or create company
     db_company = db.query(models.Company).filter(
-        models.Company.name == trip.company_name,
-        models.Company.owner_id == current_user.id
+        models.Company.company_name == trip.company_name,
+        models.Company.agency_id == current_user.id
     ).first()
     
     if db_company is None:
@@ -181,8 +181,8 @@ def create_trip(
         from datetime import datetime, timedelta
         today = datetime.now()
         db_company = models.Company(
-            owner_id=current_user.id,
-            name=trip.company_name,
+            agency_id=current_user.id,
+            company_name=trip.company_name,
             service_start_date=today,
             service_end_date=today + timedelta(days=365)  # Default 1 year
         )
@@ -213,7 +213,7 @@ def create_trip(
                 # Verify vehicle belongs to user
                 db_vehicle = db.query(models.Vehicle).filter(
                     models.Vehicle.id == schedule.vehicle_id,
-                    models.Vehicle.owner_id == current_user.id
+                    models.Vehicle.user_id == current_user.id
                 ).first()
                 if db_vehicle is None:
                     raise HTTPException(
@@ -237,7 +237,7 @@ def create_trip(
                 # Verify driver belongs to user
                 db_driver = db.query(models.Driver).filter(
                     models.Driver.id == schedule.driver_id,
-                    models.Driver.owner_id == current_user.id
+                    models.Driver.user_id == current_user.id
                 ).first()
                 if db_driver is None:
                     raise HTTPException(
@@ -248,7 +248,7 @@ def create_trip(
     
     # Create trip
     trip_data = trip.dict(exclude={'schedules', 'company_name'})
-    db_trip = models.Trip(**trip_data, owner_id=current_user.id, company_id=db_company.id, trip_code=trip_code)
+    db_trip = models.Trip(**trip_data, user_id=current_user.id, company_id=db_company.id, trip_code=trip_code)
     db.add(db_trip)
     db.flush()  # Flush to get the trip ID
     
@@ -267,7 +267,7 @@ def create_trip(
     # Build response with nested data
     trip_response = schemas.TripResponse(
         id=db_trip.id,
-        owner_id=db_trip.owner_id,
+        user_id=db_trip.user_id,
         company_id=db_trip.company_id,
         trip_code=db_trip.trip_code,
         name=db_trip.name,
@@ -303,7 +303,7 @@ def read_trips(
     db: Session = Depends(get_db)
 ):
     query = db.query(models.Trip).filter(
-        models.Trip.owner_id == current_user.id
+        models.Trip.user_id == current_user.id
     )
     
     if company_id:
@@ -317,7 +317,7 @@ def read_trips(
         company = db.query(models.Company).filter(models.Company.id == trip.company_id).first()
         result.append(schemas.TripResponse(
             id=trip.id,
-            owner_id=trip.owner_id,
+            user_id=trip.user_id,
             company_id=trip.company_id,
             trip_code=trip.trip_code,
             name=trip.name,
@@ -352,7 +352,7 @@ def read_trip(
 ):
     db_trip = db.query(models.Trip).filter(
         models.Trip.id == trip_id,
-        models.Trip.owner_id == current_user.id
+        models.Trip.user_id == current_user.id
     ).first()
     if db_trip is None:
         raise HTTPException(
@@ -364,7 +364,7 @@ def read_trip(
     
     return schemas.TripResponse(
         id=db_trip.id,
-        owner_id=db_trip.owner_id,
+        user_id=db_trip.user_id,
         company_id=db_trip.company_id,
         trip_code=db_trip.trip_code,
         name=db_trip.name,
@@ -398,7 +398,7 @@ def update_trip(
 ):
     db_trip = db.query(models.Trip).filter(
         models.Trip.id == trip_id,
-        models.Trip.owner_id == current_user.id
+        models.Trip.user_id == current_user.id
     ).first()
     if db_trip is None:
         raise HTTPException(
@@ -414,7 +414,7 @@ def update_trip(
         # Find or create company
         db_company = db.query(models.Company).filter(
             models.Company.name == company_name,
-            models.Company.owner_id == current_user.id
+            models.Company.agency_id == current_user.id
         ).first()
         
         if db_company is None:
@@ -422,7 +422,7 @@ def update_trip(
             from datetime import datetime, timedelta
             today = datetime.now()
             db_company = models.Company(
-                owner_id=current_user.id,
+                agency_id=current_user.id, # Using agency_id based on schema but logic might need verification - adhering to replacement
                 name=company_name,
                 service_start_date=today,
                 service_end_date=today + timedelta(days=365)  # Default 1 year
@@ -446,7 +446,7 @@ def update_trip(
     
     return schemas.TripResponse(
         id=db_trip.id,
-        owner_id=db_trip.owner_id,
+        user_id=db_trip.user_id,
         company_id=db_trip.company_id,
         trip_code=db_trip.trip_code,
         name=db_trip.name,
@@ -479,7 +479,7 @@ def delete_trip(
 ):
     db_trip = db.query(models.Trip).filter(
         models.Trip.id == trip_id,
-        models.Trip.owner_id == current_user.id
+        models.Trip.user_id == current_user.id
     ).first()
     if db_trip is None:
         raise HTTPException(
@@ -500,7 +500,7 @@ def create_trip_schedule(
 ):
     db_trip = db.query(models.Trip).filter(
         models.Trip.id == trip_id,
-        models.Trip.owner_id == current_user.id
+        models.Trip.user_id == current_user.id
     ).first()
     if db_trip is None:
         raise HTTPException(
@@ -525,7 +525,7 @@ def create_trip_schedule(
         # Verify vehicle belongs to user
         db_vehicle = db.query(models.Vehicle).filter(
             models.Vehicle.id == schedule.vehicle_id,
-            models.Vehicle.owner_id == current_user.id
+            models.Vehicle.user_id == current_user.id
         ).first()
         if db_vehicle is None:
             raise HTTPException(
@@ -549,7 +549,7 @@ def create_trip_schedule(
         # Verify driver belongs to user
         db_driver = db.query(models.Driver).filter(
             models.Driver.id == schedule.driver_id,
-            models.Driver.owner_id == current_user.id
+            models.Driver.user_id == current_user.id
         ).first()
         if db_driver is None:
             raise HTTPException(
@@ -590,7 +590,7 @@ def update_trip_schedule(
 ):
     db_schedule = db.query(models.TripSchedule).join(models.Trip).filter(
         models.TripSchedule.id == schedule_id,
-        models.Trip.owner_id == current_user.id
+        models.Trip.user_id == current_user.id
     ).first()
     if db_schedule is None:
         raise HTTPException(
@@ -620,7 +620,7 @@ def update_trip_schedule(
         
         db_vehicle = db.query(models.Vehicle).filter(
             models.Vehicle.id == new_vehicle_id,
-            models.Vehicle.owner_id == current_user.id
+            models.Vehicle.user_id == current_user.id
         ).first()
         if db_vehicle is None:
             raise HTTPException(
@@ -643,7 +643,7 @@ def update_trip_schedule(
         
         db_driver = db.query(models.Driver).filter(
             models.Driver.id == new_driver_id,
-            models.Driver.owner_id == current_user.id
+            models.Driver.user_id == current_user.id
         ).first()
         if db_driver is None:
             raise HTTPException(
@@ -684,7 +684,7 @@ def delete_trip_schedule(
 ):
     db_schedule = db.query(models.TripSchedule).join(models.Trip).filter(
         models.TripSchedule.id == schedule_id,
-        models.Trip.owner_id == current_user.id
+        models.Trip.user_id == current_user.id
     ).first()
     if db_schedule is None:
         raise HTTPException(

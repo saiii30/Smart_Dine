@@ -87,10 +87,7 @@ def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
 def get_user_by_phone(db: Session, phone: str):
-    # Only attempt to query phone if the User model has a phone attribute
-    if not hasattr(models.User, 'phone'):
-        return None
-    return db.query(models.User).filter(models.User.phone == phone).first()
+    return db.query(models.User).filter(models.User.contact_number == phone).first()
 
 def _normalize_phone(value: str) -> str:
     # Remove spaces, dashes and parentheses
@@ -109,22 +106,22 @@ def _is_mobile(value: str) -> bool:
     # Accept numbers with optional leading + and between 7 and 15 digits
     return re.match(r"^\+?\d{7,15}$", v) is not None
 
-def authenticate_user(db: Session, identifier: str, password: str):
-    # Determine whether identifier is email or mobile, then lookup
+def authenticate_user(db: Session, username: str, password: str):
+    # Determine whether username is email or mobile, then lookup
     user = None
-    if _is_email(identifier):
-        user = get_user_by_email(db, identifier)
-    elif _is_mobile(identifier):
+    if _is_email(username):
+        user = get_user_by_email(db, username)
+    elif _is_mobile(username):
         # normalize phone before lookup
-        phone = _normalize_phone(identifier)
+        phone = _normalize_phone(username)
         user = get_user_by_phone(db, phone)
     else:
         # Fallback: try email first, then phone
-        user = get_user_by_email(db, identifier) or get_user_by_phone(db, identifier)
+        user = get_user_by_email(db, username) or get_user_by_phone(db, username)
 
     if not user:
         return False
-    if not verify_password(password, user.hashed_password):
+    if not verify_password(password, user.password_hash):
         return False
 
     return user

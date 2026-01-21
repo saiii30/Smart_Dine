@@ -1,146 +1,257 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import AuthLayout from '../components/AuthLayout'
+import { useEffect, useState } from "react";
+import axios from "axios";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import AuthLayout from "../components/AuthLayout";
+
+// Create an Axios instance with default config
+const api = axios.create({
+  baseURL: 'http://127.0.0.1:8000/api',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add a response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', error);
+    return Promise.reject(error);
+  }
+);
 
 const Login = () => {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [rememberMe, setRememberMe] = useState(true)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
-  const navigate = useNavigate()
+  const [formData, setFormData] = useState({
+    username: "",
+    password: "",
+    agencyId: "",
+    itCompanyId: "",
+  });
+  const [agencies, setAgencies] = useState<any[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [isAgenciesLoading, setIsAgenciesLoading] = useState(true);
+  // Account type switch: 'agency' or 'it'
+  const [accountType, setAccountType] = useState<'agency' | 'it'>('agency');
+  // Hardcoded IT companies list for IT Login dropdown
+  const itCompanies = [
+    { id: 'it1', name: 'IT Company1' },
+    { id: 'it2', name: 'IT Company2' },
+    { id: 'it3', name: 'IT Company3' },
+  ];
+
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  // Fetch agencies on component mount
+  useEffect(() => {
+    const fetchAgencies = async () => {
+      try {
+        const response = await api.get("/auth/agencies");
+        setAgencies(response.data);
+      } catch (err) {
+        console.error("Error fetching agencies:", err);
+        setError("Failed to load agencies. Please try again later.");
+      } finally {
+        setIsAgenciesLoading(false);
+      }
+    };
+
+    fetchAgencies();
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
-      // Support both email and phone number
-      await login(username, password)
-      navigate('/dashboard')
+      // For IT login, use the chosen IT company id as agency_id payload so backend receives a reference
+      const agencyPayload = accountType === 'it' ? formData.itCompanyId : formData.agencyId;
+      await login({
+        username: formData.username,
+        password: formData.password,
+        agency_id: agencyPayload,
+      });
+      navigate("/dashboard");
     } catch (err: any) {
-      // Handle different error formats
-      let errorMessage = 'Failed to login'
-      
-      if (err.message) {
-        errorMessage = err.message
-      } else if (err.response?.data?.detail) {
-        const detail = err.response.data.detail
-        if (Array.isArray(detail)) {
-          const errorMessages = detail.map((errorItem: any) => {
-            const loc = errorItem.loc || []
-            const fieldName = loc.filter((item: string) => item !== 'body').pop() || 'field'
-            let msg = errorItem.msg || 'Invalid value'
-            msg = msg.replace(/^Value error,\s*/i, '').trim()
-            const displayFieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1)
-            return `${displayFieldName}: ${msg}`
-          })
-          errorMessage = errorMessages.join('. ')
-        } else if (typeof detail === 'string') {
-          errorMessage = detail
-        }
-      } else if (err.response?.data?.message) {
-        errorMessage = err.response.data.message
-      }
-      
-      setError(errorMessage)
-      console.error('Login error:', err)
+      console.error("Login error:", err);
+      setError(err.response?.data?.detail || "Failed to login. Please check your credentials.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <AuthLayout
-      title="Login"
-      subtitle="Login to your account"
-      description="Thank you for getting back to TMS, let's access the best travel management system for you."
-    >
+    <AuthLayout title={accountType === 'agency' ? 'Agency Login' : 'IT Login'} subtitle={accountType === 'agency' ? 'Login to your account' : 'Login for IT company employees'}>
       <form className="space-y-6" onSubmit={handleSubmit}>
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-red-100 text-red-700 p-3 rounded">
             {error}
           </div>
         )}
 
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Username
-            </label>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              autoComplete="username"
-              required
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
-              placeholder="Email or Phone Number"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Login Type</label>
+          <div className="inline-flex rounded-lg bg-gray-100 p-1">
+            <button
+              type="button"
+              onClick={() => setAccountType('agency')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${accountType === 'agency' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+            >
+              Agency Login
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccountType('it')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${accountType === 'it' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+            >
+              IT Login
+            </button>
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
+          {accountType === 'agency' ? (
+            <div className="mt-4">
+              <label htmlFor="agencyId" className="block text-sm font-medium text-gray-700">
+                Agency
+              </label>
+              <select
+                id="agencyId"
+                name="agencyId"
+                value={formData.agencyId}
+                onChange={handleChange}
+                required
+                disabled={isAgenciesLoading}
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+              >
+                <option value="">{isAgenciesLoading ? "Loading agencies..." : "Select Agency"}</option>
+                {agencies.map((agency) => (
+                  <option key={agency.id} value={agency.id}>
+                    {agency.agency_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <div>
+                <label htmlFor="agencyId" className="block text-sm font-medium text-gray-700">
+                  Agency
+                </label>
+                <select
+                  id="agencyId"
+                  name="agencyId"
+                  value={formData.agencyId}
+                  onChange={handleChange}
+                  disabled={isAgenciesLoading}
+                  className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="">{isAgenciesLoading ? "Loading agencies..." : "Select Agency"}</option>
+                  {agencies.map((agency) => (
+                    <option key={agency.id} value={agency.id}>
+                      {agency.agency_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="itCompanyId" className="block text-sm font-medium text-gray-700">
+                  IT Company
+                </label>
+                <select
+                  id="itCompanyId"
+                  name="itCompanyId"
+                  value={formData.itCompanyId}
+                  onChange={handleChange}
+                  required
+                  className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+                >
+                  <option value="">Select IT Company</option>
+                  {itCompanies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-            />
-            <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Remember me</span>
+        <div>
+          <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+            Username
           </label>
-          <Link
-            to="/forgot-password"
-            className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-          >
-            Reset Password?
-          </Link>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            required
+            value={formData.username}
+            onChange={handleChange}
+            className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+            placeholder="Enter your username"
+          />
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? 'Signing in...' : 'SIGN IN'}
-        </button>
-
-        <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-          Don't have an account yet?{' '}
-          <Link
-            to="/register"
-            className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
-          >
-            Join TMS Now!
-          </Link>
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            Password
+          </label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            value={formData.password}
+            onChange={handleChange}
+            className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+            placeholder="Enter your password"
+          />
         </div>
+
+        <div>
+          {/* Disable submit when loading or when required selection is missing */}
+          <button
+            type="submit"
+            disabled={
+              loading ||
+              (accountType === 'agency' && isAgenciesLoading) ||
+              (accountType === 'agency' && !formData.agencyId) ||
+              (accountType === 'it' && !formData.itCompanyId)
+            }
+            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white ${
+              loading || (accountType === 'agency' && isAgenciesLoading) || (accountType === 'agency' && !formData.agencyId) || (accountType === 'it' && !formData.itCompanyId)
+                ? 'bg-red-400 cursor-not-allowed'
+                : 'bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
+            }`}
+          >
+            {loading ? "Signing in..." : "SIGN IN"}
+          </button>
+        </div>
+
+        {accountType !== 'it' && (
+          <div className="text-center text-sm">
+            <Link
+              to="/register"
+              className="font-medium text-red-600 hover:text-red-500"
+            >
+              Don't have an account? Sign up
+            </Link>
+          </div>
+        )}
       </form>
     </AuthLayout>
-  )
-}
+  );
+};
 
-export default Login
-
+export default Login;

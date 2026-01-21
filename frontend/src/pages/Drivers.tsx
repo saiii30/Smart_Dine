@@ -14,7 +14,7 @@ const Drivers = () => {
 
   useEffect(() => {
     fetchDrivers()
-    //fetchTrips()
+    fetchTrips()
   }, [])
 
   const fetchDrivers = async () => {
@@ -37,8 +37,8 @@ const Drivers = () => {
     }
   }
 
-  const getDriverTrips = (driverId: number): Trip[] => {
-    return trips.filter(trip => 
+  const getDriverTrips = (driverId: string): Trip[] => {
+    return trips.filter(trip =>
       trip.schedules.some(schedule => schedule.driver_id === driverId)
     )
   }
@@ -53,7 +53,7 @@ const Drivers = () => {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this driver?')) return
 
     try {
@@ -83,7 +83,7 @@ const Drivers = () => {
     const query = searchQuery.toLowerCase().trim()
     return drivers.filter((driver) => {
       const nameMatch = driver.full_name.toLowerCase().includes(query)
-      const phoneMatch = driver.phone.toLowerCase().includes(query)
+      const phoneMatch = driver.phone_number.toLowerCase().includes(query)
       return nameMatch || phoneMatch
     })
   }, [drivers, searchQuery])
@@ -158,11 +158,10 @@ const Drivers = () => {
                   )}
                 </div>
                 <span
-                  className={`px-2 py-1 text-xs font-medium rounded ${
-                    driver.is_active
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                  }`}
+                  className={`px-2 py-1 text-xs font-medium rounded ${driver.is_active
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                    : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                    }`}
                 >
                   {driver.is_active ? 'Active' : 'Inactive'}
                 </span>
@@ -171,16 +170,16 @@ const Drivers = () => {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Phone:</span>
-                  <span className="text-gray-900 dark:text-white font-medium">{driver.phone}</span>
+                  <span className="text-gray-900 dark:text-white font-medium">{driver.phone_number}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">License:</span>
-                  <span className="text-gray-900 dark:text-white font-medium">{driver.license_number}</span>
+                  <span className="text-gray-900 dark:text-white font-medium">{driver.driving_license_number}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">License Expiry:</span>
                   <span className="text-gray-900 dark:text-white font-medium">
-                    {new Date(driver.license_expiry).toLocaleDateString()}
+                    {new Date(driver.license_expiry_date).toLocaleDateString()}
                   </span>
                 </div>
                 {driver.emergency_contact_name && (
