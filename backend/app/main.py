@@ -3,8 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from app.database import engine, Base
-from app.routers import auth, vehicles, drivers, locations, trips, company
+from app.routers import auth, vehicles, drivers, locations, trips, company, agency
 import json
+from app import models, schemas
+from sqlalchemy.orm import Session
+from fastapi import Depends, HTTPException
+from app.schemas import UserUpdate
+from app.database import engine, Base, get_db
+from app.auth import get_current_user
+from fastapi import APIRouter, status
+from datetime import datetime, timedelta
+from typing import List
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -69,6 +78,7 @@ app.include_router(drivers.router, prefix="/api/drivers", tags=["Drivers"])
 app.include_router(locations.router, prefix="/api/locations", tags=["Location Tracking"])
 app.include_router(trips.router, prefix="/api/trips", tags=["Trips"])
 app.include_router(company.router, prefix="/api/companies", tags=["Companies"])
+app.include_router(agency.router, prefix="/api/agency", tags=["Agency"])
 
 @app.get("/")
 async def root():
@@ -77,4 +87,48 @@ async def root():
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.get("/users/{parent_id}", response_model=List[schemas.User])
+def get_users_by_parent(parent_id: str, db: Session = Depends(get_db)):
+    users = db.query(models.User).filter(models.User.parent_id == parent_id).all()
+    return users
+
+
+
+@app.get("/users", response_model=list[schemas.User])
+def get_users(db: Session = Depends(get_db)):
+    return db.query(models.User).all()
+
+
+
+@app.put("/users/{user_id}/role", response_model=schemas.UserRoleUpdate)
+def update_user_role(
+    user_id: str,
+    data: schemas.UserRoleUpdate,
+    db: Session = Depends(get_db)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.role = data.role
+    db.commit()
+    db.refresh(user)
+
+    return {"role": user.role}
+
+
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: str, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.delete(user)
+    db.commit()
+
+    return {"message": "User deleted permanently"}
 

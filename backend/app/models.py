@@ -215,6 +215,8 @@ class Agency(Base):
     plan = Column(String, nullable=True)
     subscription = Column(String, nullable=True)
     status = Column(String, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

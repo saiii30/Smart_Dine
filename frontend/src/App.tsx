@@ -10,6 +10,9 @@ import Drivers from './pages/Drivers'
 import Trips from './pages/Trips'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
+import Users from './pages/Users'
+import PricingSection from './pages/PricesSection'
+
 
 function App() {
   return (
@@ -33,6 +36,8 @@ function App() {
               <Route path="vehicles" element={<Vehicles />} />
               <Route path="drivers" element={<Drivers />} />
               <Route path="trips" element={<Trips />} />
+                <Route path="users" element={<Users />} />
+              <Route path="prices" element={<PricingSection />} />
             </Route>
           </Routes>
         </Router>
