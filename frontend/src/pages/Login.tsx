@@ -68,6 +68,9 @@ const Login = () => {
       ...prev,
       [name]: value
     }));
+    if(name === 'agencyId') {
+      localStorage.setItem('selectedAgencyId', value);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

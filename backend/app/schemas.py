@@ -500,6 +500,37 @@ class TripResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     schedules: List[TripScheduleResponse] = []
+
+class User(BaseModel):
+    id: str
+    email: EmailStr
+    name: str
+    role: UserRole          # ⬅️ REQUIRED
+    company_name: Optional[str] = None
+   
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None
+    company_name: Optional[str] = None
+
+class UserRoleUpdate(BaseModel):
+    role: UserRole
+
+class AgencyPlanUpdate(BaseModel):
+    plan_id: str
+    parent_id: str
+
+class AgencyOut(BaseModel):
+    id: str
+    agency_name: str
+    subscription_plan: str
+    status: str
+
+class UpdatePlanRequest(BaseModel):
+    plan_id: str
+    parent_id: str
     
     class Config:
         from_attributes = True

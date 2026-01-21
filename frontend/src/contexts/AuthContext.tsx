@@ -115,7 +115,7 @@ const login = async (data: LoginPayload) => {
         password,
         contact_number: contactNumber,
         agency_id: agencyId,
-        role: "ADMIN", // 🔥 REQUIRED BY DB CONSTRAINT
+        role: "SUPERVISOR", // 🔥 REQUIRED BY DB CONSTRAINT
       });
 
       // 🔁 Auto login after register
@@ -133,6 +133,8 @@ const login = async (data: LoginPayload) => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("selectedAgencyId");
     delete axios.defaults.headers.common.Authorization;
     window.location.href = "/login";
   };
