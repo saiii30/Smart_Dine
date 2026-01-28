@@ -12,6 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Users from './pages/Users'
 import PricingSection from './pages/PricesSection'
+import ITCompanyDashboard from './pages/ITCompanyDashboard'
 
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+         
             <Route
               path="/"
               element={
@@ -38,6 +40,7 @@ function App() {
               <Route path="trips" element={<Trips />} />
                 <Route path="users" element={<Users />} />
               <Route path="prices" element={<PricingSection />} />
+               <Route path="/ITCompanyDashboard" element={<ITCompanyDashboard />} />
             </Route>
           </Routes>
         </Router>

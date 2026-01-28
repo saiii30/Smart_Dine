@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
-import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Settings, RouteIcon } from 'lucide-react'
+import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Settings, RouteIcon, Building2 } from 'lucide-react'
 import SettingsModal from './SettingsModal'
 import { Wallet } from 'lucide-react'
 const Layout = () => {
@@ -20,10 +20,11 @@ const Layout = () => {
   { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
   { name: 'Drivers', href: '/drivers', icon: Users },
   { name: 'Trips', href: '/trips', icon: RouteIcon },
+  //{name: 'ITCompanyDashboard' , href: '/ITCompanyDashboard' , icon:Building2},
   
 
   ...(isSuperAdmin
-    ? [{ name: 'Users', href: '/users', icon: Users },{ name: "Prices", href: "/prices", icon: Wallet   }]
+    ? [{ name: 'Users', href: '/users', icon: Users },{ name: "Prices", href: "/prices", icon: Wallet   },{name: 'ITCompanyDashboard' , href: '/ITCompanyDashboard' , icon:Building2}]
     : []),
 ]
 

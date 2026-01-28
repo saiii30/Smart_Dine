@@ -6,6 +6,10 @@ from app.database import Base
 import enum
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
+# ADDED USER AND COMPANY CHANGES ID LINE OF CODE 29 AND 188 11,12
+
+def generate_uuid():
+    return str(uuid.uuid4())
 
 class UserRole(str, enum.Enum):
     SUPER_ADMIN = "SUPER_ADMIN"
@@ -25,8 +29,8 @@ class VehicleType(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
-    
-    id = Column(String, primary_key=True, index=True)
+    # //changing line 29 below with default=generate_uuid
+    id = Column(String, primary_key=True, index=True,default=generate_uuid )
     agency_id = Column(String, ForeignKey('agencies.id'), nullable=True, index=True)
     company_id = Column(String, ForeignKey('companies.id'), nullable=True, index=True)
     name = Column(String, nullable=False)
@@ -184,8 +188,9 @@ class DriverLocation(Base):
 
 class Company(Base):
     __tablename__ = "companies"
-    
-    id = Column(Text, primary_key=True, index=True)
+    # changing line 188 with     id = Column(text to String, primary_key=True, index=True, default=generate_uuid)
+    # id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     agency_id = Column(String, ForeignKey("agencies.id"), nullable=False)
     company_name = Column(Text, nullable=False)
     company_phone = Column(Text, nullable=True)
@@ -200,7 +205,7 @@ class Company(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    users = relationship("User", back_populates="company")
+    users = relationship("User", back_populates="company",cascade="all, delete-orphan")
     trips = relationship("Trip", back_populates="company", cascade="all, delete-orphan")
 
 class Agency(Base):

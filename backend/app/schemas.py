@@ -3,7 +3,7 @@ from fastapi import UploadFile
 from datetime import datetime
 from typing import Optional, List, Any, Dict, Union
 from app.models import UserRole  # Removed VehicleType as it's now a string
-
+# ADDED NEW LINES OF CODE 405 TO 443 FOR ITDASHBOARDCOMPANY
 # compatibility: prefer pydantic v2 `field_validator`, fall back to v1 `validator`
 try:
     from pydantic import field_validator
@@ -364,12 +364,14 @@ class CompanyBase(BaseModel):
     company_name: str
     company_phone: Optional[str] = None
     company_address: Optional[str] = None
-    company_EmailId: Optional[str] = None
+    company_email: Optional[str] = None
     company_branch: Optional[str] = None
     description: Optional[str] = None
     service_start_at: Optional[datetime] = None
     service_ended_at: Optional[datetime] = None
-    status: str = 'Inactive'
+   # status: str = 'Inactive'
+    status: Optional[str] = None
+
 
 class CompanyCreate(CompanyBase):
     pass
@@ -378,7 +380,7 @@ class CompanyUpdate(BaseModel):
     company_name: Optional[str] = None
     company_phone: Optional[str] = None
     company_address: Optional[str] = None
-    company_EmailId: Optional[str] = None
+    company_email: Optional[str] = None
     company_branch: Optional[str] = None
     description: Optional[str] = None
     subscription: Optional[str] = None
@@ -390,7 +392,7 @@ class CompanyResponse(CompanyBase):
     id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+    status: str
     class Config:
         from_attributes = True
 
@@ -402,7 +404,68 @@ class CompanyDropdown(BaseModel):
 
     class Config:
         from_attributes = True
+# added new schemas here
 
+# ==============================
+# Company + Admin User Creation
+# ==============================
+
+class CompanyWithAdminCreate(BaseModel):
+    # -------- Business Info (Company Table) --------
+    company_name: str
+    company_email: Optional[EmailStr] = None
+    company_phone: Optional[str] = None
+    company_address: Optional[str] = None
+    company_branch: Optional[str] = None
+    description: Optional[str] = None
+    service_start_at: Optional[datetime] = None
+    service_ended_at: Optional[datetime] = None
+    
+ 
+    # -------- Contact Person (Users Table) --------
+    contact_name: str
+    contact_email: EmailStr
+    contact_phone: str
+
+
+class CompanyWithAdminResponse(BaseModel):
+    id: str
+    company_name: str
+    company_email: Optional[EmailStr] = None
+    company_phone: Optional[str] = None
+    company_address: Optional[str] = None
+    company_branch: Optional[str] = None
+    description: Optional[str] = None
+    
+    service_start_at: Optional[datetime] = None
+    service_ended_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# ======================
+# Update Company + Admin
+# ======================
+class CompanyWithAdminUpdate(BaseModel):
+    # Company fields
+    company_name: Optional[str] = None
+    company_email: Optional[EmailStr] = None
+    company_phone: Optional[str] = None
+    company_address: Optional[str] = None
+    company_branch: Optional[str] = None
+    description: Optional[str] = None
+   
+    service_start_at: Optional[datetime] = None
+    service_ended_at: Optional[datetime] = None
+    status: Optional[str] = None
+
+    # Contact person fields (users table)
+    contact_name: Optional[str] = None
+    contact_email: Optional[EmailStr] = None
+    contact_phone: Optional[str] = None
+
+
+# end of new schemas
 
 # Lightweight schema for agency dropdown (id + agency_name only)
 class AgencyDropdown(BaseModel):
