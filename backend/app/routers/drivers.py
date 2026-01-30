@@ -5,22 +5,17 @@ from app.database import get_db
 from app import models, schemas, auth
 import shutil
 import os
-from datetime import datetime
-
-from typing import List, Optional, Union
-from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app import models, schemas, auth
-import shutil
-import os
+import re
+import logging
 from datetime import datetime
 import uuid
-# Import password hasher (assuming utils or auth has it)
-# We need to verify where get_password_hash is. checking auth.
-from app.auth import get_password_hash 
+from app.auth import get_password_hash
 
-router = APIRouter()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__) 
+
+router = APIRouter(tags=["Drivers"])
 
 # Helper to save upload file
 def save_upload_file(upload_file: UploadFile, destination_folder: str) -> str:
@@ -82,13 +77,27 @@ def map_driver_response(driver_obj: models.Driver, user_obj: models.User):
         updated_at=driver_obj.updated_at
     )
 
+def validate_phone_number(phone: str) -> str:
+    """Validate and clean phone number."""
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number is required")
+    
+    # Remove all non-digit characters
+    cleaned = ''.join(filter(str.isdigit, phone))
+    
+    # Check length (assuming 10-digit phone numbers)
+    if len(cleaned) != 10:
+        raise HTTPException(status_code=400, detail="Phone number must be 10 digits")
+    
+    return cleaned
+
 @router.post("/", response_model=schemas.DriverResponse, status_code=status.HTTP_201_CREATED)
 async def create_driver(
     full_name: str = Form(...),
     phone_number: str = Form(...),
     driving_license_number: str = Form(...),
     license_expiry_date: str = Form(...),
-    
+    password: str = Form(...),
     email: Optional[str] = Form(None),
     date_of_birth: Optional[str] = Form(None),
     gender: Optional[str] = Form(None),
@@ -120,16 +129,40 @@ async def create_driver(
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # Check if license exists
-    if db.query(models.Driver).filter(models.Driver.driving_license_number == driving_license_number).first():
-        raise HTTPException(status_code=400, detail="Driving license number already exists")
+    logger.info(f"Creating new driver: {full_name} ({phone_number})")
     
-    # Check if user (phone/email) exists?
-    # Ideally checking phone/email availability in User table
-    if db.query(models.User).filter(models.User.contact_number == phone_number).first():
-        # Edge case: If User exists but is not a driver? We could theoretically upgrade them, but for strictness let's error or assume separate user.
-        # Requirement: "A user may or may not be a driver".
-        raise HTTPException(status_code=400, detail="User with this phone number already exists")
+    # Clean and validate phone number
+    try:
+        phone_number = validate_phone_number(phone_number)
+    except HTTPException as e:
+        logger.error(f"Phone number validation failed: {e.detail}")
+        raise e
+    
+    # Check for existing driver with same license
+    existing_license = db.query(models.Driver).filter(
+        models.Driver.driving_license_number == driving_license_number
+    ).first()
+    
+    if existing_license:
+        logger.warning(f"Driver with license {driving_license_number} already exists")
+        raise HTTPException(
+            status_code=400,
+            detail="A driver with this license number already exists"
+        )
+    
+    # Check for existing user with same phone or email
+    existing_user = db.query(models.User).filter(
+        (models.User.contact_number == phone_number) | 
+        (models.User.email == email if email else False)
+    ).first()
+    
+    if existing_user:
+        conflict_field = "phone number" if existing_user.contact_number == phone_number else "email"
+        logger.warning(f"User with this {conflict_field} already exists")
+        raise HTTPException(
+            status_code=400,
+            detail=f"A user with this {conflict_field} already exists"
+        )
 
     # Date helper
     def parse_date(date_str: Optional[str]):
@@ -145,76 +178,123 @@ async def create_driver(
     parsed_license_expiry = parse_date(license_expiry_date)
     if not parsed_license_expiry: raise HTTPException(status_code=400, detail="Invalid license expiry date")
 
-    # File uploads
+    # Handle file uploads with error handling
     upload_dir = "uploads/drivers"
-    aadhar_path = save_upload_file(aadhar_document, upload_dir) if aadhar_document else None
-    photo_path = save_upload_file(driver_photo, upload_dir) if driver_photo else None
-    police_path = save_upload_file(police_verification_certificate, upload_dir) if police_verification_certificate else None
-    medical_path = save_upload_file(medical_fitness_certificate, upload_dir) if medical_fitness_certificate else None
+    aadhar_path = None
+    photo_path = None
+    police_path = None
+    medical_path = None
+    
+    try:
+        if aadhar_document:
+            aadhar_path = save_upload_file(aadhar_document, upload_dir)
+        if driver_photo:
+            photo_path = save_upload_file(driver_photo, upload_dir)
+        if police_verification_certificate:
+            police_path = save_upload_file(police_verification_certificate, upload_dir)
+        if medical_fitness_certificate:
+            medical_path = save_upload_file(medical_fitness_certificate, upload_dir)
+    except Exception as e:
+        logger.error(f"File upload failed: {str(e)}")
+        # Clean up any uploaded files if one fails
+        for path in [aadhar_path, photo_path, police_path, medical_path]:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except:
+                    pass
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process file uploads: {str(e)}"
+        )
 
     v_id = int(assigned_vehicle_id) if assigned_vehicle_id and assigned_vehicle_id.isdigit() else None
 
-    # 1. Create User
-    new_user_id = str(uuid.uuid4())
-    # Default password
-    hashed_pwd = get_password_hash("Driver@123")
-    
-    # Get the agency_id from the current user
-    # The driver will belong to the same agency as the current user
-    agency_id = current_user.agency_id if hasattr(current_user, 'agency_id') else None
-    
-    new_user = models.User(
-        id=new_user_id,
-        name=full_name,
-        email=email,
-        contact_number=phone_number,
-        password_hash=hashed_pwd,
-        role=models.UserRole.DRIVER,
-        is_active=(status == 'Active'),
-        agency_id=agency_id
-    )
-    db.add(new_user)
-    
-    # 2. Create Driver
-    new_driver = models.Driver(
-        id=new_user_id, # Link IDs
-        # Removed full_name, etc.
-        driving_license_number=driving_license_number,
-        license_expiry_date=parsed_license_expiry,
-        date_of_birth=parse_date(date_of_birth),
-        gender=gender,
-        blood_group=blood_group,
-        aadhar_number=aadhar_number,
-        verification_status=verification_status,
-        status=status,
-        current_address=current_address,
-        city=city,
-        state=state,
-        pincode=pincode,
-        emergency_contact_name=emergency_contact_name,
-        emergency_contact_number=emergency_contact_number,
-        previous_employer_experience=previous_employer_experience,
-        languages_spoken=languages_spoken,
-        shift_preference=shift_preference,
-        assigned_vehicle_id=v_id,
-        notes=notes,
-        aadhar_document=aadhar_path,
-        driver_photo=photo_path,
-        police_verification_certificate=police_path,
-        medical_fitness_certificate=medical_path
-    )
-    db.add(new_driver)
-    
+    # Create user and driver in a transaction
     try:
+        # 1. Create User
+        new_user_id = str(uuid.uuid4())
+        if not password:
+            raise HTTPException(status_code=400, detail="Password is required")
+        hashed_pwd = get_password_hash(password)
+        # Get the agency_id from the current user
+        agency_id = getattr(current_user, 'agency_id', None)
+        
+        new_user = models.User(
+            id=new_user_id,
+            name=full_name,
+            email=email,
+            contact_number=phone_number,
+            password_hash=hashed_pwd,
+            role=models.UserRole.DRIVER,
+            is_active=(status == 'Active'),
+            agency_id=agency_id
+        )
+        db.add(new_user)
+    
+        # 2. Create Driver
+        new_driver = models.Driver(
+            id=new_user_id,
+            agency_id=agency_id,
+            driving_license_number=driving_license_number,
+            license_expiry_date=parsed_license_expiry,
+            date_of_birth=parse_date(date_of_birth),
+            gender=gender,
+            blood_group=blood_group,
+            aadhar_number=aadhar_number,
+            verification_status=verification_status,
+            status=status,
+            current_address=current_address,
+            city=city,
+            state=state,
+            pincode=pincode,
+            emergency_contact_name=emergency_contact_name,
+            emergency_contact_number=emergency_contact_number,
+            previous_employer_experience=previous_employer_experience,
+            languages_spoken=languages_spoken,
+            shift_preference=shift_preference,
+            assigned_vehicle_id=v_id,
+            notes=notes,
+            aadhar_document=aadhar_path,
+            driver_photo=photo_path,
+            police_verification_certificate=police_path,
+            medical_fitness_certificate=medical_path
+        )
+        db.add(new_driver)
+        
+        # Commit the transaction
         db.commit()
+        db.refresh(new_user)
+        db.refresh(new_driver)
+        
+        logger.info(f"Successfully created driver {new_user_id}")
+        return map_driver_response(new_driver, new_user)
+        
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        logger.error(f"Error creating driver: {str(e)}", exc_info=True)
         
-    db.refresh(new_user)
-    db.refresh(new_driver)
-    
-    return map_driver_response(new_driver, new_user)
+        # Clean up uploaded files if any
+        for path in [aadhar_path, photo_path, police_path, medical_path]:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except:
+                    pass
+        
+        error_detail = str(e)
+        if "UNIQUE constraint failed" in error_detail:
+            if "users.email" in error_detail:
+                error_detail = "Email already in use"
+            elif "users.contact_number" in error_detail:
+                error_detail = "Phone number already in use"
+            elif "drivers.driving_license_number" in error_detail:
+                error_detail = "Driving license number already exists"
+        
+        raise HTTPException(
+            status_code=400 if "already exists" in error_detail.lower() else 500,
+            detail=error_detail
+        )
 
 @router.get("/", response_model=List[schemas.DriverResponse])
 def read_drivers(

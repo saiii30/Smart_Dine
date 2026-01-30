@@ -47,6 +47,20 @@ def delete_old_file(file_path: str) -> None:
         except Exception as e:
             print(f"Error deleting file {file_path}: {e}")
 
+def sanitize_vehicle_obj(vehicle: Any) -> Any:
+    """Helper to sanitize vehicle object fields for response validation"""
+    if vehicle and hasattr(vehicle, 'seating_capacity') and isinstance(vehicle.seating_capacity, str):
+        try:
+            val = vehicle.seating_capacity
+            if '+' in val:
+                # Handle "4+1" format -> 5
+                vehicle.seating_capacity = sum(int(x.strip()) for x in val.split('+') if x.strip().isdigit())
+            else:
+                vehicle.seating_capacity = int(val)
+        except (ValueError, TypeError):
+            pass
+    return vehicle
+
 def process_vehicle_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
     """Process and validate form data for vehicle creation/update"""
     # Filter out UploadFile objects and empty values
@@ -81,7 +95,11 @@ def process_vehicle_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
     for field in int_fields:
         if field in data and data[field] is not None:
             try:
-                data[field] = int(data[field])
+                val = str(data[field])
+                if field == 'seating_capacity' and '+' in val:
+                    data[field] = sum(int(x.strip()) for x in val.split('+') if x.strip().isdigit())
+                else:
+                    data[field] = int(data[field])
             except (ValueError, TypeError):
                 pass
     
@@ -189,6 +207,10 @@ def get_vehicles(
     vehicles = db.query(models.Vehicle).filter(
         models.Vehicle.user_id == current_user.id
     ).offset(skip).limit(limit).all()
+
+    # Sanitize data for response
+    for v in vehicles:
+        sanitize_vehicle_obj(v)
     return vehicles
 
 @router.get(

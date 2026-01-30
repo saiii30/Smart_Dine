@@ -6,6 +6,7 @@ from app.database import Base
 import enum
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
+from sqlalchemy import Time
 # ADDED USER AND COMPANY CHANGES ID LINE OF CODE 29 AND 188 11,12
 
 def generate_uuid():
@@ -46,7 +47,7 @@ class User(Base):
     # Relationships
     vehicles = relationship("Vehicle", back_populates="user")
     driver = relationship("Driver", back_populates="user", uselist=False)
-    trips = relationship("Trip", back_populates="user")
+    trip_schedules = relationship("TripSchedule", back_populates="user")
     agency = relationship("Agency", back_populates="users")
     company = relationship("Company", back_populates="users")
 
@@ -115,8 +116,8 @@ class Vehicle(Base):
     # Relationships
     user = relationship("User", back_populates="vehicles")
     location_updates = relationship("DriverLocation", back_populates="vehicle", cascade="all, delete-orphan")
-    trips = relationship("Trip", back_populates="vehicle", cascade="all, delete")
-    schedules = relationship("TripSchedule", back_populates="vehicle")
+    trip_schedules = relationship("TripSchedule", back_populates="vehicle")
+
 class Driver(Base):
     __tablename__ = "drivers"
     
@@ -206,7 +207,7 @@ class Company(Base):
     
     # Relationships
     users = relationship("User", back_populates="company",cascade="all, delete-orphan")
-    trips = relationship("Trip", back_populates="company", cascade="all, delete-orphan")
+    trip_schedules = relationship("TripSchedule", back_populates="company")
 
 class Agency(Base):
     __tablename__ = "agencies"
@@ -228,44 +229,42 @@ class Agency(Base):
     # Relationships
     users = relationship("User", back_populates="agency")
 
-class Trip(Base):
-    __tablename__ = "trips"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    company_id = Column(String, ForeignKey("companies.id"), nullable=False)
-    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)  # Make this nullable if a trip can exist without a vehicle
-    trip_code = Column(String, unique=True, index=True, nullable=False)  # Auto-generated Trip ID
-    name = Column(String, nullable=False)
-    address = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    # Relationships
-    user = relationship("User", back_populates="trips")
-    company = relationship("Company", back_populates="trips")
-    vehicle = relationship("Vehicle", back_populates="trips", foreign_keys=[vehicle_id])
-    schedules = relationship("TripSchedule", back_populates="trip", cascade="all, delete-orphan")
-
-
-
-
 class TripSchedule(Base):
     __tablename__ = "trip_schedules"
     
-    id = Column(Integer, primary_key=True, index=True)
-    trip_id = Column(Integer, ForeignKey("trips.id"), nullable=False)
-    destination = Column(String, nullable=False)
-    departure_datetime = Column(DateTime(timezone=True), nullable=False)  # Date and time
+    id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    agency_id = Column(String, ForeignKey("agencies.id"), nullable=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    company_id = Column(String, ForeignKey("companies.id"), nullable=False)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
     driver_id = Column(String, ForeignKey("drivers.id"), nullable=True)
+    
+    # Trip information
+    company_name = Column(String, nullable=False)
+    company_branch = Column(Text, nullable=True)
+    
+    # Schedule information
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    start_time = Column(Time(timezone=True), nullable=True)
+    end_time = Column(Time(timezone=True), nullable=True)
+    starting_point = Column(String, nullable=True)
+    end_point = Column(String, nullable=True)
+    way = Column(String, nullable=True)  # 'one_way' or 'two_way'
+    trip_type = Column(String, nullable=True)
     passenger_count = Column(Integer, nullable=False, default=0)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    
+    # Additional info
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    trip = relationship("Trip", back_populates="schedules")
-    vehicle = relationship("Vehicle", back_populates="schedules")
+    user = relationship("User", back_populates="trip_schedules")
+    company = relationship("Company", back_populates="trip_schedules")
+    vehicle = relationship("Vehicle", back_populates="trip_schedules")
     driver = relationship("Driver")
+    agency = relationship("Agency")

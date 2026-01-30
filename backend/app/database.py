@@ -1,48 +1,54 @@
+import os
+from pathlib import Path
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
-import os
+from dotenv import load_dotenv
 
-# Database URL - using SQLite for development with WAL mode enabled
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tms.db?mode=rwc&timeout=30&check_same_thread=false")
+# Load environment variables from .env file
+env_path = Path(__file__).parent.parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Database URL - using SQLite with the specified path
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+)
+
+# Print the database URL for debugging
+print(f"Using database at: {DATABASE_URL}")
 
 # Configure connection args for SQLite
 connect_args = {}
 if "sqlite" in DATABASE_URL:
     connect_args = {
-        "timeout": 30,  # 30 seconds timeout
+        "timeout": 30,
         "check_same_thread": False,
-        "isolation_level": None,  # Let SQLite handle transactions
-        "uri": True  # Enable URI format for connection string
+        "isolation_level": None,
+        "uri": True
     }
 
 # Create engine with connection pooling and other optimizations
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
-    poolclass=None,  # Don't use connection pooling with SQLite
-    echo=True,      # Enable SQL query logging for debugging
-    future=True     # Use SQLAlchemy 2.0 style APIs
+    poolclass=None,
+    echo=True,
+    future=True
 )
 
-# For SQLite, enable WAL journal mode and set busy timeout on each new connection
+# For SQLite, enable WAL journal mode and set busy timeout
 if "sqlite" in DATABASE_URL:
     @event.listens_for(engine, "connect")
     def _set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         try:
-            # Enable WAL mode for better concurrency
             cursor.execute("PRAGMA journal_mode=WAL")
             cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA cache_size=-2000")  # 2MB cache
+            cursor.execute("PRAGMA temp_store=MEMORY")
             cursor.execute("PRAGMA busy_timeout=30000")  # 30 seconds
-            cursor.execute("PRAGMA cache_size=-2000")    # 2MB cache
-            cursor.execute("PRAGMA foreign_keys=OFF")     # Disable foreign key constraints to allow SQLAlchemy to handle cascades
-            cursor.execute("PRAGMA temp_store=MEMORY")   # Store temp tables in memory
-            cursor.execute("PRAGMA journal_size_limit=32768")  # 32MB WAL file limit
+            cursor.close()
         except Exception as e:
-            print(f"Error setting SQLite PRAGMAs: {e}")
-        finally:
-            if cursor:
-                cursor.close()
+            print(f"Warning: Could not set SQLite PRAGMAs: {e}")
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -55,9 +61,5 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
-        db.commit()  # Ensure changes are committed
-    except Exception:
-        db.rollback()  # Rollback on error
-        raise
     finally:
-        db.close()  # Always close the session
+        db.close()
