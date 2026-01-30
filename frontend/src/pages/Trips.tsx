@@ -13,42 +13,103 @@ const Trips = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCompany, setSelectedCompany] = useState<string>('')
 
+  // Fetch trips and companies on mount
   useEffect(() => {
     fetchTrips()
     fetchCompanies()
   }, [])
 
-  const fetchTrips = async () => {
-    try {
-      const params = selectedCompany ? { company_id: parseInt(selectedCompany) } : {}
-      const response = await axios.get('/api/trips/', { params })
-      setTrips(response.data)
-    } catch (error) {
-      console.error('Failed to fetch trips:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Fetch trips whenever selected company changes
+  useEffect(() => {
+    fetchTrips()
+  }, [selectedCompany])
 
+ 
+
+  const fetchTrips = async () => {
+  try {
+    const response = await axios.get(
+      'http://127.0.0.1:8000/api/trip-schedules'
+    )
+
+    const schedules = Array.isArray(response.data) ? response.data : []
+
+    const tripMap: Record<string, Trip> = {}
+
+    schedules.forEach((sch: any) => {
+      const tripId = sch.trip_id || sch.id   // fallback safety
+
+      if (!tripId) return   // ⛔ skip bad data
+
+      if (!tripMap[tripId]) {
+        tripMap[tripId] = {
+          id: tripId,
+          
+          user_id: sch.user_id ?? '',
+          agency_id: sch.agency_id,
+          company_id: sch.company_id,
+          company_name: sch.company_name,
+          company_branch: sch.company_branch,
+
+          is_active: sch.is_active ?? true,
+          created_at: sch.created_at ?? new Date().toISOString(),
+
+          passenger_count: sch.passenger_count ?? 0,
+          schedules: [],
+        }
+      }
+
+      // push ONLY clean schedule object
+      tripMap[tripId].schedules.push({
+        id: sch.id,
+        trip_id: sch.trip_id,
+        start_date: sch.start_date,
+        end_date: sch.end_date,
+        start_time: sch.start_time,
+        end_time: sch.end_time,
+        starting_point: sch.starting_point,
+        end_point: sch.end_point,
+        way: sch.way,
+        trip_type: sch.trip_type,
+        passenger_count: sch.passenger_count ?? 0,
+        notes: sch.notes,
+        vehicle_id: sch.vehicle_id,
+        driver_id: sch.driver_id,
+        vehicle_registration_number: sch.vehicle_registration_number,
+        driver_name: sch.driver_name,
+        is_active: sch.is_active ?? true,
+        created_at: sch.created_at,
+        updated_at: sch.updated_at,
+      })
+    })
+
+    setTrips(Object.values(tripMap))
+  } catch (error) {
+    console.error('Failed to fetch trips:', error)
+  } finally {
+    setLoading(false)
+  }
+}
+
+
+  // Fetch companies
   const fetchCompanies = async () => {
     try {
-      const response = await axios.get('/api/trips/companies/')
+      const response = await axios.get('http://127.0.0.1:8000/api/trips/companies/')
       setCompanies(response.data)
     } catch (error) {
       console.error('Failed to fetch companies:', error)
     }
   }
 
-  useEffect(() => {
-    fetchTrips()
-  }, [selectedCompany])
-
+  // Modal handlers
   const handleCreate = () => {
     setEditingTrip(null)
     setIsModalOpen(true)
   }
 
   const handleEdit = (trip: Trip) => {
+    alert(trip.id)
     setEditingTrip(trip)
     setIsModalOpen(true)
   }
@@ -57,7 +118,7 @@ const Trips = () => {
     if (!confirm('Are you sure you want to delete this trip?')) return
 
     try {
-      await axios.delete(`/api/trips/${id}`)
+      await axios.delete(`http://127.0.0.1:8000/api/trip-schedules/${id}`)
       fetchTrips()
     } catch (error) {
       console.error('Failed to delete trip:', error)
@@ -81,11 +142,11 @@ const Trips = () => {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
       filtered = trips.filter((trip) => {
-        const nameMatch = trip.name.toLowerCase().includes(query)
+      
         const companyMatch = trip.company_name?.toLowerCase().includes(query)
         const addressMatch = trip.address?.toLowerCase().includes(query)
-        const codeMatch = trip.trip_code.toLowerCase().includes(query)
-        return nameMatch || companyMatch || addressMatch || codeMatch
+       
+        return   companyMatch || addressMatch 
       })
     }
     return filtered
@@ -101,6 +162,7 @@ const Trips = () => {
 
   return (
     <div>
+      {/* Header */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Trips</h1>
         <div className="flex flex-1 md:max-w-2xl items-center gap-4 w-full md:w-auto">
@@ -119,6 +181,7 @@ const Trips = () => {
               ))}
             </select>
           </div>
+
           {/* Search Bar */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-gray-500" />
@@ -130,6 +193,7 @@ const Trips = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
           </div>
+
           <button
             onClick={handleCreate}
             className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
@@ -140,6 +204,7 @@ const Trips = () => {
         </div>
       </div>
 
+      {/* Trip List */}
       {filteredTrips.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <MapPin className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
@@ -163,106 +228,111 @@ const Trips = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredTrips.map((trip) => (
-            <div
-              key={trip.id}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{trip.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{trip.company_name}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">ID: {trip.trip_code}</p>
-                </div>
-                <span
-                  className={`px-2 py-1 text-xs font-medium rounded ${
-                    trip.is_active
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                  }`}
-                >
-                  {trip.is_active ? 'Active' : 'Inactive'}
-                </span>
-              </div>
+          {filteredTrips.map((trip) => {
+            const schedules = trip.schedules ?? [] // ⚡ default to empty array
 
-              {trip.address && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
-                  {trip.address}
-                </p>
-              )}
-
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <MapPin className="mr-2 h-4 w-4" />
-                  <span>{trip.schedules.length} schedule{trip.schedules.length !== 1 ? 's' : ''}</span>
+            return (
+              <div
+                key={trip.id}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                   
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{trip.company_name}</p>
+                   
+                  </div>
+                  <span
+                    className={`px-2 py-1 text-xs font-medium rounded ${
+                      trip.is_active
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                        : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                    }`}
+                  >
+                    {trip.is_active ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
-                {trip.schedules.length > 0 && (
+
+                {trip.address && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+                    {trip.address}
+                  </p>
+                )}
+
+                <div className="space-y-2 mb-4">
                   <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                    <Users className="mr-2 h-4 w-4" />
+                    <MapPin className="mr-2 h-4 w-4" />
                     <span>
-                      {trip.schedules.reduce((sum, s) => sum + s.passenger_count, 0)} total passengers
+                      {schedules.length} schedule{schedules.length !== 1 ? 's' : ''}
                     </span>
                   </div>
-                )}
-              </div>
-
-              {/* Schedules Preview */}
-              {trip.schedules.length > 0 && (
-                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Schedules:</p>
-                  <div className="space-y-2">
-                    {trip.schedules.slice(0, 3).map((schedule, idx) => (
-                      <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600 pb-2 last:border-0">
-                        <div className="font-medium text-primary-600 dark:text-primary-400 mb-1">
-                          {trip.trip_code} - {schedule.destination}
-                        </div>
-                        <div className="text-gray-500 dark:text-gray-500">
-                          {new Date(schedule.departure_datetime).toLocaleString()}
-                        </div>
-                        {schedule.vehicle_number && (
-                          <div className="text-gray-500 dark:text-gray-500">
-                            Vehicle: {schedule.vehicle_number}
-                          </div>
-                        )}
-                        {schedule.driver_name && (
-                          <div className="text-gray-500 dark:text-gray-500">
-                            Driver: {schedule.driver_name}
-                          </div>
-                        )}
-                        {schedule.passenger_count > 0 && (
-                          <div className="text-gray-500 dark:text-gray-500">
-                            Passengers: {schedule.passenger_count}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {trip.schedules.length > 3 && (
-                      <div className="text-xs text-gray-500 dark:text-gray-500 pt-1">
-                        +{trip.schedules.length - 3} more
-                      </div>
-                    )}
-                  </div>
+                  {schedules.length > 0 && (
+                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                      <Users className="mr-2 h-4 w-4" />
+                      <span>{schedules.reduce((sum, s) => sum + (s.passenger_count ?? 0), 0)} total passengers</span>
+                    </div>
+                  )}
                 </div>
-              )}
 
-              <div className="flex space-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => handleEdit(trip)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(trip.id)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </button>
+                {/* Schedules Preview */}
+                {schedules.length > 0 && (
+                  <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                   
+                    <div className="space-y-2">
+                      {schedules.slice(0, 3).map((schedule, idx) => (
+                        <div
+                          key={idx}
+                          className="text-xs text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600 pb-2 last:border-0"
+                        >
+                          {/* <div className="font-medium text-primary-600 dark:text-primary-400 mb-1">
+                            {trip.trip_code} - {schedule.destination ?? 'No destination'}
+                          </div> */}
+                          {/* {schedule.departure_datetime && (
+                            <div className="text-gray-500 dark:text-gray-500">
+                              {new Date(schedule.departure_datetime).toLocaleString()}
+                            </div>
+                          )} */}
+                          {schedule.vehicle_number && (
+                            <div className="text-gray-500 dark:text-gray-500">
+                              Vehicle: {schedule.vehicle_number}
+                            </div>
+                          )}
+                          {schedule.driver_name && (
+                            <div className="text-gray-500 dark:text-gray-500">
+                              Driver: {schedule.driver_name}
+                            </div>
+                          )}
+                          {schedule.passenger_count > 0 && (
+                            <div className="text-gray-500 dark:text-gray-500">
+                              Passengers: {schedule.passenger_count}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                     
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex space-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => handleEdit(trip)}
+                    className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(trip.id)}
+                    className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -278,4 +348,3 @@ const Trips = () => {
 }
 
 export default Trips
-
