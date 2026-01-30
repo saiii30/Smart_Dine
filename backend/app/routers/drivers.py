@@ -97,7 +97,7 @@ async def create_driver(
     phone_number: str = Form(...),
     driving_license_number: str = Form(...),
     license_expiry_date: str = Form(...),
-    
+    password: str = Form(...),
     email: Optional[str] = Form(None),
     date_of_birth: Optional[str] = Form(None),
     gender: Optional[str] = Form(None),
@@ -214,10 +214,9 @@ async def create_driver(
     try:
         # 1. Create User
         new_user_id = str(uuid.uuid4())
-        # Default password (should be changed on first login)
-        default_password = "Driver@123"
-        hashed_pwd = get_password_hash(default_password)
-        
+        if not password:
+            raise HTTPException(status_code=400, detail="Password is required")
+        hashed_pwd = get_password_hash(password)
         # Get the agency_id from the current user
         agency_id = getattr(current_user, 'agency_id', None)
         
