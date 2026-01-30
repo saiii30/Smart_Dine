@@ -99,7 +99,7 @@ async def health_check():
 # -------------------- Users --------------------
 @app.get("/users/{parent_id}", response_model=List[schemas.User])
 def get_users_by_parent(parent_id: str, db: Session = Depends(get_db)):
-    users = db.query(models.User).filter(models.User.parent_id == parent_id).all()
+    users = db.query(models.User).filter(models.User.agency_id == parent_id).all()
     return users
 
 @app.get("/users", response_model=list[schemas.User])

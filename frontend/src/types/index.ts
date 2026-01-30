@@ -16,6 +16,9 @@ export interface Vehicle {
   vehicle_type: string
   vehicle_brand: string
   vehicle_model: string
+  vehicle_number : string
+  make: string
+  model: string
   manufacturing_year: number
   color?: string
   vehicle_registration_number: string
@@ -114,8 +117,7 @@ export interface Company {
 export interface TripSchedule {
   id: number
   trip_id: number
-  destination: string
-  departure_datetime: string
+  
   vehicle_id?: number
   driver_id?: string
   passenger_count: number
@@ -124,18 +126,30 @@ export interface TripSchedule {
   updated_at?: string
   vehicle_number?: string
   driver_name?: string
+  start_date?: string
+  end_date?: string
+  starting_point?: string
+  end_point?: string
+  start_time?: string
+  end_time?: string
+  way?: string
+  trip_type?: string
+  vehicle_registration_number?: string
+  is_active: boolean
+  
 }
 
 export interface Trip {
   id: number
   user_id: string
   company_id: string
-  trip_code: string
-  name: string
   address?: string
   is_active: boolean
   created_at: string
   updated_at?: string
   company_name?: string
+  agency_id?: string
+  company_branch?: string
+  passenger_count?: number
   schedules: TripSchedule[]
 }
