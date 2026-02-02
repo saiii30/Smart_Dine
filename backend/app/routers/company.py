@@ -26,6 +26,28 @@ def generate_password(length: int = 10) -> str:
     return "".join(secrets.choice(chars) for _ in range(length))
 
 
+# ------------------Trip Dropdown  ------------------
+@router.get("/trip/dropdown", response_model=List[schemas.CompanyDropdown])
+def get_company_dropdown(agency_id: str, db: Session = Depends(get_db)):
+   
+    if not agency_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="agency_id is required"
+        )
+    
+    companies = db.query(models.Company)\
+        .filter(models.Company.agency_id == agency_id)\
+        .all()
+    
+    return [{
+        "id": company.id, 
+        "company_name": company.company_name, 
+        "company_branch": company.company_branch,
+        "agency_id": company.agency_id  # Include agency_id in the response
+    } for company in companies]
+
+
 # ------------------ Dropdown ------------------
 @router.get("/dropdown", response_model=List[schemas.CompanyDropdown])
 def get_company_dropdown(db: Session = Depends(get_db)):
