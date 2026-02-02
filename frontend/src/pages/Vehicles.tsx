@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import axios from 'axios'
 import { Plus, Edit, Trash2, Car, Search } from 'lucide-react'
-import { Vehicle, VehicleType, Trip } from '../types'
+import { Vehicle, Trip } from '../types'
 import VehicleModal from '../components/VehicleModal'
 
 const Vehicles = () => {
@@ -14,7 +14,7 @@ const Vehicles = () => {
 
   useEffect(() => {
     fetchVehicles()
-    //fetchTrips()
+    fetchTrips()
   }, [])
 
   const fetchVehicles = async () => {
@@ -38,11 +38,12 @@ const Vehicles = () => {
   }
 
   const getVehicleTrips = (vehicleId: number): Trip[] => {
-    return trips.filter(trip => 
+    return trips.filter(trip =>
       trip.schedules.some(schedule => schedule.vehicle_id === vehicleId)
     )
   }
 
+  
   const handleCreate = () => {
     setEditingVehicle(null)
     setIsModalOpen(true)
@@ -75,8 +76,9 @@ const Vehicles = () => {
     handleModalClose()
   }
 
-  const getVehicleTypeColor = (type: VehicleType) => {
-    const colors: Record<VehicleType, string> = {
+  const getVehicleTypeColor = (type: string) => {
+    // Basic mapping, fallback to gray
+    const colors: Record<string, string> = {
       Sedan: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
       SUV: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
       Van: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
@@ -84,7 +86,9 @@ const Vehicles = () => {
       Mini_Bus: 'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300',
       Hatchback: 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
     }
-    return colors[type] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+    // Try to match somewhat flexibly since backend returns capitalized strings but we might have casing differences
+    const key = Object.keys(colors).find(k => k.toLowerCase() === type.replace(' ', '_').toLowerCase());
+    return key ? colors[key] : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
   }
 
   // Filter vehicles based on search query (vehicle number and model)
@@ -94,8 +98,8 @@ const Vehicles = () => {
     }
     const query = searchQuery.toLowerCase().trim()
     return vehicles.filter((vehicle) => {
-      const vehicleNumberMatch = vehicle.vehicle_number.toLowerCase().includes(query)
-      const modelMatch = vehicle.model.toLowerCase().includes(query)
+      const vehicleNumberMatch = vehicle.vehicle_registration_number.toLowerCase().includes(query)
+      const modelMatch = vehicle.vehicle_model.toLowerCase().includes(query)
       const typeMatch = vehicle.vehicle_type.toLowerCase().includes(query)
       return vehicleNumberMatch || modelMatch || typeMatch
     })
@@ -165,9 +169,9 @@ const Vehicles = () => {
             >
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{vehicle.vehicle_number}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{vehicle.vehicle_registration_number}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {vehicle.make} {vehicle.model} ({vehicle.year})
+                    {vehicle.vehicle_brand} {vehicle.vehicle_model} ({vehicle.manufacturing_year})
                   </p>
                 </div>
                 <span
@@ -182,7 +186,7 @@ const Vehicles = () => {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Registration:</span>
-                  <span className="text-gray-900 dark:text-white font-medium">{vehicle.registration_number}</span>
+                  <span className="text-gray-900 dark:text-white font-medium">{vehicle.vehicle_registration_number}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Capacity:</span>
@@ -191,11 +195,10 @@ const Vehicles = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Status:</span>
                   <span
-                    className={`font-medium ${
-                      vehicle.is_active ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}
+                    className={`font-medium ${vehicle.is_active ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}
                   >
-                    {vehicle.is_active ? 'Active' : 'Inactive'}
+                    {vehicle.vehicle_status}
                   </span>
                 </div>
                 {getVehicleTrips(vehicle.id).length > 0 && (

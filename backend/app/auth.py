@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import re
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -85,15 +86,47 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
-def authenticate_user(db: Session, email: str, password: str):
-    user = get_user_by_email(db, email)
+def get_user_by_phone(db: Session, phone: str):
+    return db.query(models.User).filter(models.User.contact_number == phone).first()
+
+def _normalize_phone(value: str) -> str:
+    # Remove spaces, dashes and parentheses
+    return re.sub(r"[\s\-()]+", "", value)
+
+def _is_email(value: str) -> bool:
+    # Simple email detection
+    if not value or '@' not in value:
+        return False
+    return re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", value) is not None
+
+def _is_mobile(value: str) -> bool:
+    if not value:
+        return False
+    v = _normalize_phone(value)
+    # Accept numbers with optional leading + and between 7 and 15 digits
+    return re.match(r"^\+?\d{7,15}$", v) is not None
+
+def authenticate_user(db: Session, username: str, password: str):
+    # Determine whether username is email or mobile, then lookup
+    user = None
+    if _is_email(username):
+        user = get_user_by_email(db, username)
+    elif _is_mobile(username):
+        # normalize phone before lookup
+        phone = _normalize_phone(username)
+        user = get_user_by_phone(db, phone)
+    else:
+        # Fallback: try email first, then phone
+        user = get_user_by_email(db, username) or get_user_by_phone(db, username)
 
     if not user:
         return False
-    if not verify_password(password, user.hashed_password):
+    if not verify_password(password, user.password_hash):
         return False
-    
+
     return user
+
+
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -104,17 +137,22 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        user_id: str = payload.get("sub")   # <-- sub must be user.id
+        if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    user = get_user_by_email(db, email=email)
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
     if user is None:
         raise credentials_exception
     return user
+
+
+
 
 async def get_current_active_user(
     current_user: models.User = Depends(get_current_user)
