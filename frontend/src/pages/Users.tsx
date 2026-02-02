@@ -25,18 +25,38 @@ useEffect(() => {
   }
 }, [loggedInUser])
 
+// const fetchUsers = async () => {
+//   const parentId = localStorage.getItem("selectedAgencyId")
+//   const res = await axios.get(
+//     `http://127.0.0.1:8000/users/${parentId}`
+//   )
+
+//   setUsers(
+//     res.data.filter(
+//       (u: AppUser) => u.id !== loggedInUser.id.toString()
+//     )
+//   )
+// }
+
 const fetchUsers = async () => {
   const parentId = localStorage.getItem("selectedAgencyId")
-  const res = await axios.get(
-    `http://127.0.0.1:8000/users/${parentId}`
-  )
+  if (!parentId) return
 
-  setUsers(
-    res.data.filter(
-      (u: AppUser) => u.id !== loggedInUser.id
+  try {
+    const res = await axios.get<AppUser[]>(
+      `http://127.0.0.1:8000/users/${parentId}`
     )
-  )
+
+    setUsers(
+      res.data.filter(
+        (u: AppUser) => loggedInUser ? u.id !== loggedInUser.id.toString() : true
+      )
+    )
+  } catch (err) {
+    console.error("Failed to fetch users:", err)
+  }
 }
+
 
 
   const [searchQuery, setSearchQuery] = useState('')

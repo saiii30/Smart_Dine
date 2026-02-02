@@ -30,6 +30,10 @@ const Register = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
+
+    if(e.target.name === "parentId"){
+      localStorage.setItem("selectedAgencyId", e.target.value)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
