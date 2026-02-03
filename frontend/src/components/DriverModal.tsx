@@ -1,11 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
-import { X } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import { X, Upload, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react'
 import { Driver } from '../types'
-
-
-
-
 interface DriverModalProps {
   driver: Driver | null
   onClose: () => void
@@ -13,8 +10,6 @@ interface DriverModalProps {
 }
 
 const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
-
-
   const labelStyle = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5";
   const inputStyle = "w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all";
 
@@ -26,16 +21,40 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     </label>
   );
 
-
+  // --- State ---
   const [activeTab, setActiveTab] = useState('static-info');
-  const [isEditing] = useState(!!(driver as any)?.id);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Alert State ---
+  const [alertState, setAlertState] = useState<{
+    isOpen: boolean;
+    type: 'alert' | 'confirm' | 'success' | 'error';
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }>({ isOpen: false, type: 'alert', title: '', message: '' });
+
+  const showAlert = (title: string, message: string, type: 'alert' | 'success' | 'error' = 'alert', onCloseCallback?: () => void) => {
+    setAlertState({ isOpen: true, type, title, message, onConfirm: undefined, onClose: onCloseCallback });
+  };
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setAlertState({ isOpen: true, type: 'confirm', title, message, onConfirm });
+  };
+
+  const closeAlert = () => {
+    const callback = alertState.onClose;
+    setAlertState(prev => ({ ...prev, isOpen: false }));
+    if (callback) callback();
+  };
 
   const DRAFT_KEY = 'driver_modal_draft_v1';
 
+  // --- Form State ---
   const [draft, setDraft] = useState<Record<string, any>>({
     full_name: '',
     phone_number: '',
-    password: '',
     date_of_birth: '',
     gender: '',
     aadhar_number: '',
@@ -58,12 +77,22 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     shift_preference: '',
     status: 'Active',
     assigned_vehicle_id: '',
-    showPassword: false
   });
 
   // Track actual File objects for uploads (not saved to localStorage)
-  const [files, setFiles] = useState<{ aadhar_document?: File | null; driver_photo?: File | null; police_verification_certificate?: File | null; medical_fitness_certificate?: File | null }>({ aadhar_document: null, driver_photo: null, police_verification_certificate: null, medical_fitness_certificate: null });
+  const [files, setFiles] = useState<{
+    aadhar_document?: File | null;
+    driver_photo?: File | null;
+    police_verification_certificate?: File | null;
+    medical_fitness_certificate?: File | null
+  }>({
+    aadhar_document: null,
+    driver_photo: null,
+    police_verification_certificate: null,
+    medical_fitness_certificate: null
+  });
 
+  // --- Effects ---
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
@@ -103,6 +132,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     setDraft(prev => ({ ...prev, ...mapped }));
   }, [driver]);
 
+  // --- Handlers ---
   const saveDraft = (patch: Partial<Record<string, any>>) => {
     setDraft(prev => {
       const next = { ...prev, ...patch };
@@ -141,94 +171,108 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     try { localStorage.removeItem(DRAFT_KEY) } catch (e) { }
   };
 
+  const downloadTemplate = () => {
+    const headers = [
+      'Full Name', 'Phone Number', 'Date of Birth', 'Gender', 'Aadhar Number',
+      'License Number', 'License Expiry', 'Blood Group', 'Status', 'Shift Preference',
+      'Current Address', 'City', 'State', 'Pincode'
+    ];
+    const sampleRow = [
+      'John Doe', '9876543210', '1990-01-01', 'Male', '123456789012',
+      'DL1234567890', '2030-12-31', 'O+', 'Active', 'Morning',
+      '123 Main St', 'Chennai', 'Tamil Nadu', '600001'
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Driver_Upload_Template.xlsx");
+  };
+
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input so the same file can be selected again if needed
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      if (jsonData.length === 0) {
+        showAlert('Empty File', 'The file appears to be empty.', 'error');
+        return;
+      }
+
+      const requiredHeaders = ['Full Name', 'Phone Number', 'License Number'];
+      const firstRow = jsonData[0];
+      const isValidFormat = requiredHeaders.every(header => Object.prototype.hasOwnProperty.call(firstRow, header));
+
+      if (!isValidFormat) {
+        showAlert('Invalid Format', "Your Excel/Google Sheet format not matching our template, Please download Our standard format", 'error');
+        return;
+      }
+
+      showConfirm('Confirm Upload', `Found ${jsonData.length} records. Proceed with upload?`, async () => {
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of jsonData) {
+          try {
+            const formData = new FormData();
+            formData.append('full_name', row['Full Name'] || '');
+            formData.append('phone_number', String(row['Phone Number'] || ''));
+            if (row['Date of Birth']) formData.append('date_of_birth', row['Date of Birth']);
+            formData.append('gender', row['Gender'] || 'Male');
+            formData.append('aadhar_number', String(row['Aadhar Number'] || ''));
+            formData.append('driving_license_number', row['License Number'] || '');
+            if (row['License Expiry']) formData.append('license_expiry_date', row['License Expiry']);
+            formData.append('blood_group', row['Blood Group'] || '');
+            formData.append('status', row['Status'] || 'Active');
+            formData.append('shift_preference', row['Shift Preference'] || '');
+            formData.append('current_address', row['Current Address'] || '');
+            formData.append('city', row['City'] || '');
+            formData.append('state', row['State'] || '');
+            formData.append('pincode', String(row['Pincode'] || ''));
+
+            await axios.post('/api/drivers/', formData);
+            successCount++;
+          } catch (err) {
+            failCount++;
+          }
+        }
+        showAlert('Upload Complete', `Success: ${successCount}\nFailed: ${failCount}`, 'success', () => {
+          onSuccess();
+          onClose();
+        });
+      });
+    } catch (error) {
+      showAlert('Error', 'Failed to process file', 'error');
+    }
+  };
+
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>, key: keyof typeof files, nameKey: keyof typeof draft) => {
     const file = e.target.files?.[0] || null
     setFiles(prev => ({ ...prev, [key]: file }))
     saveDraft({ [nameKey]: file?.name || '' })
   }
 
-  // Function to generate a secure random password
-  const generatePassword = (length = 12) => {
-    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
-    const numbers = '0123456789';
-    const special = '!@#$%^&*';
-    
-    const allChars = uppercase + lowercase + numbers + special;
-    let password = '';
-    
-    // Ensure at least one character from each set
-    password += uppercase[Math.floor(Math.random() * uppercase.length)];
-    password += lowercase[Math.floor(Math.random() * lowercase.length)];
-    password += numbers[Math.floor(Math.random() * numbers.length)];
-    password += special[Math.floor(Math.random() * special.length)];
-    
-    // Fill the rest of the password
-    for (let i = 4; i < length; i++) {
-      password += allChars[Math.floor(Math.random() * allChars.length)];
-    }
-    
-    // Shuffle the password to mix the required characters
-    return password.split('').sort(() => Math.random() - 0.5).join('');
-  };
-
-  // Function to copy password to clipboard
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert('Password copied to clipboard!');
-    } catch (err) {
-      console.error('Failed to copy password: ', err);
-    }
-  };
-
-  // Function to check password strength
-  const getPasswordStrength = (password: string) => {
-    if (!password) return 0;
-    let strength = 0;
-    if (password.length >= 8) strength += 1;
-    if (/[A-Z]/.test(password)) strength += 1;
-    if (/[0-9]/.test(password)) strength += 1;
-    if (/[^A-Za-z0-9]/.test(password)) strength += 1;
-    return strength;
-  };
-
-  // Pre-fill password for new drivers
-  useEffect(() => {
-    if (!isEditing && !draft.password) {
-      saveDraft({ password: generatePassword() });
-    }
-  }, [isEditing]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const payload = new FormData();
-      
-      // Only include password in payload if it's a new driver or if it was changed
-      const { showPassword, ...draftWithoutShowPassword } = draft;
-      Object.entries(draftWithoutShowPassword).forEach(([k, v]) => { 
-        if (v !== undefined && v !== null) payload.append(k, String(v)) 
-      });
-      
-      // Add files to form data
+      Object.entries(draft).forEach(([k, v]) => { if (v !== undefined && v !== null) payload.append(k, String(v)) });
       if (files.aadhar_document) payload.append('aadhar_document', files.aadhar_document);
       if (files.driver_photo) payload.append('driver_photo', files.driver_photo);
       if (files.police_verification_certificate) payload.append('police_verification_certificate', files.police_verification_certificate);
       if (files.medical_fitness_certificate) payload.append('medical_fitness_certificate', files.medical_fitness_certificate);
 
-      if (isEditing) {
-        // For updates, only include password if it was changed
-        if (!draft.password) {
-          payload.delete('password'); // Don't update password if field is empty
-        }
+      if ((driver as any)?.id) {
         await axios.put(`/api/drivers/${(driver as any).id}`, payload);
       } else {
-        // For new drivers, require a password
-        if (!draft.password) {
-          alert('Please enter a password');
-          return;
-        }
         await axios.post('/api/drivers/', payload);
       }
 
@@ -237,7 +281,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       onClose();
     } catch (error: any) {
       console.error('Failed to save driver:', error);
-      alert(error.response?.data || 'Failed to save driver');
+      showAlert('Submission Failed', typeof error.response?.data === 'string' ? error.response.data : 'Failed to save driver', 'error');
     }
   }
 
@@ -253,7 +297,22 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage driver identity, documents and assignments</p>
             <p className="text-xs text-gray-500 mt-2"><span className="text-red-600 font-bold">*</span> Required fields — fields labeled <span className="text-gray-400">(optional)</span> are not mandatory.</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-400"><X size={24} /></button>
+          <div className="flex items-center gap-2">
+            {!driver && (
+              <>
+                <button onClick={downloadTemplate} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Download Template">
+                  <Download size={18} />
+                  <span className="hidden sm:inline">Template</span>
+                </button>
+                <input type="file" ref={fileInputRef} onChange={handleBulkUpload} className="hidden" accept=".xlsx,.xls,.csv" />
+                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors" title="Bulk Upload">
+                  <Upload size={18} />
+                  <span className="hidden sm:inline">Bulk Upload</span>
+                </button>
+              </>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-400"><X size={24} /></button>
+          </div>
         </div>
 
         <div className="px-6 py-4 bg-white dark:bg-gray-900">
@@ -278,94 +337,6 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                   <div>
                     <FieldLabel required>Phone Number</FieldLabel>
                     <input required type="tel" maxLength={10} placeholder="10-digit number" className={inputStyle} value={draft.phone_number} onChange={e => saveDraft({ phone_number: e.target.value.replace(/\D/g, '') })} />
-                  </div>
-                  <div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <FieldLabel required={!isEditing}>Password</FieldLabel>
-                        {!isEditing && (
-                          <div className="flex items-center space-x-2">
-                            <button
-                              type="button"
-                              onClick={() => saveDraft({ password: generatePassword() })}
-                              className="px-3 py-1 text-xs bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
-                            >
-                              Generate
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <input
-                          type={draft.showPassword ? 'text' : 'password'}
-                          required={!isEditing}
-                          placeholder={isEditing ? 'Leave empty to keep current' : 'Password will be auto-generated'}
-                          className={`${inputStyle} pr-20`}
-                          value={draft.password || ''}
-                          onChange={e => saveDraft({ password: e.target.value })}
-                        />
-                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              copyToClipboard(draft.password);
-                            }}
-                            className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 p-1"
-                            title="Copy to clipboard"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => saveDraft({ showPassword: !draft.showPassword })}
-                            className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 p-1"
-                            title={draft.showPassword ? 'Hide password' : 'Show password'}
-                          >
-                            {draft.showPassword ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                              </svg>
-                            ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                      {draft.password && (
-                        <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
-                          <span>Strength:</span>
-                          <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${
-                                getPasswordStrength(draft.password) < 2 ? 'bg-red-500' :
-                                getPasswordStrength(draft.password) < 4 ? 'bg-yellow-500' : 'bg-green-500'
-                              }`}
-                              style={{ width: `${(getPasswordStrength(draft.password) / 4) * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-xs">
-                            {getPasswordStrength(draft.password) < 2 ? 'Weak' :
-                             getPasswordStrength(draft.password) < 4 ? 'Good' : 'Strong'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    {!isEditing && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        This will be the driver's initial password
-                      </p>
-                    )}
-                    {isEditing && !draft.password && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Leave empty to keep current password
-                      </p>
-                    )}
                   </div>
                   <div>
                     <FieldLabel required>Date of Birth</FieldLabel>
@@ -472,7 +443,6 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
             {activeTab === 'assignment' && (
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 animate-in fade-in duration-300">
                 <div className="space-y-4">
-
                   <div>
                     <FieldLabel required>Emergency Contact Name</FieldLabel>
                     <input type="text" className={inputStyle} value={draft.emergency_contact_name} onChange={e => saveDraft({ emergency_contact_name: e.target.value })} />
@@ -510,20 +480,57 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
           </div>
 
           <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
-            <button type="button" onClick={onClose} className="px-6 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">
-              Cancel
-            </button>
-            <button type="button" onClick={clearDraft} className="px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-              Clear Draft
-            </button>
-            <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">
-              Submit Record
-            </button>
+            <button type="button" onClick={onClose} className="px-6 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">Cancel</button>
+            <button type="button" onClick={clearDraft} className="px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Clear Draft</button>
+            <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">Submit Record</button>
           </div>
         </form>
       </div>
-    </div>
-  );
-};
 
-export default DriverModal;
+      {/* Custom Alert/Confirm Modal */}
+      {alertState.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full p-6 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
+            <div className="flex items-center gap-3 mb-4">
+              {alertState.type === 'error' && <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full"><AlertTriangle className="text-red-600 dark:text-red-400" size={24} /></div>}
+              {alertState.type === 'success' && <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-full"><CheckCircle className="text-green-600 dark:text-green-400" size={24} /></div>}
+              {(alertState.type === 'alert' || alertState.type === 'confirm') && <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full"><Info className="text-blue-600 dark:text-blue-400" size={24} /></div>}
+              
+              <h3 className={`text-lg font-bold ${
+                alertState.type === 'error' ? 'text-red-600 dark:text-red-400' :
+                alertState.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                'text-gray-900 dark:text-white'
+              }`}>
+                {alertState.title}
+              </h3>
+            </div>
+            
+            <p className="text-gray-600 dark:text-gray-300 mb-6 text-sm leading-relaxed whitespace-pre-line pl-1">
+              {alertState.message}
+            </p>
+
+            <div className="flex justify-end gap-3">
+              {alertState.type === 'confirm' ? (
+                <>
+                  <button onClick={closeAlert} className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={() => { if (alertState.onConfirm) alertState.onConfirm(); closeAlert(); }} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg shadow-blue-500/30 transition-colors">
+                    Confirm
+                  </button>
+                </>
+              ) : (
+                <button onClick={closeAlert} className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 dark:hover:bg-gray-600 rounded-lg transition-colors">
+                  Close
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+export default DriverModal
