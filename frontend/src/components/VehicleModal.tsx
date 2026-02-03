@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { X, ShieldCheck, Car, User } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { X, ShieldCheck, Car, User, Upload, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react'
 import axios from 'axios'
+import * as XLSX from 'xlsx'
 import { Vehicle } from '../types'
 
 interface VehicleModalProps {
@@ -10,7 +11,9 @@ interface VehicleModalProps {
 }
 
 const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
+  // --- State ---
   const [activeTab, setActiveTab] = useState('static-info');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const labelStyle = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5";
   const inputStyle = "w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all";
@@ -25,6 +28,7 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
 
   const DRAFT_KEY = 'vehicle_modal_draft_v1';
 
+  // --- Form State ---
   const [draft, setDraft] = useState<Record<string, any>>({
     vehicle_registration_number: '',
     vehicle_type: '',
@@ -66,6 +70,31 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
     pollution_certificate: null
   });
 
+  // --- Alert State ---
+  const [alertState, setAlertState] = useState<{
+    isOpen: boolean;
+    type: 'alert' | 'confirm' | 'success' | 'error';
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }>({ isOpen: false, type: 'alert', title: '', message: '' });
+
+  const showAlert = (title: string, message: string, type: 'alert' | 'success' | 'error' = 'alert', onCloseCallback?: () => void) => {
+    setAlertState({ isOpen: true, type, title, message, onConfirm: undefined, onClose: onCloseCallback });
+  };
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setAlertState({ isOpen: true, type: 'confirm', title, message, onConfirm });
+  };
+
+  const closeAlert = () => {
+    const callback = alertState.onClose;
+    setAlertState(prev => ({ ...prev, isOpen: false }));
+    if (callback) callback();
+  };
+
+  // --- Effects ---
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
@@ -110,6 +139,8 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
     };
     setDraft(prev => ({ ...prev, ...mapped }));
   }, [vehicle]);
+
+  // --- Handlers ---
   const saveDraft = useCallback((patch: Partial<Record<string, any>>) => {
     setDraft(prev => {
       const next = { ...prev, ...patch };
@@ -147,6 +178,92 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
       puc_expiry: '',
     });
     try { localStorage.removeItem(DRAFT_KEY) } catch (e) { }
+  };
+
+  const downloadTemplate = () => {
+    const headers = [
+      'Registration Number', 'Brand', 'Model', 'Type', 'Status', 'Fuel Type', 
+      'RC Number', 'Registration Expiry', 'Service Expiry', 'PUC Expiry', 
+      'Insurance Expiry', 'Year', 'Seating Capacity', 'GPS ID'
+    ];
+    const sampleRow = [
+      'TN01AB1234', 'Toyota', 'Innova', 'SUV', 'Active', 'Diesel', 
+      'RC123456789', '2030-12-31', '2024-12-31', '2024-12-31', 
+      '2025-12-31', '2023', '7', 'GPS-001'
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Vehicle_Upload_Template.xlsx");
+  };
+
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input so the same file can be selected again if needed
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      if (jsonData.length === 0) {
+        showAlert('Empty File', 'The file appears to be empty.', 'error');
+        return;
+      }
+
+      // Validate headers
+      const requiredHeaders = ['Registration Number', 'Brand', 'Model'];
+      const firstRow = jsonData[0];
+      const isValidFormat = requiredHeaders.every(header => Object.prototype.hasOwnProperty.call(firstRow, header));
+
+      if (!isValidFormat) {
+        showAlert('Invalid Format', "Your Excel/Google Sheet format not matching our template. Please download our standard format.", 'error');
+        return;
+      }
+
+      showConfirm('Confirm Upload', `Found ${jsonData.length} records. Proceed with upload?`, async () => {
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of jsonData) {
+          try {
+            const formData = new FormData();
+            formData.append('vehicle_registration_number', row['Registration Number'] || '');
+            formData.append('vehicle_brand', row['Brand'] || '');
+            formData.append('vehicle_model', row['Model'] || '');
+            formData.append('vehicle_type', row['Type'] || 'Sedan');
+            formData.append('vehicle_status', row['Status'] || 'Active');
+            formData.append('fuel_type', row['Fuel Type'] || 'Diesel');
+            formData.append('rc_number', row['RC Number'] || '');
+            
+            if(row['Registration Expiry']) formData.append('registration_expiry', row['Registration Expiry']);
+            if(row['Service Expiry']) formData.append('service_expiry', row['Service Expiry']);
+            if(row['PUC Expiry']) formData.append('puc_expiry', row['PUC Expiry']);
+            if(row['Insurance Expiry']) formData.append('insurance_expiry', row['Insurance Expiry']);
+            
+            formData.append('manufacturing_year', String(row['Year'] || new Date().getFullYear()));
+            formData.append('seating_capacity', String(row['Seating Capacity'] || 4));
+            if(row['GPS ID']) formData.append('gps_device_id', row['GPS ID']);
+
+            await axios.post('/api/vehicles/', formData);
+            successCount++;
+          } catch (err) {
+            failCount++;
+          }
+        }
+        showAlert('Upload Complete', `Success: ${successCount}\nFailed: ${failCount}`, 'success', () => {
+          onSuccess();
+          onClose();
+        });
+      });
+    } catch (error) {
+      showAlert('Error', 'Failed to process file', 'error');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -239,7 +356,7 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
       } else {
         message = error.message || message;
       }
-      alert(message);
+      showAlert('Submission Failed', message, 'error');
     }
   };
 
@@ -257,9 +374,24 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage fleet asset details and compliance records</p>
             <p className="text-xs text-gray-500 mt-2"><span className="text-red-600 font-bold">*</span> Required fields — fields labeled <span className="text-gray-400">(optional)</span> are not mandatory.</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-400">
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            {!vehicle && (
+              <>
+                <button onClick={downloadTemplate} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Download Template">
+                  <Download size={18} />
+                  <span className="hidden sm:inline">Template</span>
+                </button>
+                <input type="file" ref={fileInputRef} onChange={handleBulkUpload} className="hidden" accept=".xlsx,.xls,.csv" />
+                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors" title="Bulk Upload">
+                  <Upload size={18} />
+                  <span className="hidden sm:inline">Bulk Upload</span>
+                </button>
+              </>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-400">
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Navigation - Logic Based on Static vs Dynamic Data */}
@@ -450,6 +582,49 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
           </div>
         </form>
       </div>
+
+      {/* Custom Alert/Confirm Modal */}
+      {alertState.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full p-6 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
+            <div className="flex items-center gap-3 mb-4">
+              {alertState.type === 'error' && <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full"><AlertTriangle className="text-red-600 dark:text-red-400" size={24} /></div>}
+              {alertState.type === 'success' && <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-full"><CheckCircle className="text-green-600 dark:text-green-400" size={24} /></div>}
+              {(alertState.type === 'alert' || alertState.type === 'confirm') && <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full"><Info className="text-blue-600 dark:text-blue-400" size={24} /></div>}
+              
+              <h3 className={`text-lg font-bold ${
+                alertState.type === 'error' ? 'text-red-600 dark:text-red-400' :
+                alertState.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                'text-gray-900 dark:text-white'
+              }`}>
+                {alertState.title}
+              </h3>
+            </div>
+            
+            <p className="text-gray-600 dark:text-gray-300 mb-6 text-sm leading-relaxed whitespace-pre-line pl-1">
+              {alertState.message}
+            </p>
+
+            <div className="flex justify-end gap-3">
+              {alertState.type === 'confirm' ? (
+                <>
+                  <button onClick={closeAlert} className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={() => { if (alertState.onConfirm) alertState.onConfirm(); closeAlert(); }} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg shadow-blue-500/30 transition-colors">
+                    Confirm
+                  </button>
+                </>
+              ) : (
+                <button onClick={closeAlert} className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 dark:hover:bg-gray-600 rounded-lg transition-colors">
+                  Close
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

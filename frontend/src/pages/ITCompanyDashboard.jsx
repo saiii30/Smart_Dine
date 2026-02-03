@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getCompany, createCompany, updateCompany, updateCompanyWithAdmin, deleteCompany, getCompanyUser, createCompanyWithAdmin } from "../api/companiesApi";
-import { TrashIcon, XMarkIcon, BuildingOffice2Icon, BriefcaseIcon, UserIcon, ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
+import { Trash2, X, Building2, Briefcase, User, ClipboardCheck } from "lucide-react";
 import Swal from "sweetalert2";
 
 export default function Dashboard() {
@@ -363,9 +363,9 @@ const [form, setForm] = useState({
 
 
   const stepTabs = [
-    { id: 1, label: "Business Info", icon: BriefcaseIcon },
-    { id: 2, label: "Contact Info", icon: UserIcon },
-    { id: 3, label: "Review", icon: ClipboardDocumentCheckIcon },
+    { id: 1, label: "Business Info", icon: Briefcase },
+    { id: 2, label: "Contact Info", icon: User },
+    { id: 3, label: "Review", icon: ClipboardCheck },
   ];
 
   return (
@@ -385,7 +385,7 @@ const [form, setForm] = useState({
       {/* EMPTY STATE OR TABLE */}
       {companies.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-          <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+          <Building2 className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No companies</h3>
           <p className="text-gray-500 dark:text-gray-400 mb-4">Get started by adding your first company.</p>
           <button
@@ -466,7 +466,7 @@ const [form, setForm] = useState({
                         title="Delete Company"
                         className="p-2 rounded-lg transition text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
                       >
-                        <TrashIcon className="w-5 h-5" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </td>
                   </tr>
@@ -488,7 +488,7 @@ const [form, setForm] = useState({
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-3">
-                <BuildingOffice2Icon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+                <Building2 className="h-6 w-6 text-gray-600 dark:text-gray-300" />
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     {selectedCompany ? "Edit Company" : "Company Specifications"}
@@ -502,7 +502,7 @@ const [form, setForm] = useState({
                 onClick={handleModalClose}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
               >
-                <XMarkIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
               </button>
             </div>
 

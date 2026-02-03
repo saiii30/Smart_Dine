@@ -105,19 +105,19 @@ const Login = () => {
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Login Type</label>
-          <div className="inline-flex rounded-lg bg-gray-100 p-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Login Type</label>
+          <div className="inline-flex rounded-lg bg-gray-100 dark:bg-gray-800 p-1">
             <button
               type="button"
               onClick={() => setAccountType('agency')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${accountType === 'agency' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${accountType === 'agency' ? 'bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}
             >
               Agency Login
             </button>
             <button
               type="button"
               onClick={() => setAccountType('it')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${accountType === 'it' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${accountType === 'it' ? 'bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}
             >
               IT Login
             </button>
@@ -125,7 +125,7 @@ const Login = () => {
 
           {accountType === 'agency' ? (
             <div className="mt-4">
-              <label htmlFor="agencyId" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="agencyId" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Agency
               </label>
               <select
@@ -135,7 +135,7 @@ const Login = () => {
                 onChange={handleChange}
                 required
                 disabled={isAgenciesLoading}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="">{isAgenciesLoading ? "Loading agencies..." : "Select Agency"}</option>
                 {agencies.map((agency) => (
@@ -148,7 +148,7 @@ const Login = () => {
           ) : (
             <div className="mt-4 space-y-4">
               <div>
-                <label htmlFor="agencyId" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="agencyId" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Agency
                 </label>
                 <select
@@ -157,7 +157,7 @@ const Login = () => {
                   value={formData.agencyId}
                   onChange={handleChange}
                   disabled={isAgenciesLoading}
-                  className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+                  className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   <option value="">{isAgenciesLoading ? "Loading agencies..." : "Select Agency"}</option>
                   {agencies.map((agency) => (
@@ -169,7 +169,7 @@ const Login = () => {
               </div>
 
               <div>
-                <label htmlFor="itCompanyId" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="itCompanyId" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   IT Company
                 </label>
                 <select
@@ -178,7 +178,7 @@ const Login = () => {
                   value={formData.itCompanyId}
                   onChange={handleChange}
                   required
-                  className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+                  className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   <option value="">Select IT Company</option>
                   {itCompanies.map((c) => (
@@ -191,7 +191,7 @@ const Login = () => {
         </div>
 
         <div>
-          <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Username
           </label>
           <input
@@ -201,13 +201,13 @@ const Login = () => {
             required
             value={formData.username}
             onChange={handleChange}
-            className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+            className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             placeholder="Enter your username"
           />
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Password
           </label>
           <input
@@ -217,7 +217,7 @@ const Login = () => {
             required
             value={formData.password}
             onChange={handleChange}
-            className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+            className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             placeholder="Enter your password"
           />
         </div>
