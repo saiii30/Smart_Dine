@@ -1,9 +1,9 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from fastapi import UploadFile
 from datetime import datetime
 from typing import Optional, List, Any, Dict, Union
 from app.models import UserRole  # Removed VehicleType as it's now a string
-from datetime import time
+from datetime import time, date, datetime, timezone
 
 # ADDED NEW LINES OF CODE 405 TO 443 FOR ITDASHBOARDCOMPANY
 # compatibility: prefer pydantic v2 `field_validator`, fall back to v1 `validator`
@@ -506,95 +506,150 @@ class AgencyResponse(AgencyBase):
 
     class Config:
         from_attributes = True
+        
+class RoutePoint(BaseModel):
+    id: str = Field(..., description="Unique identifier for the route point")
+    passenger_name: str = Field(..., min_length=2, max_length=100)
+    phone_number: str = Field(..., min_length=10, max_length=15)
+    address: str = Field(..., min_length=5, max_length=500)
+    starting_lat: float = Field(..., ge=-90, le=90)
+    starting_lng: float = Field(..., ge=-180, le=180)
+    end_lat: float = Field(..., ge=-90, le=90)
+    end_lng: float = Field(..., ge=-180, le=180)
 
+    @field_validator('phone_number')
+    def validate_phone_number(cls, v):
+        # Remove all non-digit characters
+        digits = ''.join(filter(str.isdigit, v))
+        if len(digits) < 10:
+            raise ValueError('Phone number must be at least 10 digits')
+        return digits
 
-# Trip Schedule Schemas
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": "rp_123",
+                "passenger_name": "John Doe",
+                "phone_number": "+1234567890",
+                "address": "123 Main St, City, Country",
+                "starting_lat": 40.7128,
+                "starting_lng": -74.0060,
+                "end_lat": 40.7580,
+                "end_lng": -73.9855
+            }
+        }
+
 class TripScheduleBase(BaseModel):
     # Agency and Company Information
-    agency_id: str
+    agency_id: Optional[str] = None
+    user_id: Optional[str] = None
     company_id: str
     company_name: str
     company_branch: Optional[str] = None
-    
-    # Trip Details
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    starting_point: Optional[str] = None
-    end_point: Optional[str] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    way: Optional[str] = None  # 'one_way' or 'two_way'
-    trip_type: Optional[str] = None
-    
-    # Vehicle and Driver
     vehicle_id: Optional[int] = None
     driver_id: Optional[str] = None
-    passenger_count: int = 0
-    
-    # Status
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    starting_point: Optional[str] = None
+    end_point: Optional[str] = None
+    way: Optional[str] = None
+    trip_type: Optional[str] = None
+    passenger_count: int = 1
     is_active: bool = True
-    
-    # Additional Info
     notes: Optional[str] = None
+    distance_km: Optional[float] = None
+    duration_min: Optional[int] = None
+    starting_lat: Optional[float] = None
+    starting_lng: Optional[float] = None
+    end_lat: Optional[float] = None
+    end_lng: Optional[float] = None
+    driver_response: Optional[bool] = None
+    driver_reason: Optional[str] = None
+    driver_response_at: Optional[datetime] = None
+    route_points: Optional[List[RoutePoint]] = Field(
+        None,
+        description="List of route points with passenger details. Required when trip_type is 'route'"
+    )
 
 class TripScheduleCreate(TripScheduleBase):
+    # Required fields for creation
+    company_id: str
+    company_name: str
+    start_date: datetime
+    end_date: datetime
+    start_time: datetime
+    end_time: datetime
+    passenger_count: int = 1
+    trip_type: str
+
+    # Validate trip type
+    @field_validator('trip_type')
+    def validate_trip_type(cls, v):
+        if v not in ['shuttle', 'route']:
+            raise ValueError("trip_type must be either 'shuttle' or 'route'")
+        return v
+        
+    @field_validator('route_points')
+    def validate_route_points(cls, v, info):
+        trip_type = info.data.get('trip_type')
+        if trip_type == 'route' and (not v or len(v) == 0):
+            raise ValueError("At least one route point is required for 'route' trip type")
+        if trip_type == 'shuttle' and v and len(v) > 0:
+            raise ValueError("Route points should not be provided for 'shuttle' trip type")
+        return v
+
     class Config:
         from_attributes = True
 
 class TripScheduleUpdate(BaseModel):
-    # Agency and Company Information
+    # All fields are optional for updates
     agency_id: Optional[str] = None
+    user_id: Optional[str] = None
     company_id: Optional[str] = None
     company_name: Optional[str] = None
     company_branch: Optional[str] = None
-    
-    # Trip Details
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    starting_point: Optional[str] = None
-    end_point: Optional[str] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    way: Optional[str] = None
-    trip_type: Optional[str] = None
-    
-    # Vehicle and Driver
     vehicle_id: Optional[int] = None
     driver_id: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    starting_point: Optional[str] = None
+    end_point: Optional[str] = None
+    way: Optional[str] = None
+    trip_type: Optional[str] = None
     passenger_count: Optional[int] = None
-    
-    # Additional Info
+    is_active: Optional[bool] = None
     notes: Optional[str] = None
+    distance_km: Optional[float] = None
+    duration_min: Optional[int] = None
+    starting_lat: Optional[float] = None
+    starting_lng: Optional[float] = None
+    end_lat: Optional[float] = None
+    end_lng: Optional[float] = None
+    driver_response: Optional[bool] = None
+    driver_reason: Optional[str] = None
+    driver_response_at: Optional[datetime] = None
+    route_points: Optional[List[RoutePoint]] = Field(
+        None,
+        description="List of route points with passenger details. Required when trip_type is 'route'"
+    )
 
 class TripScheduleResponse(TripScheduleBase):
     id: str
-    user_id: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+    # Additional computed fields
     vehicle_registration_number: Optional[str] = None
     driver_name: Optional[str] = None
-    vehicle_id: Optional[int] = None
-    driver_id: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    starting_point: Optional[str] = None
-    end_point: Optional[str] = None
-    way: Optional[str] = None
-    trip_type: Optional[str] = None
-    passenger_count: int = 0
-    notes: Optional[str] = None
+
     is_active: bool = True
 
-class TripBase(BaseModel):
-    company_id: str
-    vehicle_id: Optional[int] = None
-    company_name: str
-    company_branch: Optional[str] = None
-    is_active: bool = True
-
-class TripCreate(TripBase):
+class TripCreate(TripScheduleBase):
     schedules: Optional[List[TripScheduleCreate]] = []
     
     class Config:

@@ -232,35 +232,37 @@ class Agency(Base):
 class TripSchedule(Base):
     __tablename__ = "trip_schedules"
     
-    id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
     agency_id = Column(String, ForeignKey("agencies.id"), nullable=True, index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     company_id = Column(String, ForeignKey("companies.id"), nullable=False)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
     driver_id = Column(String, ForeignKey("drivers.id"), nullable=True)
-    
-    # Trip information
     company_name = Column(String, nullable=False)
     company_branch = Column(Text, nullable=True)
-    
-    # Schedule information
     start_date = Column(DateTime(timezone=True), nullable=True)
     end_date = Column(DateTime(timezone=True), nullable=True)
-    start_time = Column(Time(timezone=True), nullable=True)
-    end_time = Column(Time(timezone=True), nullable=True)
+    start_time = Column(DateTime(timezone=True), nullable=True)  
+    end_time = Column(DateTime(timezone=True), nullable=True)    
     starting_point = Column(String, nullable=True)
     end_point = Column(String, nullable=True)
     way = Column(String, nullable=True)  # 'one_way' or 'two_way'
-    trip_type = Column(String, nullable=True)
-    passenger_count = Column(Integer, nullable=False, default=0)
-    
-    # Status
+    trip_type = Column(String, nullable=True)  # 'shuttle' or 'route'
+    passenger_count = Column(Integer, nullable=False, default=1)
+    distance_km = Column(Float, nullable=True)
+    duration_min = Column(Integer, nullable=True)
+    starting_lat = Column(Float, nullable=True)
+    starting_lng = Column(Float, nullable=True)
+    end_lat = Column(Float, nullable=True)
+    end_lng = Column(Float, nullable=True)
     is_active = Column(Boolean, default=True)
-    
-    # Additional info
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    driver_response = Column(Boolean, nullable=True)  
+    driver_reason = Column(Text, nullable=True)  
+    driver_response_at = Column(DateTime(timezone=True), nullable=True)
+    route_points = Column(Text, nullable=True)  
     
     # Relationships
     user = relationship("User", back_populates="trip_schedules")
