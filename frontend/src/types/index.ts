@@ -65,6 +65,7 @@ export interface Driver {
   full_name: string
   phone_number: string
   email?: string
+  password?: string
 
   date_of_birth?: string
   gender?: string
