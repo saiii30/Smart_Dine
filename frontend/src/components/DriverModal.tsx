@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import axios from 'axios'
 import * as XLSX from 'xlsx'
 import { X, Upload, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react'
@@ -21,9 +21,55 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     </label>
   );
 
-  // --- State ---
+
   const [activeTab, setActiveTab] = useState('static-info');
+  const [isEditing] = useState(!!(driver as any)?.id);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+
+  const DRAFT_KEY = 'driver_modal_draft_v1';
+
+  const [draft, setDraft] = useState<Record<string, any>>({
+    full_name: '',
+    phone_number: '',
+    password: '',
+    date_of_birth: '',
+    gender: '',
+    aadhar_number: '',
+    aadhar_document_name: '',
+    driving_license_number: '',
+    license_expiry_date: '',
+    driver_photo_name: '',
+    police_verification_certificate_name: '',
+    medical_fitness_certificate_name: '',
+    verification_status: 'Pending',
+    current_address: '',
+    city: '',
+    state: '',
+    pincode: '',
+    emergency_contact_name: '',
+    emergency_contact_number: '',
+    blood_group: '',
+    previous_employer_experience: '',
+    languages_spoken: '',
+    shift_preference: '',
+    status: 'Active',
+    assigned_vehicle_id: '',
+    showPassword: false
+  });
+
+  // Track actual File objects for uploads (not saved to localStorage)
+  const [files, setFiles] = useState<{
+    aadhar_document?: File | null;
+    driver_photo?: File | null;
+    police_verification_certificate?: File | null;
+    medical_fitness_certificate?: File | null
+  }>({
+    aadhar_document: null,
+    driver_photo: null,
+    police_verification_certificate: null,
+    medical_fitness_certificate: null
+  });
 
   // --- Alert State ---
   const [alertState, setAlertState] = useState<{
@@ -49,49 +95,6 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     if (callback) callback();
   };
 
-  const DRAFT_KEY = 'driver_modal_draft_v1';
-
-  // --- Form State ---
-  const [draft, setDraft] = useState<Record<string, any>>({
-    full_name: '',
-    phone_number: '',
-    date_of_birth: '',
-    gender: '',
-    aadhar_number: '',
-    aadhar_document_name: '',
-    driving_license_number: '',
-    license_expiry_date: '',
-    driver_photo_name: '',
-    police_verification_certificate_name: '',
-    medical_fitness_certificate_name: '',
-    verification_status: 'Pending',
-    current_address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    emergency_contact_name: '',
-    emergency_contact_number: '',
-    blood_group: '',
-    previous_employer_experience: '',
-    languages_spoken: '',
-    shift_preference: '',
-    status: 'Active',
-    assigned_vehicle_id: '',
-  });
-
-  // Track actual File objects for uploads (not saved to localStorage)
-  const [files, setFiles] = useState<{
-    aadhar_document?: File | null;
-    driver_photo?: File | null;
-    police_verification_certificate?: File | null;
-    medical_fitness_certificate?: File | null
-  }>({
-    aadhar_document: null,
-    driver_photo: null,
-    police_verification_certificate: null,
-    medical_fitness_certificate: null
-  });
-
   // --- Effects ---
   useEffect(() => {
     try {
@@ -106,6 +109,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     const mapped: Record<string, any> = {
       full_name: d.full_name || '',
       phone_number: d.phone_number || d.phone || '',
+      password: '', // Never load existing password for security
       date_of_birth: d.date_of_birth ? new Date(d.date_of_birth).toISOString().split('T')[0] : '',
       gender: d.gender || '',
       aadhar_number: d.aadhar_number || '',
@@ -128,59 +132,29 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       shift_preference: d.shift_preference || '',
       status: d.status || (d.is_active ? 'Active' : 'Inactive') || 'Active',
       assigned_vehicle_id: d.assigned_vehicle_id || '',
+      showPassword: false, // Reset password visibility when editing
     };
     setDraft(prev => ({ ...prev, ...mapped }));
   }, [driver]);
 
-  // --- Handlers ---
-  const saveDraft = (patch: Partial<Record<string, any>>) => {
-    setDraft(prev => {
-      const next = { ...prev, ...patch };
-      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(next)); } catch (e) { }
-      return next;
-    });
-  };
-
-  const clearDraft = () => {
-    setDraft({
-      full_name: '',
-      phone_number: '',
-      date_of_birth: '',
-      gender: '',
-      aadhar_number: '',
-      aadhar_document_name: '',
-      driving_license_number: '',
-      license_expiry_date: '',
-      driver_photo_name: '',
-      police_verification_certificate_name: '',
-      medical_fitness_certificate_name: '',
-      verification_status: 'Pending',
-      current_address: '',
-      city: '',
-      state: '',
-      pincode: '',
-      emergency_contact_name: '',
-      emergency_contact_number: '',
-      blood_group: '',
-      previous_employer_experience: '',
-      languages_spoken: '',
-      shift_preference: '',
-      status: 'Active',
-      assigned_vehicle_id: '',
-    });
-    try { localStorage.removeItem(DRAFT_KEY) } catch (e) { }
-  };
-
+  // Clear password when switching between different drivers
+  useEffect(() => {
+    saveDraft({ password: '', showPassword: false });
+  }, [driver?.id]);
+    // --- Handlers ---
+  
   const downloadTemplate = () => {
     const headers = [
       'Full Name', 'Phone Number', 'Date of Birth', 'Gender', 'Aadhar Number',
       'License Number', 'License Expiry', 'Blood Group', 'Status', 'Shift Preference',
-      'Current Address', 'City', 'State', 'Pincode'
+      'Current Address', 'City', 'State', 'Pincode', 'Emergency Contact Name', 'Emergency Contact Number',
+      'Previous Employer Experience', 'Languages Spoken'
     ];
     const sampleRow = [
       'John Doe', '9876543210', '1990-01-01', 'Male', '123456789012',
       'DL1234567890', '2030-12-31', 'O+', 'Active', 'Morning',
-      '123 Main St', 'Chennai', 'Tamil Nadu', '600001'
+      '123 Main St', 'Chennai', 'Tamil Nadu', '600001', 'Jane Doe', '9876543211',
+      '2 years at ABC Transport', 'English, Tamil'
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
@@ -207,51 +181,137 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
         return;
       }
 
-      const requiredHeaders = ['Full Name', 'Phone Number', 'License Number'];
+      const requiredHeaders = ['Full Name', 'Phone Number', 'License Number', 'License Expiry'];
       const firstRow = jsonData[0];
       const isValidFormat = requiredHeaders.every(header => Object.prototype.hasOwnProperty.call(firstRow, header));
 
       if (!isValidFormat) {
-        showAlert('Invalid Format', "Your Excel/Google Sheet format not matching our template, Please download Our standard format", 'error');
+        showAlert('Invalid Format', "Your Excel/Google Sheet format not matching our template. Please download our standard format.", 'error');
+        return;
+      }
+
+      // Validate required fields for each row
+      const validationErrors: string[] = [];
+      jsonData.forEach((row, index) => {
+        const rowNum = index + 2; // Excel row numbers start from 2 (after header)
+        if (!row['Full Name']?.trim()) validationErrors.push(`Row ${rowNum}: Full Name is required`);
+        if (!row['Phone Number']?.trim()) validationErrors.push(`Row ${rowNum}: Phone Number is required`);
+        if (!row['License Number']?.trim()) validationErrors.push(`Row ${rowNum}: License Number is required`);
+        if (!row['License Expiry']?.trim()) validationErrors.push(`Row ${rowNum}: License Expiry is required`);
+      });
+
+      if (validationErrors.length > 0) {
+        showAlert('Validation Errors', validationErrors.slice(0, 10).join('\n') + (validationErrors.length > 10 ? '\n...and more' : ''), 'error');
         return;
       }
 
       showConfirm('Confirm Upload', `Found ${jsonData.length} records. Proceed with upload?`, async () => {
         let successCount = 0;
         let failCount = 0;
+        const errorDetails: string[] = [];
 
-        for (const row of jsonData) {
+        for (let i = 0; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          const rowNum = i + 2;
+          
           try {
             const formData = new FormData();
-            formData.append('full_name', row['Full Name'] || '');
-            formData.append('phone_number', String(row['Phone Number'] || ''));
-            if (row['Date of Birth']) formData.append('date_of_birth', row['Date of Birth']);
-            formData.append('gender', row['Gender'] || 'Male');
-            formData.append('aadhar_number', String(row['Aadhar Number'] || ''));
-            formData.append('driving_license_number', row['License Number'] || '');
-            if (row['License Expiry']) formData.append('license_expiry_date', row['License Expiry']);
-            formData.append('blood_group', row['Blood Group'] || '');
-            formData.append('status', row['Status'] || 'Active');
-            formData.append('shift_preference', row['Shift Preference'] || '');
-            formData.append('current_address', row['Current Address'] || '');
-            formData.append('city', row['City'] || '');
-            formData.append('state', row['State'] || '');
-            formData.append('pincode', String(row['Pincode'] || ''));
+            
+            // Required fields
+            formData.append('full_name', String(row['Full Name'] || '').trim());
+            formData.append('phone_number', String(row['Phone Number'] || '').trim());
+            formData.append('driving_license_number', String(row['License Number'] || '').trim());
+            formData.append('license_expiry_date', String(row['License Expiry'] || '').trim());
+            
+            // Generate auto password for bulk upload
+            const autoPassword = generatePassword();
+            formData.append('password', autoPassword);
+            
+            // Optional fields
+            if (row['Date of Birth']) formData.append('date_of_birth', String(row['Date of Birth']).trim());
+            formData.append('gender', String(row['Gender'] || 'Male').trim());
+            if (row['Aadhar Number']) formData.append('aadhar_number', String(row['Aadhar Number']).trim());
+            if (row['Blood Group']) formData.append('blood_group', String(row['Blood Group']).trim());
+            if (row['Status']) formData.append('status', String(row['Status'] || 'Active').trim());
+            if (row['Shift Preference']) formData.append('shift_preference', String(row['Shift Preference']).trim());
+            if (row['Current Address']) formData.append('current_address', String(row['Current Address']).trim());
+            if (row['City']) formData.append('city', String(row['City']).trim());
+            if (row['State']) formData.append('state', String(row['State']).trim());
+            if (row['Pincode']) formData.append('pincode', String(row['Pincode']).trim());
+            if (row['Emergency Contact Name']) formData.append('emergency_contact_name', String(row['Emergency Contact Name']).trim());
+            if (row['Emergency Contact Number']) formData.append('emergency_contact_number', String(row['Emergency Contact Number']).trim());
+            if (row['Previous Employer Experience']) formData.append('previous_employer_experience', String(row['Previous Employer Experience']).trim());
+            if (row['Languages Spoken']) formData.append('languages_spoken', String(row['Languages Spoken']).trim());
 
             await axios.post('/api/drivers/', formData);
             successCount++;
-          } catch (err) {
+          } catch (err: any) {
             failCount++;
+            const errorMessage = err?.response?.data?.detail || err?.message || 'Unknown error';
+            errorDetails.push(`Row ${rowNum} (${row['Full Name'] || 'Unknown'}): ${errorMessage}`);
           }
         }
-        showAlert('Upload Complete', `Success: ${successCount}\nFailed: ${failCount}`, 'success', () => {
-          onSuccess();
-          onClose();
-        });
+        
+        const message = `Upload Complete!\n\n✅ Success: ${successCount}\n❌ Failed: ${failCount}`;
+        const fullMessage = errorDetails.length > 0 
+          ? message + '\n\nError Details:\n' + errorDetails.slice(0, 5).join('\n') + (errorDetails.length > 5 ? '\n...and more' : '')
+          : message;
+        
+        showAlert(
+          failCount > 0 ? 'Upload Completed with Errors' : 'Upload Successful', 
+          fullMessage, 
+          failCount > 0 ? 'error' : 'success', 
+          () => {
+            onSuccess();
+            onClose();
+          }
+        );
       });
     } catch (error) {
-      showAlert('Error', 'Failed to process file', 'error');
+      console.error('Bulk upload error:', error);
+      showAlert('Error', 'Failed to process file. Please ensure it\'s a valid Excel file.', 'error');
     }
+  };
+
+
+  const saveDraft = (patch: Partial<Record<string, any>>) => {
+    setDraft(prev => {
+      const next = { ...prev, ...patch };
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(next)); } catch (e) { }
+      return next;
+    });
+  };
+
+  const clearDraft = () => {
+    setDraft({
+      full_name: '',
+      phone_number: '',
+      password: '', // Clear password when resetting draft
+      date_of_birth: '',
+      gender: '',
+      aadhar_number: '',
+      aadhar_document_name: '',
+      driving_license_number: '',
+      license_expiry_date: '',
+      driver_photo_name: '',
+      police_verification_certificate_name: '',
+      medical_fitness_certificate_name: '',
+      verification_status: 'Pending',
+      current_address: '',
+      city: '',
+      state: '',
+      pincode: '',
+      emergency_contact_name: '',
+      emergency_contact_number: '',
+      blood_group: '',
+      previous_employer_experience: '',
+      languages_spoken: '',
+      shift_preference: '',
+      status: 'Active',
+      assigned_vehicle_id: '',
+      showPassword: false, // Reset password visibility
+    });
+    try { localStorage.removeItem(DRAFT_KEY) } catch (e) { }
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>, key: keyof typeof files, nameKey: keyof typeof draft) => {
@@ -260,19 +320,83 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     saveDraft({ [nameKey]: file?.name || '' })
   }
 
+  // Function to generate a secure random password
+  const generatePassword = useCallback((length = 12) => {
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    const special = '!@#$%^&*';
+
+    const allChars = uppercase + lowercase + numbers + special;
+    let password = '';
+
+    // Use crypto API for better randomness
+    const getRandomChar = (charset: string) => {
+      const randomIndex = crypto.getRandomValues(new Uint32Array(1))[0] % charset.length;
+      return charset[randomIndex];
+    };
+
+    // Ensure at least one character from each set
+    password += getRandomChar(uppercase);
+    password += getRandomChar(lowercase);
+    password += getRandomChar(numbers);
+    password += getRandomChar(special);
+
+    // Fill the rest of the password
+    for (let i = 4; i < length; i++) {
+      password += getRandomChar(allChars);
+    }
+
+    // Shuffle the password using Fisher-Yates algorithm
+    const passwordArray = password.split('');
+    for (let i = passwordArray.length - 1; i > 0; i--) {
+      const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+      [passwordArray[i], passwordArray[j]] = [passwordArray[j], passwordArray[i]];
+    }
+
+    return passwordArray.join('');
+  }, []);
+
+  // Function to copy password to clipboard
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Password copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to copy password: ', err);
+    }
+  };
+
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const payload = new FormData();
-      Object.entries(draft).forEach(([k, v]) => { if (v !== undefined && v !== null) payload.append(k, String(v)) });
+
+      // Only include password in payload if it's a new driver or if it was changed
+      const { showPassword, ...draftWithoutShowPassword } = draft;
+      Object.entries(draftWithoutShowPassword).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) payload.append(k, String(v))
+      });
+      // Add files to form data
       if (files.aadhar_document) payload.append('aadhar_document', files.aadhar_document);
       if (files.driver_photo) payload.append('driver_photo', files.driver_photo);
       if (files.police_verification_certificate) payload.append('police_verification_certificate', files.police_verification_certificate);
       if (files.medical_fitness_certificate) payload.append('medical_fitness_certificate', files.medical_fitness_certificate);
 
-      if ((driver as any)?.id) {
+      if (isEditing) {
+        // For updates, only include password if it was changed
+        if (!draft.password) {
+          payload.delete('password'); // Don't update password if field is empty
+        }
         await axios.put(`/api/drivers/${(driver as any).id}`, payload);
       } else {
+        // For new drivers, require a password
+        if (!draft.password) {
+          alert('Please enter a password');
+          return;
+        }
         await axios.post('/api/drivers/', payload);
       }
 
@@ -337,6 +461,76 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                   <div>
                     <FieldLabel required>Phone Number</FieldLabel>
                     <input required type="tel" maxLength={10} placeholder="10-digit number" className={inputStyle} value={draft.phone_number} onChange={e => saveDraft({ phone_number: e.target.value.replace(/\D/g, '') })} />
+                  </div>
+                  <div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <FieldLabel required={!isEditing}>Password</FieldLabel>
+                        {!isEditing && (
+                          <div className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => saveDraft({ password: generatePassword() })}
+                              className="px-3 py-1 text-xs bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+                            >
+                              Generate
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={draft.showPassword ? 'text' : 'password'}
+                          required={!isEditing}
+                          placeholder={isEditing ? 'Leave empty to keep current' : 'Password will be auto-generated'}
+                          className={`${inputStyle} pr-20`}
+                          value={draft.password || ''}
+                          onChange={e => saveDraft({ password: e.target.value })}
+                        />
+                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              copyToClipboard(draft.password);
+                            }}
+                            className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 p-1"
+                            title="Copy to clipboard"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => saveDraft({ showPassword: !draft.showPassword })}
+                            className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 p-1"
+                            title={draft.showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {draft.showPassword ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {!isEditing && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        This will be the driver's initial password
+                      </p>
+                    )}
+                    {isEditing && !draft.password && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Leave empty to keep current password
+                      </p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>Date of Birth</FieldLabel>
@@ -443,6 +637,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
             {activeTab === 'assignment' && (
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 animate-in fade-in duration-300">
                 <div className="space-y-4">
+
                   <div>
                     <FieldLabel required>Emergency Contact Name</FieldLabel>
                     <input type="text" className={inputStyle} value={draft.emergency_contact_name} onChange={e => saveDraft({ emergency_contact_name: e.target.value })} />
@@ -484,8 +679,6 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
             <button type="button" onClick={clearDraft} className="px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Clear Draft</button>
             <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">Submit Record</button>
           </div>
-        </form>
-      </div>
 
       {/* Custom Alert/Confirm Modal */}
       {alertState.isOpen && (
@@ -528,9 +721,10 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
           </div>
         </div>
       )}
-
+        </form>
+      </div>
     </div>
-  )
-}
+  );
+};
 
-export default DriverModal
+export default DriverModal;

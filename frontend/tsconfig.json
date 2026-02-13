@@ -16,6 +16,12 @@
     "allowJs": true, // allow .js/.jsx files 
  "checkJs": false ,// optional: skip type-checking JS
 
+    /* Module resolution */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

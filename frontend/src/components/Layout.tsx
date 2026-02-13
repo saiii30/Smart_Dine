@@ -1,32 +1,133 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
-import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Settings, RouteIcon, Building2 } from 'lucide-react'
+import { useSettings } from '../contexts/SettingsContext.tsx'
+import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Palette, RouteIcon, Bell, Settings } from 'lucide-react'
 import SettingsModal from './SettingsModal'
 import { Wallet } from 'lucide-react'
+import axios from 'axios'
 const Layout = () => {
   const { user, logout } = useAuth()
   const { menuColor } = useTheme()
+  const { expirySettings } = useSettings()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Start closed
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [notificationCount, setNotificationCount] = useState(0)
+
+  // Fetch notifications on component mount and set up periodic refresh
+  useEffect(() => {
+    fetchNotifications()
+    
+    // Set up periodic refresh every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000)
+    
+    return () => clearInterval(interval)
+  }, [expirySettings]) // Add expirySettings as dependency
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await axios.get('/api/notifications/')
+      const allNotifications = response.data
+      
+      // Map frontend document IDs to backend document types
+      const documentTypeMapping: Record<string, string> = {
+        'driving_license': 'driving license',
+        'insurance': 'insurance',
+        'puc_certificate': 'puc certificate',
+        'registration_certificate': 'registration certificate',
+        'service_due': 'service due'
+      }
+
+      // Reverse mapping for backend to frontend
+      const reverseDocumentTypeMapping: Record<string, string> = {}
+      Object.entries(documentTypeMapping).forEach(([frontendId, backendType]) => {
+        reverseDocumentTypeMapping[backendType] = frontendId
+      })
+      
+      // Apply same filtering logic as Notifications page
+      let filteredNotifications = allNotifications
+      
+      // 1. Filter by expiry days (only show notifications within the configured days)
+      filteredNotifications = filteredNotifications.filter((notification: any) => {
+        const notificationDocType = notification.document_type.toLowerCase()
+        const frontendDocId = reverseDocumentTypeMapping[notificationDocType] || notificationDocType
+        const specificDays = expirySettings.documentExpiryDays[frontendDocId]
+        const daysToUse = specificDays || expirySettings.globalExpiryDays
+        return notification.days_remaining <= daysToUse
+      })
+      
+      // 2. Filter by entity type (vehicle/driver notifications enabled)
+      if (!expirySettings.vehicleNotificationsEnabled) {
+        filteredNotifications = filteredNotifications.filter((notification: any) => notification.type !== 'vehicle')
+      }
+      if (!expirySettings.driverNotificationsEnabled) {
+        filteredNotifications = filteredNotifications.filter((notification: any) => notification.type !== 'driver')
+      }
+      
+      // 3. Filter by selected document types with smart logic
+      if (expirySettings.selectedDocumentTypes.length > 0) {
+        // If specific documents are selected, show only those
+        filteredNotifications = filteredNotifications.filter((notification: any) => {
+          const notificationDocType = notification.document_type.toLowerCase()
+          const frontendDocId = reverseDocumentTypeMapping[notificationDocType] || notificationDocType
+          return expirySettings.selectedDocumentTypes.includes(frontendDocId)
+        })
+      } else {
+        // If no specific documents selected, show all enabled entity types
+        // This handles the "Vehicle enabled shows all vehicle documents" case
+        if (expirySettings.vehicleNotificationsEnabled) {
+          // Keep all vehicle notifications
+        } else {
+          // Remove vehicle notifications if vehicle is disabled
+          filteredNotifications = filteredNotifications.filter((notification: any) => notification.type !== 'vehicle')
+        }
+        
+        if (expirySettings.driverNotificationsEnabled) {
+          // Keep all driver notifications
+        } else {
+          // Remove driver notifications if driver is disabled
+          filteredNotifications = filteredNotifications.filter((notification: any) => notification.type !== 'driver')
+        }
+      }
+      
+      setNotificationCount(filteredNotifications.length)
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error)
+    }
+  }
+
+  // Listen for notification updates from other components
+  useEffect(() => {
+    const handleNotificationUpdate = () => {
+      fetchNotifications()
+    }
+
+    // Custom event listener for notification updates
+    window.addEventListener('notificationUpdate', handleNotificationUpdate)
+    
+    return () => {
+      window.removeEventListener('notificationUpdate', handleNotificationUpdate)
+    }
+  }, [expirySettings]) // Add expirySettings as dependency
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
 
-  const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
-  { name: 'Drivers', href: '/drivers', icon: Users },
-  { name: 'Trips', href: '/trips', icon: RouteIcon },
-  //{name: 'ITCompanyDashboard' , href: '/ITCompanyDashboard' , icon:Building2},
-  
+  const navigation = useMemo(() => [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
+    { name: 'Drivers', href: '/drivers', icon: Users },
+    { name: 'Trips', href: '/trips', icon: RouteIcon },
+    { name: 'Notifications', href: '/notifications', icon: Bell, badge: notificationCount },
+    { name: 'Settings', href: '/settings', icon: Settings },
+    
 
-  ...(isSuperAdmin
-    ? [{ name: 'Users', href: '/users', icon: Users },{ name: "Prices", href: "/prices", icon: Wallet   },{name: 'ITCompanyDashboard' , href: '/ITCompanyDashboard' , icon:Building2}]
-    : []),
-]
+    ...(isSuperAdmin
+      ? [{ name: 'Users', href: '/users', icon: Users },{ name: "Prices", href: "/prices", icon: Wallet   }]
+      : []),
+  ], [notificationCount, isSuperAdmin])
 
   const isActive = (path: string) => location.pathname === path
 
@@ -133,7 +234,7 @@ const Layout = () => {
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             aria-label="Settings"
           >
-            <Settings className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+            <Palette className="h-6 w-6 text-gray-600 dark:text-gray-300" />
           </button>
 
           {/* User Info */}
@@ -250,14 +351,21 @@ const Layout = () => {
                   }}
                   className={`flex items-center ${
                     sidebarOpen ? 'px-4 justify-start' : 'px-2 justify-center'
-                  } py-3 text-sm font-medium rounded-lg transition-colors group ${
+                  } py-3 text-sm font-medium rounded-lg transition-colors group relative ${
                     isActive(item.href)
                       ? `${menuColors.activeBg} ${menuColors.activeText}`
                       : `text-gray-700 dark:text-gray-300 ${menuColors.hover}`
                   }`}
                   title={sidebarOpen ? undefined : item.name}
                 >
-                  <Icon className={`h-5 w-5 flex-shrink-0 ${sidebarOpen ? 'mr-3' : 'mr-0'}`} />
+                  <div className="relative">
+                    <Icon className={`h-5 w-5 flex-shrink-0 ${sidebarOpen ? 'mr-3' : 'mr-0'}`} />
+                    {item.badge && item.badge > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 flex items-center justify-center min-w-[16px]">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
+                  </div>
                   {sidebarOpen && (
                     <span className="whitespace-nowrap">{item.name}</span>
                   )}

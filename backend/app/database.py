@@ -9,7 +9,7 @@ env_path = Path(__file__).parent.parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
 # Database URL - using SQLite with the specified path
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tms.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Print the database URL for debugging
 print(f"Using database at: {DATABASE_URL}")
