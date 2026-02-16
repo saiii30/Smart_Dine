@@ -3,6 +3,9 @@ import axios from 'axios'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { Trip, Vehicle, Driver, TripSchedule } from '../types'
 import { useTheme } from '../contexts/ThemeContext'
+import MapPicker from '../components/MapPicker'
+import { MapPin } from 'lucide-react'
+
 
 type MenuColor = 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo'
 
@@ -18,34 +21,52 @@ const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [activePassengerIndex, setActivePassengerIndex] = useState<number | null>(null)
+  const [activePassengerTab, setActivePassengerTab] = useState(0)
 
-  // const [formData, setFormData] = useState({
-  //   company_name: '',
-  //   name: '',
-  //   address: '',
-  //   schedules: [] as Omit<TripSchedule, 'id' | 'trip_id' | 'created_at' | 'updated_at' | 'vehicle_number' | 'driver_name'>[],
-  // })
+
+  const [showMap, setShowMap] = useState(false)
+const [activeScheduleIndex, setActiveScheduleIndex] = useState<number | null>(null)
+const [activeField, setActiveField] = useState<'starting_point' | 'end_point' | null>(null)
+
 
   const [formData, setFormData] = useState({
   company_id: '',
   company_name: '',
   company_branch: '',
   schedules: [] as {
-    id?: number            
-    start_date: string
-    end_date: string
-    starting_point: string
+  id?: number            
+  start_date: string
+  end_date: string
+  starting_point: string
+  starting_lat?: number     // ADD
+  starting_lng?: number     // ADD
+  end_point: string
+  end_lat?: number           // ADD
+  end_lng?: number           // ADD
+  start_time: string
+  end_time: string
+  way: 'one_way' | 'two_way'
+  passengers?: {
+    name: string
+    phone: string
+    address: string
+    start_point: string
+    start_lat?: number
+    start_lng?: number
     end_point: string
-    start_time: string
-    end_time: string
-    way: 'one_way' | 'two_way'
-    passenger_count: number
-    driver_id?: string   // NOT number
-   
-    vehicle_id?: number
-    trip_type: string
-    notes?: string
-  }[],
+    end_lat?: number
+    end_lng?: number
+  }[]
+  passenger_count: number
+  driver_id?: string
+  vehicle_id?: number
+  trip_type: string
+  notes?: string
+  distance_km?: number      // ADD
+  duration_min?: number
+}[]
+
 })
 
  const [deletedScheduleIds, setDeletedScheduleIds] = useState<number[]>([])
@@ -59,10 +80,10 @@ const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
   const fetchCompanies = async () => {
     try {
       const res = await axios.get(`http://127.0.0.1:8000/api/companies/api/companies/trip/dropdown/?agency_id=${agencyId}`)
-      alert(JSON.stringify(res.data))
+      
       setCompanies(res.data) // [{id, company_name}]
     } catch (err) {
-      alert('Error fetching companies')
+      
       console.error('Failed to fetch companies', err)
     }
   }
@@ -70,11 +91,25 @@ const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
   fetchCompanies()
 }, [])
 
+const getAddressFromLatLng = async (lat: number, lng: number) => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+    )
+    const data = await res.json()
+    return data.display_name || `${lat}, ${lng}`
+  } catch (err) {
+    return `${lat}, ${lng}`
+  }
+}
+
+
 
 
   useEffect(() => {
     fetchVehicles()
     fetchDrivers()
+    
   }, [])
 
   
@@ -87,12 +122,15 @@ useEffect(() => {
     company_branch: trip.company_branch || '',
     company_name: trip.company_name || '',
     schedules: (trip.schedules || []).map(s => ({
-      id: s.id, 
+      id: s.id,
       start_date: toDateInput(s.start_date),
-end_date: toDateInput(s.end_date),
-
+      end_date: toDateInput(s.end_date),
       starting_point: s.starting_point || '',
+      starting_lat: s.starting_lat,
+      starting_lng: s.starting_lng,
       end_point: s.end_point || '',
+      end_lat: s.end_lat,
+      end_lng: s.end_lng,
       start_time: s.start_time || '',
       end_time: s.end_time || '',
       passenger_count: s.passenger_count || 0,
@@ -100,11 +138,25 @@ end_date: toDateInput(s.end_date),
       vehicle_id: s.vehicle_id ?? undefined,
       trip_type: s.trip_type || '',
       notes: s.notes || '',
-      way: s.way as 'one_way' | 'two_way' || 'one_way',
+      way: (s.way || 'one_way') as 'one_way' | 'two_way',
+      distance_km: s.distance_km,
+      duration_min: s.duration_min,
+      passengers: s.route_points ? s.route_points.map((p: any) => ({
+        name: p.passenger_name || '',
+        phone: p.passenger_phone || '',
+        address: p.passenger_address || '',
+        start_point: p.starting_point || '',
+        start_lat: p.starting_lat,
+        start_lng: p.starting_lng,
+        end_point: p.end_point || '',
+        end_lat: p.end_lat,
+        end_lng: p.end_lng,
+        })) : []
     })),
   })
-}, [trip])
 
+  
+}, [trip])
 
 
 
@@ -112,7 +164,8 @@ end_date: toDateInput(s.end_date),
   const fetchVehicles = async () => {
     try {
       const response = await axios.get('http://127.0.0.1:8000/api/vehicles/')
-      setVehicles(response.data.filter((v: Vehicle) => v.is_active))
+      setVehicles(response.data)
+      
     } catch (error) {
       console.error('Failed to fetch vehicles:', error)
     }
@@ -121,13 +174,22 @@ end_date: toDateInput(s.end_date),
   
 
   const fetchDrivers = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/api/drivers/')
-      setDrivers(response.data.filter((d: Driver) => d.is_active))
-    } catch (error) {
-      console.error('Failed to fetch drivers:', error)
-    }
+  try {
+    const token = localStorage.getItem('token') || ''
+
+    const response = await axios.get('http://127.0.0.1:8000/api/drivers', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    setDrivers(response.data)
+   
+  } catch (error) {
+    console.error('Failed to fetch drivers:', error)
   }
+}
+
 
   const getHeaderColorClasses = (color: MenuColor) => {
     const colorMap: Record<MenuColor, { bg: string; text: string }> = {
@@ -161,17 +223,20 @@ end_date: toDateInput(s.end_date),
 
  
 
-  const addSchedule = () => {
+ const addSchedule = () => {
   setFormData({
     ...formData,
     schedules: [
       ...formData.schedules,
       {
-        id: undefined,
         start_date: '',
         end_date: '',
         starting_point: '',
+        starting_lat: undefined,
+        starting_lng: undefined,
         end_point: '',
+        end_lat: undefined,
+        end_lng: undefined,
         start_time: '',
         end_time: '',
         way: 'one_way',
@@ -180,18 +245,59 @@ end_date: toDateInput(s.end_date),
         vehicle_id: undefined,
         trip_type: '',
         notes: '',
+        distance_km: undefined,
+        duration_min: undefined, // 👈 ADD
+        passengers: [],   // 👈 VERY IMPORTANT
       },
     ],
   })
 }
 
+// const updatePassengerCount = (scheduleIndex: number, count: number) => {
+//   const updated = [...formData.schedules]
+//   const s = updated[scheduleIndex]
 
-  // const removeSchedule = (index: number) => {
-  //   setFormData({
-  //     ...formData,
-  //     schedules: formData.schedules.filter((_, i) => i !== index),
-  //   })
-  // }
+//   s.passenger_count = count
+
+//   if (s.trip_type === 'route') {
+//     s.passengers = Array.from({ length: count }, (_, i) => ({
+//       name: s.passengers?.[i]?.name || '',
+//       phone: s.passengers?.[i]?.phone || '',
+//       address: s.passengers?.[i]?.address || '',
+//       start_point: s.passengers?.[i]?.start_point || '',
+//       end_point: s.passengers?.[i]?.end_point || '',
+//     }))
+//   }
+
+//   setFormData({ ...formData, schedules: updated })
+// }
+
+const updatePassengerCount = (scheduleIndex: number, count: number) => {
+  const updated = [...formData.schedules]
+  const s = updated[scheduleIndex]
+
+  s.passenger_count = count
+
+  if (s.trip_type === 'route') {
+    s.passengers = Array.from({ length: count }, (_, i) => ({
+      name: s.passengers?.[i]?.name || '',
+      phone: s.passengers?.[i]?.phone || '',
+      address: s.passengers?.[i]?.address || '',
+      start_point: s.passengers?.[i]?.start_point || '',
+      start_lat: s.passengers?.[i]?.start_lat,   // ✅ KEEP
+      start_lng: s.passengers?.[i]?.start_lng,   // ✅ KEEP
+      end_point: s.passengers?.[i]?.end_point || '',
+      end_lat: s.passengers?.[i]?.end_lat,       // ✅ KEEP
+      end_lng: s.passengers?.[i]?.end_lng,       // ✅ KEEP
+    }))
+  }
+
+  setFormData({ ...formData, schedules: updated })
+}
+
+
+
+
 
   const updateSchedule = (index: number, field: string, value: string | number | undefined) => {
     const updated = [...formData.schedules]
@@ -199,38 +305,7 @@ end_date: toDateInput(s.end_date),
     setFormData({ ...formData, schedules: updated })
   }
 
-  // // Get available vehicles/drivers (not already assigned to another schedule at the same time)
-  // const getAvailableVehicles = (scheduleIndex: number) => {
-  //   const currentSchedule = formData.schedules[scheduleIndex]
-  //   if (!currentSchedule.departure_datetime) return vehicles
-
-  //   return vehicles.filter(vehicle => {
-  //     // Check if vehicle is already assigned to another schedule at this time
-  //     const isAssigned = formData.schedules.some((s, idx) => 
-  //       idx !== scheduleIndex && 
-  //       s.vehicle_id === vehicle.id && 
-  //       s.departure_datetime === currentSchedule.departure_datetime
-  //     )
-  //     return !isAssigned
-  //   })
-  // }
-
-  // const getAvailableDrivers = (scheduleIndex: number) => {
-  //   const currentSchedule = formData.schedules[scheduleIndex]
-  //   if (!currentSchedule.departure_datetime) return drivers
-
-  //   return drivers.filter(driver => {
-  //     // Check if driver is already assigned to another schedule at this time
-  //     const isAssigned = formData.schedules.some((s, idx) => 
-  //       idx !== scheduleIndex && 
-  //       s.driver_id === driver.id && 
-  //       s.departure_datetime === currentSchedule.departure_datetime
-  //     )
-  //     return !isAssigned
-  //   })
-  // }
-
-
+ 
   const getScheduleKey = (s: any) => {
   if (!s.start_date || !s.start_time) return ''
   return `${s.start_date} ${s.start_time}`
@@ -315,7 +390,28 @@ const handleSubmit = async (e: React.FormEvent) => {
         vehicle_id: s.vehicle_id || null,
         notes: s.notes || null,
         is_active: true,
+         starting_lat: s.starting_lat || null,
+  starting_lng: s.starting_lng || null,
+  end_lat: s.end_lat || null,
+  end_lng: s.end_lng || null,
+  distance_km: s.distance_km || null,
+  duration_min: s.duration_min || null,
+
+        route_points: s.passengers?.map(p => ({
+          passenger_name: p.name,
+          passenger_phone: p.phone,
+          passenger_address: p.address,
+          starting_point: p.start_point,
+          starting_lat: p.start_lat,
+          starting_lng: p.start_lng,
+          end_point: p.end_point,
+          end_lat: p.end_lat,
+          end_lng: p.end_lng,
+        })) || []
+
       }
+
+      console.log('Submitting schedule with payload: ' + JSON.stringify(payload, null, 2))
 
       if (s.id) {
         // 🟡 UPDATE
@@ -460,8 +556,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               {[
                 ['Start Date', 'date', 'start_date'],
                 ['End Date', 'date', 'end_date'],
-                ['Starting Point', 'text', 'starting_point'],
-                ['End Point', 'text', 'end_point'],
+
                 ['Start Time', 'time', 'start_time'],
                 ['End Time', 'time', 'end_time'],
               ].map(([label, type, field]) => (
@@ -493,24 +588,417 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </select>
               </div>
 
+               <div>
+  <label className="block text-xs font-medium mb-1">Trip Type</label>
+
+  <select
+  value={schedule.trip_type}
+  onChange={(e) => {
+    const updated = [...formData.schedules]
+    const s = updated[index]
+
+    s.trip_type = e.target.value
+
+    if (e.target.value === 'route') {
+      const count = s.passenger_count || 0
+      s.passengers = Array.from({ length: count }, (_, i) => ({
+        name: '',
+        phone: '',
+        address: '',
+        start_point: '',
+        start_lat: undefined,
+        start_lng: undefined,
+        end_point: '',
+        end_lat: undefined,
+        end_lng: undefined,
+      }))
+    } else {
+      s.passengers = []
+    }
+
+    setFormData({ ...formData, schedules: updated })
+  }}
+>
+
+    <option value="">Select Trip Type</option>
+    <option value="ambulance">Ambulance</option>
+    <option value="shuttle">Shuttle</option>
+    <option value="route">Route</option>
+    
+  </select>
+</div>
+
               <div>
                 <label className="block text-xs font-medium mb-1">Passengers</label>
                 <input
-                  type="number"
-                  value={schedule.passenger_count}
-                  onChange={(e) =>
-                    updateSchedule(index, 'passenger_count', Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
-                />
+  type="number"
+  value={schedule.passenger_count}
+  onChange={(e) =>
+    updatePassengerCount(index, Number(e.target.value))
+  }
+/>
+
               </div>
+
+             
+
+{schedule.trip_type !== 'route' && (
+  <>
+    <div>
+  <label className="block text-xs font-medium mb-1">
+    Starting Point
+  </label>
+
+  <div className="relative">
+    <input
+      type="text"
+      readOnly  
+      value={schedule.starting_point}
+      onChange={(e) =>
+        updateSchedule(index, 'starting_point', e.target.value)
+      }
+      placeholder="Select starting location"
+      className="w-full border rounded px-3 py-2 pr-10"
+    />
+
+    <button
+      type="button"
+      onClick={() => {
+        setActiveScheduleIndex(index)
+        setActiveField('starting_point')
+        setShowMap(true)
+      }}
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-red-600"
+      title="Pick location"
+    >
+      <MapPin size={18} />
+    </button>
+  </div>
+</div>
+
+<div>
+  <label className="block text-xs font-medium mb-1">
+    End Point
+  </label>
+
+  <div className="relative">
+    <input
+      type="text"
+      value={schedule.end_point}
+      readOnly  
+      onChange={(e) =>
+        updateSchedule(index, 'end_point', e.target.value)
+      }
+      placeholder="Select ending location"
+      className="w-full border rounded px-3 py-2 pr-10"
+    />
+
+    <button
+      type="button"
+      onClick={() => {
+        setActiveScheduleIndex(index)
+        setActiveField('end_point')
+        setShowMap(true)
+      }}
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-red-600"
+      title="Pick location"
+    >
+      <MapPin size={18} />
+    </button>
+  </div>
+</div>
+
+
+
+
+  </>
+)}
+
+{schedule.trip_type === 'route' &&
+  schedule.passengers &&
+  schedule.passengers.length > 0 && (
+
+  <div className="mt-8">
+
+    {/* ================= PASSENGER STEPPER ================= */}
+    <div className="flex gap-3 overflow-x-auto mb-6 pb-2">
+      {schedule.passengers.map((_, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => setActivePassengerTab(i)}
+          className={`px-5 py-2 rounded-xl text-sm font-medium transition-all
+            ${
+              activePassengerTab === i
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+        >
+         Passenger {i + 1}
+        </button>
+      ))}
+    </div>
+
+    {/* ================= ACTIVE PASSENGER ================= */}
+    {(() => {
+      const p = schedule.passengers![activePassengerTab]
+
+      return (
+        <div
+          className="relative rounded-2xl border border-gray-200 dark:border-gray-700
+                     bg-white/90 dark:bg-gray-900/90 backdrop-blur
+                     p-6 shadow-xl"
+        >
+
+          {/* HEADER */}
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+              Passenger {activePassengerTab + 1}
+            </h3>
+
+            <span className="text-xs px-4 py-1 rounded-full
+                             bg-indigo-100 text-indigo-700 font-medium">
+              ROUTE TRIP
+            </span>
+          </div>
+
+          {/* NAME & PHONE */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">
+                Passenger Name
+              </label>
+              <input
+                type="text"
+                value={p.name}
+                onChange={(e) => {
+                  const updated = [...formData.schedules]
+                  updated[index].passengers![activePassengerTab].name = e.target.value
+                  setFormData({ ...formData, schedules: updated })
+                }}
+                className="w-full rounded-xl border border-gray-300 dark:border-gray-600
+                           bg-white dark:bg-gray-800 px-4 py-2
+                           focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">
+                Phone Number
+              </label>
+              <input
+                type="text"
+                value={p.phone}
+                onChange={(e) => {
+                  const updated = [...formData.schedules]
+                  updated[index].passengers![activePassengerTab].phone = e.target.value
+                  setFormData({ ...formData, schedules: updated })
+                }}
+                className="w-full rounded-xl border border-gray-300 dark:border-gray-600
+                           bg-white dark:bg-gray-800 px-4 py-2
+                           focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* LOCATION */}
+          <div className="mt-8">
+            <p className="text-xs text-gray-500 mb-3">
+              Pickup & Drop Location
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+              {/* START POINT */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveScheduleIndex(index)
+                  setActivePassengerIndex(activePassengerTab)
+                  setActiveField('starting_point')
+                  setShowMap(true)
+                }}
+                className="rounded-xl border border-dashed border-indigo-400
+                           p-4 text-left hover:bg-indigo-50 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-indigo-100
+                                  flex items-center justify-center">
+                    📍
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Start Point</p>
+                    <p className="text-xs text-gray-500 max-w-[220px] 
+              break-words line-clamp-2">
+  {p.start_point || 'Select pickup location'}
+</p>
+
+                  </div>
+                </div>
+              </button>
+
+              {/* END POINT */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveScheduleIndex(index)
+                  setActivePassengerIndex(activePassengerTab)
+                  setActiveField('end_point')
+                  setShowMap(true)
+                }}
+                className="rounded-xl border border-dashed border-emerald-400
+                           p-4 text-left hover:bg-emerald-50 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-emerald-100
+                                  flex items-center justify-center">
+                    📍
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">End Point</p>
+                   <p className="text-xs text-gray-500 max-w-[220px] 
+              break-words line-clamp-2">
+  {p.end_point || 'Select drop location'}
+</p>
+
+                  </div>
+                </div>
+              </button>
+
+            </div>
+          </div>
+
+        </div>
+      )
+    })()}
+  </div>
+)}
+
+
+
+
+
+
+
+
+
+
+             {showMap && (
+  <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center">
+    <div className="bg-white dark:bg-gray-800 rounded-xl w-[90%] max-w-xl p-4">
+
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-sm font-semibold">Select Location</h3>
+        <button
+          onClick={() => setShowMap(false)}
+          className="text-sm text-red-500"
+        >
+          Close
+        </button>
+      </div>
+
+
+<MapPicker
+  mode={activeField}
+  startPoint={
+    activeScheduleIndex !== null
+      ? (() => {
+          const s = formData.schedules[activeScheduleIndex]
+
+          // 🔥 ROUTE → PASSENGER
+          if (s.trip_type === 'route' && activePassengerIndex !== null) {
+            const p = s.passengers?.[activePassengerIndex]
+            return p?.start_lat && p?.start_lng
+              ? { lat: p.start_lat, lng: p.start_lng }
+              : undefined
+          }
+
+          // 🔵 SHUTTLE / AMBULANCE → SCHEDULE
+          return s.starting_lat && s.starting_lng
+            ? { lat: s.starting_lat, lng: s.starting_lng }
+            : undefined
+        })()
+      : undefined
+  }
+  endPoint={
+    activeScheduleIndex !== null
+      ? (() => {
+          const s = formData.schedules[activeScheduleIndex]
+
+          // 🔥 ROUTE → PASSENGER
+          if (s.trip_type === 'route' && activePassengerIndex !== null) {
+            const p = s.passengers?.[activePassengerIndex]
+            return p?.end_lat && p?.end_lng
+              ? { lat: p.end_lat, lng: p.end_lng }
+              : undefined
+          }
+
+          // 🔵 SHUTTLE / AMBULANCE → SCHEDULE
+          return s.end_lat && s.end_lng
+            ? { lat: s.end_lat, lng: s.end_lng }
+            : undefined
+        })()
+      : undefined
+  }
+  onSelect={async (lat, lng, distanceKm, durationMin) => {
+    if (activeScheduleIndex === null || !activeField) return
+
+    const address = await getAddressFromLatLng(lat, lng)
+    const updated = [...formData.schedules]
+    const s = updated[activeScheduleIndex]
+
+    // 🔥 ROUTE – PASSENGER LEVEL
+    if (s.trip_type === 'route' && activePassengerIndex !== null) {
+      const p = s.passengers![activePassengerIndex]
+
+      if (activeField === 'starting_point') {
+        p.start_point = address
+        p.start_lat = lat
+        p.start_lng = lng
+      } else {
+        p.end_point = address
+        p.end_lat = lat
+        p.end_lng = lng
+      }
+    }
+
+    // 🔵 SHUTTLE / AMBULANCE – SCHEDULE LEVEL
+    else {
+      if (activeField === 'starting_point') {
+        s.starting_point = address
+        s.starting_lat = lat
+        s.starting_lng = lng
+      } else {
+        s.end_point = address
+        s.end_lat = lat
+        s.end_lng = lng
+      }
+    }
+
+    // Distance only schedule-level
+    if (distanceKm) s.distance_km = distanceKm
+    if (durationMin) s.duration_min = durationMin
+
+    setFormData({ ...formData, schedules: updated })
+    setShowMap(false)
+  }}
+/>
+
+
+
+
+
+    </div>
+  </div>
+)}
+
 
 
               <div>
                 <label className="block text-xs font-medium mb-1">Select Driver</label>
                 <select
                   value={schedule.driver_id || ''}
-                   onChange={(e) => updateSchedule(index, 'driver_id', Number(e.target.value))}
+                   onChange={(e) => updateSchedule(index, 'driver_id', e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
                 >
                   <option value="">Select Driver</option>
@@ -533,7 +1021,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <option value="">Select Vehicle</option>
       {getAvailableVehicles(index).map((vehicle) => (
                           <option key={vehicle.id} value={vehicle.id}>
-                            {vehicle.vehicle_number} - {vehicle.make} {vehicle.model}
+                            {vehicle.vehicle_registration_number} - {vehicle.vehicle_brand}- {vehicle.vehicle_model}
                           </option>
                         ))}
                 </select>
@@ -545,17 +1033,8 @@ const handleSubmit = async (e: React.FormEvent) => {
 
               
 
-              <div>
-                <label className="block text-xs font-medium mb-1">Trip Type</label>
-                <input
-                  type="text"
-                  value={schedule.trip_type}
-                  onChange={(e) =>
-                    updateSchedule(index, 'trip_type', e.target.value)
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
-                />
-              </div>
+              
+
             </div>
 
             {/* ===== Notes ===== */}

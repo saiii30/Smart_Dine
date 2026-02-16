@@ -74,6 +74,18 @@ const Trips = () => {
         passenger_count: sch.passenger_count ?? 0,
         notes: sch.notes,
         vehicle_id: sch.vehicle_id,
+        distance_km: sch.distance_km,
+        duration_min: sch.duration_min,
+        starting_lat: sch.starting_lat,
+        starting_lng: sch.starting_lng,
+        end_lat: sch.end_lat,
+        end_lng: sch.end_lng,
+
+        route_points: sch.route_points ?? undefined,
+
+        
+        
+        vehicle_number: sch.vehicle_number,
         driver_id: sch.driver_id,
         vehicle_registration_number: sch.vehicle_registration_number,
         driver_name: sch.driver_name,
