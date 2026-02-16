@@ -12,6 +12,40 @@ const Dashboard = () => {
   })
   const [loading, setLoading] = useState(true)
 
+  // Listen for notification updates
+  useEffect(() => {
+    const handleNotificationUpdate = () => {
+      // Refetch stats to update any dashboard data if needed
+      const fetchStats = async () => {
+        try {
+          const [vehiclesRes, driversRes] = await Promise.all([
+            axios.get('/api/vehicles/'),
+            axios.get('/api/drivers/'),
+          ])
+
+          const vehicles = vehiclesRes.data as Vehicle[]
+          const drivers = driversRes.data as Driver[]
+
+          setStats({
+            vehicles: vehicles.length,
+            drivers: drivers.length,
+            activeVehicles: vehicles.filter((v) => v.is_active).length,
+            activeDrivers: drivers.filter((d) => d.is_active).length,
+          })
+        } catch (error) {
+          console.error('Failed to fetch stats:', error)
+        }
+      }
+      fetchStats()
+    }
+
+    window.addEventListener('notificationUpdate', handleNotificationUpdate)
+    
+    return () => {
+      window.removeEventListener('notificationUpdate', handleNotificationUpdate)
+    }
+  }, [])
+
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -37,6 +71,9 @@ const Dashboard = () => {
     }
 
     fetchStats()
+     
+    // Emit notification update event when component mounts to refresh the badge count
+    window.dispatchEvent(new CustomEvent('notificationUpdate'))
   }, [])
 
   const statCards = [

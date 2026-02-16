@@ -23,7 +23,8 @@ from app.routers import (
     locations,
     company,
     agency,
-    trip_schedules
+    trip_schedules,
+    notifications
 )
 
 # Create database tables
@@ -111,6 +112,7 @@ app.include_router(locations.router, prefix="/api/locations", tags=["Locations"]
 app.include_router(trip_schedules.router, prefix="/api/trip-schedules", tags=["Trip Schedules"])
 app.include_router(company.router, prefix="/api/companies", tags=["Companies"])
 app.include_router(agency.router, prefix="/api/agency", tags=["Agency"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 
 # -------------------- Health --------------------
 @app.get("/")
