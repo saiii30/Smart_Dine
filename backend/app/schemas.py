@@ -714,3 +714,28 @@ class UpdatePlanRequest(BaseModel):
     
     class Config:
         from_attributes = True
+
+        # Notification Schemas
+class NotificationBase(BaseModel):
+    type: str  # 'driver' or 'vehicle'
+    title: str
+    description: str
+    expiry_date: datetime
+    days_remaining: int
+    severity: str  # 'critical', 'warning', 'info'
+    entity_id: str
+    entity_name: str
+    document_type: str
+
+class NotificationResponse(NotificationBase):
+    id: str
+    
+    class Config:
+        from_attributes = True
+
+class NotificationSummary(BaseModel):
+    total_count: int
+    critical_count: int
+    warning_count: int
+    info_count: int
+    notifications: List[NotificationResponse]
