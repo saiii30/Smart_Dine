@@ -1,5 +1,5 @@
 from typing import List, Optional, Union
-from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Form, File, UploadFile
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas, auth
@@ -7,7 +7,8 @@ import shutil
 import os
 import re
 import logging
-from datetime import datetime
+from datetime import datetime, time, date
+from sqlalchemy import or_, and_
 import uuid
 from app.auth import get_password_hash
 
@@ -480,4 +481,90 @@ def delete_driver(
     db.delete(db_user)
     db.commit()
     return None
+
+
+# list available drivers within a specific time range
+@router.get("/available/drivers", response_model=List[schemas.DriverResponse])
+def get_available_drivers(
+    start_date: date = Query(..., description="Start date for availability check (YYYY-MM-DD)"),
+    end_date: date = Query(..., description="End date for availability check (YYYY-MM-DD)"),
+    start_time: time = Query(..., description="Start time for daily availability (HH:MM:SS)"),
+    end_time: time = Query(..., description="End time for daily availability (HH:MM:SS)"),
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all active drivers who are not engaged in any trip during the specified date and time range.
+    Checks for availability between start_date and end_date, during the specified time window each day.
+    """
+    try:
+        # Convert date and time to datetime objects for comparison
+        start_datetime = datetime.combine(start_date, start_time)
+        end_datetime = datetime.combine(end_date, end_time)
+        
+        # Get all active drivers from the same agency
+        active_drivers = db.query(models.Driver)\
+            .join(models.User)\
+            .filter(
+                models.Driver.status == 'Active',
+                models.User.is_active == True,
+                models.User.agency_id == current_user.agency_id
+            )\
+            .all()
+        
+        if not active_drivers:
+            return []
+        
+        # Get all drivers who are engaged in trips during the specified date and time range
+        engaged_driver_ids = db.query(models.TripSchedule.driver_id)\
+            .filter(
+                models.TripSchedule.driver_id.isnot(None),
+                models.TripSchedule.is_active == True,
+                models.TripSchedule.agency_id == current_user.agency_id,
+                # Check for overlapping date ranges
+                models.TripSchedule.start_date <= end_date,
+                models.TripSchedule.end_date >= start_date,
+                # Check for overlapping time ranges on the same day
+                or_(
+                    # Case 1: Time range is within a single day
+                    and_(
+                        models.TripSchedule.start_date == models.TripSchedule.end_date,
+                        models.TripSchedule.start_time < end_time,
+                        models.TripSchedule.end_time > start_time
+                    ),
+                    # Case 2: Time range spans multiple days
+                    and_(
+                        models.TripSchedule.start_date < models.TripSchedule.end_date,
+                        or_(
+                            models.TripSchedule.start_time < end_time,
+                            models.TripSchedule.end_time > start_time
+                        )
+                    )
+                )
+            )\
+            .distinct()\
+            .all()
+        
+        # Convert to a set of driver IDs for faster lookup
+        engaged_driver_ids = {driver_id[0] for driver_id in engaged_driver_ids}
+        
+        # Filter out engaged drivers
+        available_drivers = [
+            driver for driver in active_drivers 
+            if driver.id not in engaged_driver_ids
+        ]
+        
+        # Map to response schema
+        return [
+            map_driver_response(driver, driver.user) 
+            for driver in available_drivers
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error fetching available drivers: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching available drivers"
+        )
+
 

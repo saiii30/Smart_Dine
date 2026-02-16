@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 from typing import List
 import json
 
+from fastapi import FastAPI
+from .scheduler import start_scheduler, shutdown_scheduler
+import logging
+
 # Import database and models
 from app.database import engine, Base, get_db
 from app import models, schemas
@@ -25,12 +29,33 @@ from app.routers import (
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title="Travel Management System API",
     description="SAAS application for travel service providers",
     version="1.0.0"
 )
 
+
+
+# Add these event handlers
+@app.on_event("startup")
+async def startup_event():
+    try:
+        start_scheduler()
+        logger.info("Trip status scheduler started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
+        raise
+ 
+@app.on_event("shutdown")
+async def shutdown_event():
+    shutdown_scheduler()
+    logger.info("Application shutdown complete")
+    
 # Custom exception handler for validation errors with debugging
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

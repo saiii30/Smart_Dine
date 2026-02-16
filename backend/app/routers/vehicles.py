@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Request, File, UploadFile
+from datetime import datetime, time, date
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, File, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 import os
 
-from .. import models, schemas
+from .. import models, schemas, auth
 from ..database import get_db
 from ..auth import get_current_active_user
 
@@ -465,3 +465,82 @@ async def get_vehicle_document(
         filename=file_path.name,
         media_type=content_type
     )
+
+# list available vehicles within a specific time range
+@router.get("/available/vehicles", response_model=List[schemas.VehicleResponse])
+def get_available_vehicles(
+    start_date: date = Query(..., description="Start date for availability check (YYYY-MM-DD)"),
+    end_date: date = Query(..., description="End date for availability check (YYYY-MM-DD)"),
+    start_time: time = Query(..., description="Start time for daily availability (HH:MM:SS)"),
+    end_time: time = Query(..., description="End time for daily availability (HH:MM:SS)"),
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all active vehicles that are not in use during the specified date and time range.
+    Checks for availability between start_date and end_date, during the specified time window each day.
+    """
+    try:
+        # Convert date and time to datetime objects for comparison
+        start_datetime = datetime.combine(start_date, start_time)
+        end_datetime = datetime.combine(end_date, end_time)
+        
+        # Get all active vehicles from the same agency
+        active_vehicles = db.query(models.Vehicle)\
+            .filter(
+                models.Vehicle.vehicle_status == 'Active',
+                models.Vehicle.is_active == True,
+                models.Vehicle.agency_id == current_user.agency_id
+            )\
+            .all()
+        
+        if not active_vehicles:
+            return []
+        
+        # Get all vehicles that are in use during the specified date and time range
+        engaged_vehicle_ids = db.query(models.TripSchedule.vehicle_id)\
+            .filter(
+                models.TripSchedule.vehicle_id.isnot(None),
+                models.TripSchedule.is_active == True,
+                models.TripSchedule.agency_id == current_user.agency_id,
+                # Check for overlapping date ranges
+                models.TripSchedule.start_date <= end_date,
+                models.TripSchedule.end_date >= start_date,
+                # Check for overlapping time ranges on the same day
+                or_(
+                    # Case 1: Time range is within a single day
+                    and_(
+                        models.TripSchedule.start_date == models.TripSchedule.end_date,
+                        models.TripSchedule.start_time < end_time,
+                        models.TripSchedule.end_time > start_time
+                    ),
+                    # Case 2: Time range spans multiple days
+                    and_(
+                        models.TripSchedule.start_date < models.TripSchedule.end_date,
+                        or_(
+                            models.TripSchedule.start_time < end_time,
+                            models.TripSchedule.end_time > start_time
+                        )
+                    )
+                )
+            )\
+            .distinct()\
+            .all()
+        
+        # Convert to a set of vehicle IDs for faster lookup
+        engaged_vehicle_ids = {vehicle_id[0] for vehicle_id in engaged_vehicle_ids}
+        
+        # Filter out engaged vehicles
+        available_vehicles = [
+            vehicle for vehicle in active_vehicles 
+            if vehicle.id not in engaged_vehicle_ids
+        ]
+        
+        return available_vehicles
+        
+    except Exception as e:
+        logger.error(f"Error fetching available vehicles: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching available vehicles"
+        )
