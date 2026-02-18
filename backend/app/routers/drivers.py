@@ -1,22 +1,28 @@
 from typing import List, Optional, Union
-from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Form, File, UploadFile
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app import models, schemas, auth
 import shutil
 import os
 import re
 import logging
-from datetime import datetime
+from datetime import date, time, datetime
+from sqlalchemy import func, and_, or_
 import uuid
 from app.auth import get_password_hash
- 
+from datetime import datetime, date, time
+import traceback
+
+
+
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
- 
+
 router = APIRouter(tags=["Drivers"])
- 
+
 # Helper to save upload file
 def save_upload_file(upload_file: UploadFile, destination_folder: str) -> str:
     try:
@@ -31,51 +37,6 @@ def save_upload_file(upload_file: UploadFile, destination_folder: str) -> str:
         return file_path
     finally:
         upload_file.file.close()
- 
-# Helper to merge User and Driver for response
-def map_driver_response(driver_obj: models.Driver, user_obj: models.User):
-    # If using Pydantic's from_orm, we might need a transient object or dict
-    # Since we have a flat schema DriverResponse, we can populate it manually
-    return schemas.DriverResponse(
-        id=driver_obj.id, # String now
-        user_id=user_obj.id, # Redundant but part of schema
-        full_name=user_obj.name,
-        phone_number=user_obj.contact_number or "",
-        email=user_obj.email,
-       
-        date_of_birth=driver_obj.date_of_birth,
-        gender=driver_obj.gender,
-        blood_group=driver_obj.blood_group,
-       
-        aadhar_number=driver_obj.aadhar_number,
-        driving_license_number=driver_obj.driving_license_number,
-        license_expiry_date=driver_obj.license_expiry_date,
-       
-        aadhar_document=driver_obj.aadhar_document,
-        driver_photo=driver_obj.driver_photo,
-        police_verification_certificate=driver_obj.police_verification_certificate,
-        medical_fitness_certificate=driver_obj.medical_fitness_certificate,
-       
-        verification_status=driver_obj.verification_status,
-        status=driver_obj.status,
-        is_active=user_obj.is_active, # Driver status vs User active? Logic choice.
-       
-        current_address=driver_obj.current_address,
-        city=driver_obj.city,
-        state=driver_obj.state,
-        pincode=driver_obj.pincode,
-       
-        emergency_contact_name=driver_obj.emergency_contact_name,
-        emergency_contact_number=driver_obj.emergency_contact_number,
-       
-        previous_employer_experience=driver_obj.previous_employer_experience,
-        languages_spoken=driver_obj.languages_spoken,
-        shift_preference=driver_obj.shift_preference,
-        assigned_vehicle_id=driver_obj.assigned_vehicle_id,
-        notes=driver_obj.notes,
-        created_at=driver_obj.created_at,
-        updated_at=driver_obj.updated_at
-    )
  
 def validate_phone_number(phone: str) -> str:
     """Validate and clean phone number."""
@@ -300,50 +261,76 @@ async def create_driver(
 def read_drivers(
     skip: int = 0,
     limit: int = 100,
+    status: Optional[str] = None,
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # Determine the Agency ID to filter by.
-    # If current_user is admin, show drivers in their agency.
-    agency_id = current_user.agency_id
-   
-    # Query Drivers joined with Users, filtered by User.agency_id == agency_id
-    query = db.query(models.Driver, models.User).join(models.User, models.Driver.id == models.User.id)
-   
-    if agency_id:
-        query = query.filter(models.User.agency_id == agency_id)
-    # If no agency_id (maybe Super Admin?), maybe return all? Or maybe filter by user.id if hierarchy is strictly 1-level?
-    # Let's assume simple agency tenancy.
-   
-    results = query.offset(skip).limit(limit).all()
-   
-    return [map_driver_response(d, u) for d, u in results]
+    """
+    Get a list of drivers with optional filtering.
+    
+    - **skip**: Number of records to skip (for pagination)
+    - **limit**: Maximum number of records to return
+    - **status**: Filter by driver status (e.g., 'Active', 'Inactive')
+    """
+    # Start with a base query that joins Driver and User
+    query = (
+        db.query(models.Driver)
+        .join(models.User, models.Driver.id == models.User.id)
+        .options(joinedload(models.Driver.user))
+    )
+    
+    # Apply agency filter for non-super admins
+    if current_user.role not in [models.UserRole.SUPER_ADMIN]:
+        query = query.filter(models.User.agency_id == current_user.agency_id)
+    
+    # Apply status filter if provided
+    if status:
+        query = query.filter(models.Driver.status == status)
+    
+    # Apply pagination and ordering
+    drivers = (
+        query.order_by(models.User.name)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    
+    # Map to response model (user is already loaded)
+    return drivers
  
 @router.get("/{driver_id}", response_model=schemas.DriverResponse)
 def read_driver(
-    driver_id: str, # Changed int to str
+    driver_id: str,
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # Join Driver and User
-    result = db.query(models.Driver, models.User).join(models.User, models.Driver.id == models.User.id).filter(models.Driver.id == driver_id).first()
-   
-    if not result:
+    """
+    Get a single driver by ID with all related data.
+    
+    - **driver_id**: The ID of the driver to retrieve
+    """
+    # Query driver with eager loading of user data
+    driver = (
+        db.query(models.Driver)
+        .options(joinedload(models.Driver.user))
+        .filter(models.Driver.id == driver_id)
+        .first()
+    )
+    
+    if not driver or not driver.user:
         raise HTTPException(status_code=404, detail="Driver not found")
-       
-    driver, user = result
-    # Access control: check if user belongs to same agency
-    if current_user.agency_id and user.agency_id != current_user.agency_id:
-        # Assuming strict simple tenancy.
-        # If current_user is the driver themselves, allow.
-        if current_user.id != driver_id:
-             raise HTTPException(status_code=403, detail="Not authorized")
- 
-    return map_driver_response(driver, user)
+    
+    # Access control
+    if (current_user.role not in [models.UserRole.SUPER_ADMIN] and 
+        current_user.agency_id != driver.user.agency_id and
+        current_user.id != driver_id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this driver")
+    
+    return driver
  
 @router.put("/{driver_id}", response_model=schemas.DriverResponse)
 async def update_driver(
-    driver_id: str, # Changed to str
+    driver_id: str, 
     full_name: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     driving_license_number: Optional[str] = Form(None),
@@ -478,5 +465,80 @@ def delete_driver(
     # Note: cascade delete might handle this if configured, but let's be explicit.
     db.delete(db_driver)
     db.delete(db_user)
-    db.commit()
-    return None
+
+
+
+# list available drivers within a specific time range
+
+@router.get("/available/drivers", response_model=List[schemas.DriverResponse])
+def get_available_drivers(
+    start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
+    start_time: time = Query(..., description="Start time (HH:MM:SS)"),
+    end_time: time = Query(..., description="End time (HH:MM:SS)"),
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns all active drivers who are NOT engaged in any trip
+    during the given date range AND time window.
+ 
+    Business Logic:
+    Driver is unavailable only if:
+    (time overlaps) AND (date overlaps)
+    """
+ 
+    try:
+ 
+        # 1️ TIME OVERLAP CHECK
+        time_overlap = and_(
+            models.TripSchedule.start_time < end_time,
+            models.TripSchedule.end_time > start_time
+        )
+ 
+        # 2️ DATE OVERLAP CHECK
+        date_overlap = and_(
+            models.TripSchedule.start_date <= end_date,
+            models.TripSchedule.end_date >= start_date
+        )
+ 
+        # 3️ FINAL OVERLAP CONDITION
+        overlap_condition = and_(
+            time_overlap,
+            date_overlap
+        )
+ 
+        # 4️ QUERY AVAILABLE DRIVERS
+        available_drivers = (
+            db.query(models.Driver)
+            .join(models.User)
+            .options(joinedload(models.Driver.user))
+            .outerjoin(
+                models.TripSchedule,
+                and_(
+                    models.Driver.id == models.TripSchedule.driver_id,
+                    models.TripSchedule.agency_id == current_user.agency_id,
+                    models.TripSchedule.is_active == True,
+                    overlap_condition
+                )
+            )
+            .filter(
+                models.Driver.status == "Active",
+                models.User.is_active == True,
+                models.User.agency_id == current_user.agency_id,
+                models.TripSchedule.id.is_(None)  # No overlapping trip
+            )
+            .all()
+        )
+ 
+        return available_drivers
+ 
+    except Exception as e:
+        logger.error(
+            f"Error fetching available drivers: {str(e)}\n{traceback.format_exc()}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Error fetching available drivers"
+        )
+ 

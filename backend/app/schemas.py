@@ -1,9 +1,9 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from fastapi import UploadFile
 from datetime import datetime
 from typing import Optional, List, Any, Dict, Union
 from app.models import UserRole  # Removed VehicleType as it's now a string
-from datetime import time
+from datetime import time, date, datetime, timezone
 
 # ADDED NEW LINES OF CODE 405 TO 443 FOR ITDASHBOARDCOMPANY
 # compatibility: prefer pydantic v2 `field_validator`, fall back to v1 `validator`
@@ -17,9 +17,14 @@ from app.models import VehicleType, UserRole
 
 # User Schemas (aligned with SQL schema)
 class UserBase(BaseModel):
+    id: Optional[str] = None
     name: str
     email: Optional[EmailStr] = None
     contact_number: Optional[str] = None
+    role: Optional[UserRole] = None
+    
+    class Config:
+        orm_mode = True
 
 class UserCreate(UserBase):
     password: str
@@ -129,6 +134,7 @@ class VehicleBase(BaseModel):
     category: Optional[str] = None
     owner_name: Optional[str] = None
     ownership_type: Optional[str] = None
+
 class VehicleCreate(BaseModel):
     user_id: str
     vehicle_type: str
@@ -205,27 +211,24 @@ class VehicleUpdate(BaseModel):
     puc_expiry: Optional[datetime] = None
     ownership_type: Optional[str] = None
 
-class VehicleResponse(VehicleBase):
+class VehicleResponse(BaseModel):
     id: int
-    user_id: str
-    agency_id: Optional[str] = None
-    is_active: bool
-    insurance_copy: Optional[str] = None
-    policy_certificate: Optional[str] = None
-    registration_certificate: Optional[str] = None
-    pollution_certificate: Optional[str] = None
-    
+    vehicle_registration_number: str
+    vehicle_type: Optional[str] = None
+    vehicle_brand: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    manufacturing_year: Optional[int] = None
+    color: Optional[str] = None
+    seating_capacity: Optional[int] = None
+    fuel_type: Optional[str] = None
+    vehicle_status: Optional[str] = None
+    is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
-    @classmethod
-    def from_orm(cls, obj):
-        # Convert SQLAlchemy model to Pydantic model
-        obj_dict = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
-        return cls(**obj_dict)
-    
     class Config:
-        from_attributes = True
+        orm_mode = True
+
 # Driver Schemas
 class DriverBase(BaseModel):
     full_name: str
@@ -308,23 +311,20 @@ class DriverUpdate(BaseModel):
     email: Optional[EmailStr] = None
     is_active: Optional[bool] = None
 
-class DriverResponse(DriverBase):
+class DriverResponse(BaseModel):
     id: str
-    user_id: str
+    user: Optional[UserBase] = None
     agency_id: Optional[str] = None
-    
-    # Document paths
-    aadhar_document: Optional[str] = None
-    driver_photo: Optional[str] = None
-    police_verification_certificate: Optional[str] = None
-    medical_fitness_certificate: Optional[str] = None
-    
-    is_active: bool
-    created_at: datetime
+    driving_license_number: Optional[str] = None
+    license_expiry_date: Optional[datetime] = None
+    verification_status: Optional[str] = None
+    status: Optional[str] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Location Tracking Schemas
 class LocationUpdate(BaseModel):
@@ -374,7 +374,6 @@ class CompanyBase(BaseModel):
    # status: str = 'Inactive'
     status: Optional[str] = None
 
-
 class CompanyCreate(CompanyBase):
     pass
 
@@ -390,13 +389,19 @@ class CompanyUpdate(BaseModel):
     service_ended_at: Optional[datetime] = None
     status: Optional[str] = None
 
-class CompanyResponse(CompanyBase):
+class CompanyResponse(BaseModel):
     id: str
-    created_at: datetime
+    company_name: str
+    company_branch: Optional[str] = None
+    company_phone: Optional[str] = None
+    company_email: Optional[str] = None
+    company_address: Optional[str] = None
+    status: str = 'Active'
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    status: str
+    
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class CompanyDropdown(BaseModel):
     id: str
@@ -406,6 +411,7 @@ class CompanyDropdown(BaseModel):
 
     class Config:
         from_attributes = True
+
 # added new schemas here
 
 # ==============================
@@ -428,7 +434,6 @@ class CompanyWithAdminCreate(BaseModel):
     contact_name: str
     contact_email: EmailStr
     contact_phone: str
-
 
 class CompanyWithAdminResponse(BaseModel):
     id: str
@@ -465,7 +470,6 @@ class CompanyWithAdminUpdate(BaseModel):
     contact_name: Optional[str] = None
     contact_email: Optional[EmailStr] = None
     contact_phone: Optional[str] = None
-
 
 # end of new schemas
 
@@ -507,94 +511,191 @@ class AgencyResponse(AgencyBase):
     class Config:
         from_attributes = True
 
+class RoutePoint(BaseModel):
+    id: str = Field(..., description="Unique identifier for the route point")
+    passenger_name: str = Field(..., min_length=2, max_length=100)
+    phone_number: str = Field(..., min_length=10, max_length=15)
+    address: str = Field(..., min_length=5, max_length=500)
+    starting_lat: float = Field(..., ge=-90, le=90)
+    starting_lng: float = Field(..., ge=-180, le=180)
+    end_lat: float = Field(..., ge=-90, le=90)
+    end_lng: float = Field(..., ge=-180, le=180)
 
-# Trip Schedule Schemas
+    @field_validator('phone_number')
+    def validate_phone_number(cls, v):
+        # Remove all non-digit characters
+        digits = ''.join(filter(str.isdigit, v))
+        if len(digits) < 10:
+            raise ValueError('Phone number must be at least 10 digits')
+        return digits
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": "rp_123",
+                "passenger_name": "John Doe",
+                "phone_number": "+1234567890",
+                "address": "123 Main St, City, Country",
+                "starting_lat": 40.7128,
+                "starting_lng": -74.0060,
+                "end_lat": 40.7580,
+                "end_lng": -73.9855
+            }
+        }
+
 class TripScheduleBase(BaseModel):
     # Agency and Company Information
-    agency_id: str
+    agency_id: Optional[str] = None
+    user_id: Optional[str] = None
     company_id: str
     company_name: str
     company_branch: Optional[str] = None
-    
-    # Trip Details
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    starting_point: Optional[str] = None
-    end_point: Optional[str] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    way: Optional[str] = None  # 'one_way' or 'two_way'
-    trip_type: Optional[str] = None
-    
-    # Vehicle and Driver
     vehicle_id: Optional[int] = None
     driver_id: Optional[str] = None
-    passenger_count: int = 0
-    
-    # Status
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    starting_point: Optional[str] = None
+    end_point: Optional[str] = None
+    way: Optional[str] = None
+    trip_type: Optional[str] = None
+    passenger_count: int = 1
     is_active: bool = True
-    
-    # Additional Info
     notes: Optional[str] = None
+    distance_km: Optional[float] = None
+    duration_min: Optional[int] = None
+    starting_lat: Optional[float] = None
+    starting_lng: Optional[float] = None
+    end_lat: Optional[float] = None
+    end_lng: Optional[float] = None
+    driver_response: Optional[bool] = None
+    driver_reason: Optional[str] = None
+    driver_response_at: Optional[datetime] = None
+    route_points: Optional[List[RoutePoint]] = Field(
+        None,
+        description="List of route points with passenger details. Required when trip_type is 'route'"
+    )
 
 class TripScheduleCreate(TripScheduleBase):
+    # Required fields for creation
+    company_id: str
+    company_name: str
+    start_date: date
+    end_date: date
+    start_time: time
+    end_time: time
+    passenger_count: int = 1
+    trip_type: str
+
+    # Validate trip type
+    @field_validator('trip_type')
+    def validate_trip_type(cls, v):
+        if v not in ['shuttle', 'route']:
+            raise ValueError("trip_type must be either 'shuttle' or 'route'")
+        return v
+        
+    @field_validator('route_points')
+    def validate_route_points(cls, v, info):
+        trip_type = info.data.get('trip_type')
+        if trip_type == 'route' and (not v or len(v) == 0):
+            raise ValueError("At least one route point is required for 'route' trip type")
+        if trip_type == 'shuttle' and v and len(v) > 0:
+            raise ValueError("Route points should not be provided for 'shuttle' trip type")
+        return v
+
     class Config:
         from_attributes = True
 
 class TripScheduleUpdate(BaseModel):
-    # Agency and Company Information
+    # All fields are optional for updates
     agency_id: Optional[str] = None
+    user_id: Optional[str] = None
     company_id: Optional[str] = None
     company_name: Optional[str] = None
     company_branch: Optional[str] = None
-    
-    # Trip Details
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    starting_point: Optional[str] = None
-    end_point: Optional[str] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    way: Optional[str] = None
-    trip_type: Optional[str] = None
-    
-    # Vehicle and Driver
     vehicle_id: Optional[int] = None
     driver_id: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    starting_point: Optional[str] = None
+    end_point: Optional[str] = None
+    way: Optional[str] = None
+    trip_type: Optional[str] = None
     passenger_count: Optional[int] = None
-    
-    # Additional Info
+    is_active: Optional[bool] = None
     notes: Optional[str] = None
+    distance_km: Optional[float] = None
+    duration_min: Optional[int] = None
+    starting_lat: Optional[float] = None
+    starting_lng: Optional[float] = None
+    end_lat: Optional[float] = None
+    end_lng: Optional[float] = None
+    driver_response: Optional[bool] = None
+    driver_reason: Optional[str] = None
+    driver_response_at: Optional[datetime] = None
+    route_points: Optional[List[RoutePoint]] = Field(
+        None,
+        description="List of route points with passenger details. Required when trip_type is 'route'"
+    )
 
-class TripScheduleResponse(TripScheduleBase):
+class TripScheduleResponse(BaseModel):
     id: str
-    user_id: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    vehicle_registration_number: Optional[str] = None
-    driver_name: Optional[str] = None
-    vehicle_id: Optional[int] = None
-    driver_id: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    starting_point: Optional[str] = None
-    end_point: Optional[str] = None
-    way: Optional[str] = None
-    trip_type: Optional[str] = None
-    passenger_count: int = 0
-    notes: Optional[str] = None
-    is_active: bool = True
-
-class TripBase(BaseModel):
+    agency_id: Optional[str] = None
+    user_id: str
     company_id: str
     vehicle_id: Optional[int] = None
+    driver_id: Optional[str] = None
     company_name: str
     company_branch: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    starting_point: Optional[str] = None
+    end_point: Optional[str] = None
+    way: Optional[str] = None
+    trip_type: Optional[str] = None
+    passenger_count: int = 1
+    distance_km: Optional[float] = None
+    duration_min: Optional[int] = None
+    starting_lat: Optional[float] = None
+    starting_lng: Optional[float] = None
+    end_lat: Optional[float] = None
+    end_lng: Optional[float] = None
     is_active: bool = True
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    
+    # Relationships
+    user: Optional[UserBase] = None
+    company: Optional[CompanyResponse] = None
+    vehicle: Optional[VehicleResponse] = None
+    driver: Optional[DriverResponse] = None
+    
+    @field_validator('start_time', mode='before')
+    @classmethod
+    def parse_start_time(cls, v):
+        if isinstance(v, datetime):
+            return v.time()
+        return v
+        
+    @field_validator('end_time', mode='before')
+    @classmethod
+    def parse_end_time(cls, v):
+        if isinstance(v, datetime):
+            return v.time()
+        return v
+    
+    class Config:
+        orm_mode = True
 
-class TripCreate(TripBase):
+class TripCreate(TripScheduleBase):
     schedules: Optional[List[TripScheduleCreate]] = []
     
     class Config:
@@ -657,6 +758,22 @@ class UpdatePlanRequest(BaseModel):
     plan_id: str
     parent_id: str
     
+    class Config:
+        from_attributes = True
+  #status updated
+class TripStatusUpdate(BaseModel):
+    """Response model for trip status update"""
+    status: str = Field(..., example="success")
+    updated: int = Field(..., example=3)
+
+class TripStatusResponse(BaseModel):
+    """Response model for trip status check"""
+    trip_id: str
+    is_active: bool
+    end_date: Optional[datetime] = None
+    current_date: datetime = Field(default_factory=datetime.now)
+    status_updated_at: Optional[datetime] = None
+
     class Config:
         from_attributes = True
 
