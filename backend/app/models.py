@@ -1,12 +1,12 @@
 from logging import Manager
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum, Float
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Enum as SQLEnum, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 import enum
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from sqlalchemy import Time
+from sqlalchemy import Time,  DateTime, Date
 
 # ADDED USER AND COMPANY CHANGES ID LINE OF CODE 29 AND 188 11,12
 
@@ -244,10 +244,10 @@ class TripSchedule(Base):
     driver_id = Column(String, ForeignKey("drivers.id"), nullable=True)
     company_name = Column(String, nullable=False)
     company_branch = Column(Text, nullable=True)
-    start_date = Column(DateTime(timezone=True), nullable=True)
-    end_date = Column(DateTime(timezone=True), nullable=True)
-    start_time = Column(DateTime(timezone=True), nullable=True)
-    end_time = Column(DateTime(timezone=True), nullable=True)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
     starting_point = Column(String, nullable=True)
     end_point = Column(String, nullable=True)
     way = Column(String, nullable=True)
@@ -260,7 +260,7 @@ class TripSchedule(Base):
     end_lat = Column(Float, nullable=True)
     end_lng = Column(Float, nullable=True)
     is_active = Column(Boolean, default=True)
-    status_updated_at = Column(DateTime(timezone=True), nullable=True)
+    status_updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

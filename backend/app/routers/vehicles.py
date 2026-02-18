@@ -2,11 +2,17 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, time, date
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, File, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 from pathlib import Path
 import shutil
 import os
+from sqlalchemy import and_, or_, func
+import traceback
+
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 from .. import models, schemas, auth
 from ..database import get_db
@@ -200,14 +206,40 @@ async def create_vehicle(
 def get_vehicles(
     skip: int = 0,
     limit: int = 100,
+    status: Optional[str] = None,
+    vehicle_type: Optional[str] = None,
     current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all vehicles for the current user"""
-    vehicles = db.query(models.Vehicle).filter(
-        models.Vehicle.user_id == current_user.id
-    ).offset(skip).limit(limit).all()
-
+    """
+    Get a list of vehicles with optional filtering.
+    
+    - **skip**: Number of records to skip (for pagination)
+    - **limit**: Maximum number of records to return
+    - **status**: Filter by vehicle status (e.g., 'Active', 'In Maintenance')
+    - **vehicle_type**: Filter by vehicle type (e.g., 'Car', 'Truck')
+    """
+    # Start with a base query
+    query = db.query(models.Vehicle)
+    
+    # Apply agency filter for non-super admins
+    if current_user.role not in [models.UserRole.SUPER_ADMIN]:
+        query = query.filter(models.Vehicle.agency_id == current_user.agency_id)
+    
+    # Apply filters if provided
+    if status:
+        query = query.filter(models.Vehicle.vehicle_status == status)
+    if vehicle_type:
+        query = query.filter(models.Vehicle.vehicle_type == vehicle_type)
+    
+    # Apply pagination and ordering
+    vehicles = (
+        query.order_by(models.Vehicle.vehicle_registration_number)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    
     # Sanitize data for response
     for v in vehicles:
         sanitize_vehicle_obj(v)
@@ -219,31 +251,41 @@ def get_vehicles(
     tags=["Vehicles"],
     summary="Get vehicle by ID",
     description="Retrieve detailed information about a specific vehicle.")
-
 def get_vehicle(
     vehicle_id: int,
+    include_maintenance: bool = False,
+    include_trips: bool = False,
     current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get a specific vehicle by ID"""
-    db_vehicle = db.query(models.Vehicle).filter(
-        models.Vehicle.id == vehicle_id
-    ).first()
+    """
+    Get a single vehicle by ID with optional related data.
     
-    if not db_vehicle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Vehicle not found"
-        )
+    - **vehicle_id**: The ID of the vehicle to retrieve
+    - **include_maintenance**: Include maintenance history (default: False)
+    - **include_trips**: Include trip history (default: False)
+    """
+    # Start with a base query
+    query = db.query(models.Vehicle)
     
-    # Check if the current user has permission to view this vehicle
-    if db_vehicle.user_id != current_user.id and current_user.role != models.UserRole.SUPER_ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this vehicle"
-        )
+    # Eager load relationships if requested
+    if include_maintenance:
+        query = query.options(joinedload(models.Vehicle.maintenance_records))
+    if include_trips:
+        query = query.options(joinedload(models.Vehicle.trips))
     
-    return db_vehicle
+    # Get the vehicle
+    vehicle = query.filter(models.Vehicle.id == vehicle_id).first()
+    
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    
+    # Check if user has access to this vehicle
+    if (current_user.role not in [models.UserRole.ADMIN, models.UserRole.SUPER_ADMIN] and 
+        vehicle.agency_id != current_user.agency_id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this vehicle")
+    
+    return vehicle
 
 @router.put(
     "/{vehicle_id}", 
@@ -469,78 +511,72 @@ async def get_vehicle_document(
 # list available vehicles within a specific time range
 @router.get("/available/vehicles", response_model=List[schemas.VehicleResponse])
 def get_available_vehicles(
-    start_date: date = Query(..., description="Start date for availability check (YYYY-MM-DD)"),
-    end_date: date = Query(..., description="End date for availability check (YYYY-MM-DD)"),
-    start_time: time = Query(..., description="Start time for daily availability (HH:MM:SS)"),
-    end_time: time = Query(..., description="End time for daily availability (HH:MM:SS)"),
+    start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
+    start_time: time = Query(..., description="Start time (HH:MM:SS)"),
+    end_time: time = Query(..., description="End time (HH:MM:SS)"),
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get all active vehicles that are not in use during the specified date and time range.
-    Checks for availability between start_date and end_date, during the specified time window each day.
+    Returns all active vehicles NOT engaged in trips
+    during given date range AND time window.
+ 
+    Business Rule:
+    Vehicle unavailable only if:
+    (time overlaps) AND (date overlaps)
     """
+ 
     try:
-        # Convert date and time to datetime objects for comparison
-        start_datetime = datetime.combine(start_date, start_time)
-        end_datetime = datetime.combine(end_date, end_time)
-        
-        # Get all active vehicles from the same agency
-        active_vehicles = db.query(models.Vehicle)\
-            .filter(
-                models.Vehicle.vehicle_status == 'Active',
-                models.Vehicle.is_active == True,
-                models.Vehicle.agency_id == current_user.agency_id
-            )\
-            .all()
-        
-        if not active_vehicles:
-            return []
-        
-        # Get all vehicles that are in use during the specified date and time range
-        engaged_vehicle_ids = db.query(models.TripSchedule.vehicle_id)\
-            .filter(
-                models.TripSchedule.vehicle_id.isnot(None),
-                models.TripSchedule.is_active == True,
-                models.TripSchedule.agency_id == current_user.agency_id,
-                # Check for overlapping date ranges
-                models.TripSchedule.start_date <= end_date,
-                models.TripSchedule.end_date >= start_date,
-                # Check for overlapping time ranges on the same day
-                or_(
-                    # Case 1: Time range is within a single day
-                    and_(
-                        models.TripSchedule.start_date == models.TripSchedule.end_date,
-                        models.TripSchedule.start_time < end_time,
-                        models.TripSchedule.end_time > start_time
-                    ),
-                    # Case 2: Time range spans multiple days
-                    and_(
-                        models.TripSchedule.start_date < models.TripSchedule.end_date,
-                        or_(
-                            models.TripSchedule.start_time < end_time,
-                            models.TripSchedule.end_time > start_time
-                        )
-                    )
+ 
+        # 1️⃣ TIME OVERLAP CHECK
+        time_overlap = and_(
+            models.TripSchedule.start_time < end_time,
+            models.TripSchedule.end_time > start_time
+        )
+ 
+        # 2️⃣ DATE OVERLAP CHECK
+        date_overlap = and_(
+            models.TripSchedule.start_date <= end_date,
+            models.TripSchedule.end_date >= start_date
+        )
+ 
+        # 3️⃣ FINAL OVERLAP CONDITION
+        overlap_condition = and_(
+            time_overlap,
+            date_overlap
+        )
+ 
+        # 4️⃣ QUERY AVAILABLE VEHICLES
+        available_vehicles = (
+            db.query(models.Vehicle)
+            .join(models.User)  # vehicle belongs to agency/user
+            .outerjoin(
+                models.TripSchedule,
+                and_(
+                    models.Vehicle.id == models.TripSchedule.vehicle_id,
+                    models.TripSchedule.agency_id == current_user.agency_id,
+                    models.TripSchedule.is_active == True,
+                    overlap_condition
                 )
-            )\
-            .distinct()\
+            )
+            .filter(
+                models.Vehicle.vehicle_status == "Active",
+                models.User.is_active == True,
+                models.User.agency_id == current_user.agency_id,
+                models.TripSchedule.id.is_(None)  # No overlapping trip
+            )
             .all()
-        
-        # Convert to a set of vehicle IDs for faster lookup
-        engaged_vehicle_ids = {vehicle_id[0] for vehicle_id in engaged_vehicle_ids}
-        
-        # Filter out engaged vehicles
-        available_vehicles = [
-            vehicle for vehicle in active_vehicles 
-            if vehicle.id not in engaged_vehicle_ids
-        ]
-        
+        )
+ 
         return available_vehicles
-        
+ 
     except Exception as e:
-        logger.error(f"Error fetching available vehicles: {str(e)}")
+        logger.error(
+            f"Error fetching available vehicles: {str(e)}\n{traceback.format_exc()}"
+        )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Error fetching available vehicles"
         )
+ 

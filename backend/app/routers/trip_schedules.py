@@ -23,66 +23,88 @@ def _validate_trip_schedule(
     exclude_trip_id: str = None
 ) -> None:
     """Validate trip schedule data and check for conflicts."""
-    # Check vehicle availability if assigned
+    # Build base query for validation
+    from sqlalchemy import or_
+    
+    # Check for time conflicts with other trips
+    conflict_conditions = []
     if schedule.vehicle_id:
-        # Check for time conflicts with other trips
-        conflict_query = db.query(models.TripSchedule).filter(
-            models.TripSchedule.vehicle_id == schedule.vehicle_id,
-            models.TripSchedule.start_time == schedule.start_time,
-            models.TripSchedule.id != exclude_trip_id if exclude_trip_id else True
-        )
-        
-        if conflict_query.first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Vehicle is already assigned to another trip at this time"
-            )
-        
-        # Verify vehicle exists and belongs to the agency
-        vehicle = db.query(models.Vehicle).filter(
-            models.Vehicle.id == schedule.vehicle_id,
-            models.Vehicle.agency_id == current_user.agency_id
-        ).first()
-        
-        if not vehicle:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Vehicle not found or not authorized"
-            )
-    
-    # Check driver availability if assigned
+        conflict_conditions.append(models.TripSchedule.vehicle_id == schedule.vehicle_id)
     if schedule.driver_id:
-        # Check for time conflicts with other trips
+        conflict_conditions.append(models.TripSchedule.driver_id == schedule.driver_id)
+    
+    if conflict_conditions:
         conflict_query = db.query(models.TripSchedule).filter(
-            models.TripSchedule.driver_id == schedule.driver_id,
+            or_(*conflict_conditions),
             models.TripSchedule.start_time == schedule.start_time,
+            models.TripSchedule.is_active == True,
             models.TripSchedule.id != exclude_trip_id if exclude_trip_id else True
         )
         
-        if conflict_query.first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Driver is already assigned to another trip at this time"
-            )
-        
-        # Verify driver exists and belongs to the agency
-        driver = db.query(models.Driver).filter(
-            models.Driver.id == schedule.driver_id,
-            models.Driver.agency_id == current_user.agency_id
-        ).first()
-        
-        if not driver:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Driver not found or not authorized"
-            )
+        conflicting_trip = conflict_query.first()
+        if conflicting_trip:
+            if conflicting_trip.vehicle_id == schedule.vehicle_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Vehicle is already assigned to another trip at this time"
+                )
+            if conflicting_trip.driver_id == schedule.driver_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Driver is already assigned to another trip at this time"
+                )
     
-    # Verify company exists and belongs to the agency
-    company = db.query(models.Company).filter(
+    # Verify all related entities in a single query
+    query = db.query(
+        models.Vehicle if schedule.vehicle_id else None,
+        models.Driver if schedule.driver_id else None,
+        models.Company
+    )
+    
+    # Join conditions
+    if schedule.vehicle_id:
+        query = query.outerjoin(
+            models.Vehicle,
+            (models.Vehicle.id == schedule.vehicle_id) & 
+            (models.Vehicle.agency_id == current_user.agency_id)
+        )
+    
+    if schedule.driver_id:
+        query = query.outerjoin(
+            models.Driver,
+            (models.Driver.id == schedule.driver_id) & 
+            (models.Driver.agency_id == current_user.agency_id)
+        )
+    
+    # Add company filter
+    query = query.filter(
         models.Company.id == schedule.company_id,
         models.Company.agency_id == current_user.agency_id
-    ).first()
+    )
     
+    # Execute query
+    result = query.first()
+    
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more related entities not found or not authorized"
+        )
+        
+    # Check each entity if it was requested
+    vehicle, driver, company = result
+    if schedule.vehicle_id and not vehicle:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vehicle not found or not authorized"
+        )
+    
+    if schedule.driver_id and not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found or not authorized"
+        )
+        
     if not company:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -170,11 +192,23 @@ async def get_trip_schedules(
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all trip schedules for the current user's agency."""
-    trip_schedules = _get_trip_query(db).filter(
-        models.TripSchedule.agency_id == current_user.agency_id
-    ).offset(skip).limit(limit).all()
-    
+    """
+    Get all trip schedules for the current user's agency.
+    Handles time conversion from datetime to time objects in the response.
+    """
+    try:
+        trip_schedules = _get_trip_query(db).filter(
+            models.TripSchedule.agency_id == current_user.agency_id
+        ).offset(skip).limit(limit).all()
+        
+        return trip_schedules
+        
+    except Exception as e:
+        logger.error(f"Error fetching trip schedules: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching trip schedules"
+        )
     return trip_schedules
 
 @router.put("/{schedule_id}", response_model=schemas.TripScheduleResponse)

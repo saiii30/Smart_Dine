@@ -678,6 +678,20 @@ class TripScheduleResponse(BaseModel):
     vehicle: Optional[VehicleResponse] = None
     driver: Optional[DriverResponse] = None
     
+    @field_validator('start_time', mode='before')
+    @classmethod
+    def parse_start_time(cls, v):
+        if isinstance(v, datetime):
+            return v.time()
+        return v
+        
+    @field_validator('end_time', mode='before')
+    @classmethod
+    def parse_end_time(cls, v):
+        if isinstance(v, datetime):
+            return v.time()
+        return v
+    
     class Config:
         orm_mode = True
 
