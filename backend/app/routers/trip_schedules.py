@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
-from typing import List, Optional, Dict, Any
-from datetime import date, datetime, time
+from typing import List, Optional
+from datetime import datetime
 import uuid
 import json
 import logging
@@ -9,491 +9,301 @@ import logging
 from ..database import get_db
 from .. import models, schemas, auth
 
-router = APIRouter(
-    prefix="/api/trip-schedules",
-    tags=["Trip Schedules"],
-)
-
+router = APIRouter(tags=["Trip Schedules"])
 logger = logging.getLogger(__name__)
 
-def _validate_trip_schedule(
-    db: Session,
-    schedule: schemas.TripScheduleCreate,
-    current_user: models.User,
-    exclude_trip_id: str = None
-) -> None:
-    """Validate trip schedule data and check for conflicts."""
-    # Build base query for validation
-    from sqlalchemy import or_
-    
-    # Check for time conflicts with other trips
-    conflict_conditions = []
-    if schedule.vehicle_id:
-        conflict_conditions.append(models.TripSchedule.vehicle_id == schedule.vehicle_id)
-    if schedule.driver_id:
-        conflict_conditions.append(models.TripSchedule.driver_id == schedule.driver_id)
-    
-    if conflict_conditions:
-        conflict_query = db.query(models.TripSchedule).filter(
-            or_(*conflict_conditions),
-            models.TripSchedule.start_time == schedule.start_time,
-            models.TripSchedule.is_active == True,
-            models.TripSchedule.id != exclude_trip_id if exclude_trip_id else True
-        )
-        
-        conflicting_trip = conflict_query.first()
-        if conflicting_trip:
-            if conflicting_trip.vehicle_id == schedule.vehicle_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Vehicle is already assigned to another trip at this time"
-                )
-            if conflicting_trip.driver_id == schedule.driver_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Driver is already assigned to another trip at this time"
-                )
-    
-    # Verify all related entities in a single query
-    query = db.query(
-        models.Vehicle if schedule.vehicle_id else None,
-        models.Driver if schedule.driver_id else None,
-        models.Company
-    )
-    
-    # Join conditions
-    if schedule.vehicle_id:
-        query = query.outerjoin(
-            models.Vehicle,
-            (models.Vehicle.id == schedule.vehicle_id) & 
-            (models.Vehicle.agency_id == current_user.agency_id)
-        )
-    
-    if schedule.driver_id:
-        query = query.outerjoin(
-            models.Driver,
-            (models.Driver.id == schedule.driver_id) & 
-            (models.Driver.agency_id == current_user.agency_id)
-        )
-    
-    # Add company filter
-    query = query.filter(
-        models.Company.id == schedule.company_id,
-        models.Company.agency_id == current_user.agency_id
-    )
-    
-    # Execute query
-    result = query.first()
-    
-    if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="One or more related entities not found or not authorized"
-        )
-        
-    # Check each entity if it was requested
-    vehicle, driver, company = result
-    if schedule.vehicle_id and not vehicle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Vehicle not found or not authorized"
-        )
-    
-    if schedule.driver_id and not driver:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Driver not found or not authorized"
-        )
-        
-    if not company:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Company not found or not authorized"
-        )
+# -------------------------------------------------------
+# Base Query
+# -------------------------------------------------------
 
-def _get_trip_query(db: Session):
-    """Helper function to get a base query with eager loading."""
+def _base_query(db: Session):
     return db.query(models.TripSchedule).options(
         joinedload(models.TripSchedule.vehicle),
         joinedload(models.TripSchedule.driver).joinedload(models.Driver.user),
         joinedload(models.TripSchedule.company)
     )
 
-@router.post("/", response_model=schemas.TripScheduleResponse, status_code=status.HTTP_201_CREATED)
-async def create_trip_schedule(
+def _serialize_trip(trip):
+    if not trip:
+        return None
+
+    # Convert route_points
+    route_points = None
+    if trip.route_points:
+        try:
+            route_points = json.loads(trip.route_points)
+        except:
+            route_points = None
+
+    return {
+        "id": trip.id,
+        "agency_id": trip.agency_id,
+        "user_id": trip.user_id,
+        "company_id": trip.company_id,
+        "company_name": trip.company.company_name if trip.company else None,
+        "company_branch": trip.company.company_branch if trip.company else None,
+
+        "start_date": trip.start_date,
+        "end_date": trip.end_date,
+        "start_time": trip.start_time,
+        "end_time": trip.end_time,
+        "starting_point": trip.starting_point,
+        "end_point": trip.end_point,
+        "way": trip.way,
+        "trip_type": trip.trip_type,
+
+        "vehicle_id": trip.vehicle_id,
+        "driver_id": trip.driver_id,
+        "passenger_count": trip.passenger_count,
+        "notes": trip.notes,
+
+        "distance_km": trip.distance_km,
+        "duration_min": trip.duration_min,
+        "starting_lat": trip.starting_lat,
+        "starting_lng": trip.starting_lng,
+        "end_lat": trip.end_lat,
+        "end_lng": trip.end_lng,
+
+        "route_points": route_points,
+
+        "is_active": trip.is_active,
+        "created_at": trip.created_at,
+        "updated_at": trip.updated_at,
+
+        # 🔥 IMPORTANT PART
+        "vehicle_registration_number": trip.vehicle.vehicle_registration_number
+        if trip.vehicle else None,
+
+        "driver_name": trip.driver.user.name
+        if trip.driver and trip.driver.user else None,
+    }
+
+# -------------------------------------------------------
+# Serialize route_points (JSON string → List)
+# -------------------------------------------------------
+
+def _serialize_route_points(trip):
+    if trip and trip.route_points:
+        if isinstance(trip.route_points, str):
+            try:
+                trip.route_points = json.loads(trip.route_points)
+            except:
+                trip.route_points = None
+    return trip
+
+
+# -------------------------------------------------------
+# Validation & Conflict Check
+# -------------------------------------------------------
+ 
+def _validate_trip(
+    db: Session,
+    schedule: schemas.TripScheduleCreate,
+    current_user: models.User,
+    exclude_trip_id: Optional[str] = None
+):
+ 
+    # Validate Company
+    company = db.query(models.Company).filter(
+        models.Company.id == schedule.company_id,
+        models.Company.agency_id == current_user.agency_id
+    ).first()
+ 
+    if not company:
+        raise HTTPException(404, "Company not found or unauthorized")
+ 
+    # Validate Vehicle
+    if schedule.vehicle_id:
+        vehicle = db.query(models.Vehicle).filter(
+            models.Vehicle.id == schedule.vehicle_id,
+            models.Vehicle.agency_id == current_user.agency_id
+        ).first()
+ 
+        if not vehicle:
+            raise HTTPException(404, "Vehicle not found or unauthorized")
+ 
+    # Validate Driver
+    if schedule.driver_id:
+        driver = db.query(models.Driver).filter(
+            models.Driver.id == schedule.driver_id,
+            models.Driver.agency_id == current_user.agency_id
+        ).first()
+ 
+        if not driver:
+            raise HTTPException(404, "Driver not found or unauthorized")
+ 
+    # Overlap Conflict
+    conflict_query = db.query(models.TripSchedule).filter(
+        models.TripSchedule.is_active == True,
+        models.TripSchedule.start_date <= schedule.end_date,
+        models.TripSchedule.end_date >= schedule.start_date,
+        models.TripSchedule.start_time < schedule.end_time,
+        models.TripSchedule.end_time > schedule.start_time,
+    )
+ 
+    if exclude_trip_id:
+        conflict_query = conflict_query.filter(
+            models.TripSchedule.id != exclude_trip_id
+        )
+ 
+    if schedule.vehicle_id:
+        if conflict_query.filter(
+            models.TripSchedule.vehicle_id == schedule.vehicle_id
+        ).first():
+            raise HTTPException(400, "Vehicle already assigned during this time")
+ 
+    if schedule.driver_id:
+        if conflict_query.filter(
+            models.TripSchedule.driver_id == schedule.driver_id
+        ).first():
+            raise HTTPException(400, "Driver already assigned during this time")
+ 
+
+# -------------------------------------------------------
+# CREATE
+# -------------------------------------------------------
+@router.post("/", response_model=schemas.TripScheduleResponse, status_code=201)
+def create_trip(
     schedule: schemas.TripScheduleCreate,
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new trip schedule."""
     try:
-        # Validate the trip schedule data
-        _validate_trip_schedule(db, schedule, current_user)
-        
-        # Prepare the data for creation
-        schedule_data = schedule.dict(exclude_unset=True)
-        
-        # Handle route_points serialization
-        if 'route_points' in schedule_data and schedule_data['route_points'] is not None:
-            schedule_data['route_points'] = json.dumps(schedule_data['route_points'])
-        
-        # Create the trip schedule
-        db_schedule = models.TripSchedule(
+        _validate_trip(db, schedule, current_user)
+ 
+        # Convert to dict and remove None values
+        data = {k: v for k, v in schedule.dict(exclude_unset=True).items() if v is not None}
+ 
+        # Remove keys that are set manually
+        data.pop("agency_id", None)
+        data.pop("user_id", None)
+ 
+        if "route_points" in data and data["route_points"] is not None:
+            data["route_points"] = json.dumps(data["route_points"])
+ 
+        # Create the trip with explicit fields
+        trip = models.TripSchedule(
             id=str(uuid.uuid4()),
-            agency_id=current_user.agency_id,
-            user_id=current_user.id,
-            **schedule_data
+            agency_id=current_user.agency_id,  # Set explicitly here
+            user_id=current_user.id,          # Set explicitly here
+            **data
         )
-        
-        db.add(db_schedule)
+ 
+        db.add(trip)
         db.commit()
-        
-        # Reload the schedule with all relationships
-        db_schedule = _get_trip_query(db).filter(
-            models.TripSchedule.id == db_schedule.id
+        db.refresh(trip)
+ 
+        # Return the full trip with relationships
+        trip = _base_query(db).filter(
+            models.TripSchedule.id == trip.id
         ).first()
-        
-        return db_schedule
 
+        return _serialize_trip(trip)
+ 
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating trip schedule: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while creating the trip schedule"
-        )
-
-@router.get("/{schedule_id}", response_model=schemas.TripScheduleResponse)
-async def get_trip_schedule(
-    schedule_id: str,
-    current_user: models.User = Depends(auth.get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Get a specific trip schedule by ID."""
-    db_schedule = _get_trip_query(db).filter(
-        models.TripSchedule.id == schedule_id,
-        models.TripSchedule.agency_id == current_user.agency_id
-    ).first()
-
-    if not db_schedule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Trip schedule not found"
-        )
-
-    return db_schedule
+        logger.error(f"Create trip error: {str(e)}", exc_info=True)
+        raise HTTPException(500, "Error creating trip")
+ 
+# -------------------------------------------------------
+# GET ALL
+# -------------------------------------------------------
 
 @router.get("/", response_model=List[schemas.TripScheduleResponse])
-async def get_trip_schedules(
-    skip: int = 0,
-    limit: int = 100,
+def get_trips(
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Get all trip schedules for the current user's agency.
-    Handles time conversion from datetime to time objects in the response.
-    """
-    try:
-        trip_schedules = _get_trip_query(db).filter(
-            models.TripSchedule.agency_id == current_user.agency_id
-        ).offset(skip).limit(limit).all()
-        
-        return trip_schedules
-        
-    except Exception as e:
-        logger.error(f"Error fetching trip schedules: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while fetching trip schedules"
-        )
-    return trip_schedules
-
-@router.put("/{schedule_id}", response_model=schemas.TripScheduleResponse)
-async def update_trip_schedule(
-    schedule_id: str,
-    schedule: schemas.TripScheduleUpdate,
-    current_user: models.User = Depends(auth.get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Update a trip schedule."""
-    try:
-        # Get the existing trip schedule
-        db_schedule = _get_trip_query(db).filter(
-            models.TripSchedule.id == schedule_id,
-            models.TripSchedule.agency_id == current_user.agency_id
-        ).first()
-
-        if not db_schedule:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Trip schedule not found"
-            )
-
-        # Convert to a create schema for validation
-        create_schema = schemas.TripScheduleCreate(
-            **{**db_schedule.__dict__, **schedule.dict(exclude_unset=True)}
-        )
-        
-        # Validate the updated data
-        _validate_trip_schedule(db, create_schema, current_user, exclude_trip_id=schedule_id)
-
-        # Update the model instance
-        update_data = schedule.dict(exclude_unset=True)
-        
-        # Handle route_points serialization if present
-        if 'route_points' in update_data and update_data['route_points'] is not None:
-            update_data['route_points'] = json.dumps(update_data['route_points'])
-        
-        # Update fields
-        for field, value in update_data.items():
-            setattr(db_schedule, field, value)
-        
-        db_schedule.updated_at = datetime.utcnow()
-        db.commit()
-        
-        # Reload with all relationships
-        db.refresh(db_schedule)
-        return db_schedule
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error updating trip schedule: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while updating the trip schedule"
-        )
-
-@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_trip_schedule(
-    schedule_id: str,
-    current_user: models.User = Depends(auth.get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Delete a trip schedule."""
-    try:
-        db_schedule = _get_trip_query(db).filter(
-            models.TripSchedule.id == schedule_id,
-            models.TripSchedule.agency_id == current_user.agency_id
-        ).first()
-
-        if not db_schedule:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Trip schedule not found"
-            )
-
-        db.delete(db_schedule)
-        db.commit()
-        return None
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error deleting trip schedule: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while deleting the trip schedule"
-        )
-
-
- # get all trips assigned to driver id
-@router.get("/agency/{agency_id}/driver/{driver_id}", response_model=List[schemas.TripScheduleResponse])
-async def get_trips_by_driver_and_agency(
-    agency_id: str,
-    driver_id: str,
-    start_date: Optional[date] = Query(None, description="Filter trips starting on or after this date"),
-    end_date: Optional[date] = Query(None, description="Filter trips starting on or before this date"),
-    status: Optional[str] = Query(None, description="Filter by trip status"),
-    current_user: models.User = Depends(auth.get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get all trips assigned to a specific driver within a specific agency.
-    Uses SQLAlchemy relationships and Pydantic ORM mode for optimized queries.
-    """
-    from sqlalchemy.orm import joinedload
-    
-    # Check if the current user has access to the requested agency
-    if current_user.role not in [models.UserRole.ADMIN, models.UserRole.SUPER_ADMIN] and str(current_user.agency_id) != str(agency_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access trips from this agency"
-        )
-
-    # Verify the driver exists and belongs to the specified agency
-    driver = db.query(models.Driver).filter(
-        models.Driver.id == driver_id,
-        models.Driver.agency_id == agency_id
-    ).first()
-    
-    if not driver:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Driver not found in the specified agency"
-        )
-    
-    # Build the base query with eager loading of relationships
-    query = db.query(models.TripSchedule).options(
-        joinedload(models.TripSchedule.vehicle),
-        joinedload(models.TripSchedule.driver).joinedload(models.Driver.user),
-        joinedload(models.TripSchedule.company)
-    ).filter(
-        models.TripSchedule.driver_id == driver_id,
-        models.TripSchedule.agency_id == agency_id
-    )
-    
-    # Apply date filters if provided
-    if start_date:
-        query = query.filter(models.TripSchedule.start_date >= start_date)
-    if end_date:
-        query = query.filter(models.TripSchedule.start_date <= end_date)
-    if status:
-        query = query.filter(models.TripSchedule.status == status)
-    
-    # Execute query and return results
-    trips = query.order_by(
-        models.TripSchedule.start_date,
-        models.TripSchedule.start_time
-    ).all()
-    
-    return trips
- 
-@router.put("/driver/{trip_id}", response_model=schemas.TripScheduleResponse)
-async def update_trip_by_driver(
-    trip_id: str,
-    trip_update: schemas.TripUpdate,
-    current_user: models.User = Depends(auth.get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Update trip details by driver."""
-    try:
-        # Get the trip schedule with relationships
-        db_trip = _get_trip_query(db).filter(
-            models.TripSchedule.id == trip_id,
-            models.TripSchedule.driver_id == current_user.driver.id
-        ).first()
-
-        if not db_trip:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Trip not found or not assigned to this driver"
-            )
-
-        # Update the trip with the new data
-        update_data = trip_update.dict(exclude_unset=True)
-        
-        # Handle route_points serialization if present
-        if 'route_points' in update_data and update_data['route_points'] is not None:
-            update_data['route_points'] = json.dumps(update_data['route_points'])
-        
-        # Update the model instance
-        for field, value in update_data.items():
-            setattr(db_trip, field, value)
-        
-        db_trip.updated_at = datetime.utcnow()
-        db.commit()
-        
-        # Reload with all relationships
-        db.refresh(db_trip)
-        return db_trip
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error updating trip: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while updating the trip"
-        )
-
-@router.get("/agency/{agency_id}/active-trips", response_model=List[schemas.TripScheduleResponse])
-async def get_active_trips_for_agency(
-    agency_id: str,
-    current_user: models.User = Depends(auth.get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Get all active trips for an agency."""
-    # Check if the current user has access to the requested agency
-    if (current_user.role not in [models.UserRole.ADMIN, models.UserRole.SUPER_ADMIN] and 
-        str(current_user.agency_id) != str(agency_id)):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access trips from this agency"
-        )
-
-    current_time = datetime.utcnow().time()
-    current_date = datetime.utcnow().date()
-
-    # Get all active trips for the agency
-    active_trips = _get_trip_query(db).filter(
-        models.TripSchedule.agency_id == agency_id,
-        models.TripSchedule.is_active == True,
-        models.TripSchedule.start_date <= current_date,
-        models.TripSchedule.end_date >= current_date,
-        models.TripSchedule.start_time <= current_time,
-        models.TripSchedule.end_time >= current_time
+    trips = _base_query(db).filter(
+        models.TripSchedule.agency_id == current_user.agency_id
     ).all()
 
-    return active_trips
+    return [_serialize_trip(t) for t in trips]
 
-@router.get("/update-status", response_model=List[schemas.TripStatusResponse])
-async def update_trip_statuses(
-    current_user: models.User = Depends(auth.get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Manually trigger an update of trip statuses based on current time."""
-    from ..utils.trip_scheduler import update_trip_schedule_status
+# -------------------------------------------------------
+# GET BY ID
+# -------------------------------------------------------
 
-    try:
-        updated_trips = update_trip_schedule_status(db)
-        return updated_trips
-    except Exception as e:
-        logger.error(f"Error updating trip statuses: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error updating trip statuses"
-        )
-
-@router.get("/{trip_id}/status", response_model=schemas.TripStatusResponse)
-async def get_trip_status(
+@router.get("/{trip_id}", response_model=schemas.TripScheduleResponse)
+def get_trip(
     trip_id: str,
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get the status of a specific trip."""
-    from ..utils.trip_scheduler import check_trip_active_status
-
-    trip = _get_trip_query(db).filter(
+    trip = _base_query(db).filter(
         models.TripSchedule.id == trip_id,
         models.TripSchedule.agency_id == current_user.agency_id
     ).first()
 
     if not trip:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Trip not found"
-        )
+        raise HTTPException(404, "Trip not found")
 
-    is_active = check_trip_active_status(trip)
-    
-    # Update the trip status if needed
-    if is_active != trip.is_active:
-        trip.is_active = is_active
-        trip.status_updated_at = datetime.utcnow()
+    return _serialize_trip(trip)
+
+# -------------------------------------------------------
+# UPDATE
+# -------------------------------------------------------
+@router.put("/{trip_id}", response_model=schemas.TripScheduleResponse)
+def update_trip(
+    trip_id: str,
+    schedule: schemas.TripScheduleUpdate,
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        trip = _base_query(db).filter(
+            models.TripSchedule.id == trip_id,
+            models.TripSchedule.agency_id == current_user.agency_id
+        ).first()
+
+        if not trip:
+            raise HTTPException(status_code=404, detail="Trip not found")
+
+        update_data = schedule.dict(exclude_unset=True)
+
+        for key, value in update_data.items():
+
+            if key == "route_points" and value is not None:
+                setattr(trip, key, json.dumps(value))  # 🔥 IMPORTANT FIX
+
+            else:
+                setattr(trip, key, value)
+
         db.commit()
         db.refresh(trip)
 
-    return {
-        "trip_id": trip.id,
-        "is_active": is_active,
-        "end_date": trip.end_date,
-        "current_date": datetime.utcnow(),
-        "status_updated_at": trip.status_updated_at
-    }
+        trip = _base_query(db).filter(
+            models.TripSchedule.id == trip.id
+        ).first()
+
+        return _serialize_trip(trip)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Update trip error: {str(e)}", exc_info=True)
+        raise HTTPException(500, "Error updating trip")
+# -------------------------------------------------------
+# DELETE
+# -------------------------------------------------------
+
+@router.delete("/{trip_id}", status_code=204)
+def delete_trip(
+    trip_id: str,
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    trip = db.query(models.TripSchedule).filter(
+        models.TripSchedule.id == trip_id,
+        models.TripSchedule.agency_id == current_user.agency_id
+    ).first()
+
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+
+    db.delete(trip)
+    db.commit()
+    return None

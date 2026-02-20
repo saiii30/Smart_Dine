@@ -55,6 +55,7 @@ const Trips = () => {
           created_at: sch.created_at ?? new Date().toISOString(),
 
           passenger_count: sch.passenger_count ?? 0,
+          
           schedules: [],
         }
       }
@@ -81,7 +82,7 @@ const Trips = () => {
         end_lat: sch.end_lat,
         end_lng: sch.end_lng,
 
-        route_points: sch.route_points ?? undefined,
+        route_points: sch.route_points ,
 
         
         
@@ -121,7 +122,7 @@ const Trips = () => {
   }
 
   const handleEdit = (trip: Trip) => {
-    alert(trip.id)
+    console.log('Editing trip:', JSON.stringify(trip, null, 2)) // Debug log
     setEditingTrip(trip)
     setIsModalOpen(true)
   }
@@ -304,9 +305,9 @@ const Trips = () => {
                               {new Date(schedule.departure_datetime).toLocaleString()}
                             </div>
                           )} */}
-                          {schedule.vehicle_number && (
+                          {schedule.vehicle_registration_number && (
                             <div className="text-gray-500 dark:text-gray-500">
-                              Vehicle: {schedule.vehicle_number}
+                              Vehicle: {schedule.vehicle_registration_number}
                             </div>
                           )}
                           {schedule.driver_name && (

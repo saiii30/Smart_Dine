@@ -510,18 +510,19 @@ class AgencyResponse(AgencyBase):
 
     class Config:
         from_attributes = True
-
+      
 class RoutePoint(BaseModel):
-    id: str = Field(..., description="Unique identifier for the route point")
+    
     passenger_name: str = Field(..., min_length=2, max_length=100)
-    phone_number: str = Field(..., min_length=10, max_length=15)
-    address: str = Field(..., min_length=5, max_length=500)
+    passenger_phone: str = Field(..., min_length=10, max_length=15)
+    starting_point: str = Field(..., min_length=5, max_length=500)
+    end_point: str = Field(..., min_length=5, max_length=500)
     starting_lat: float = Field(..., ge=-90, le=90)
     starting_lng: float = Field(..., ge=-180, le=180)
     end_lat: float = Field(..., ge=-90, le=90)
     end_lng: float = Field(..., ge=-180, le=180)
 
-    @field_validator('phone_number')
+    @field_validator('passenger_phone')
     def validate_phone_number(cls, v):
         # Remove all non-digit characters
         digits = ''.join(filter(str.isdigit, v))
@@ -533,10 +534,11 @@ class RoutePoint(BaseModel):
         from_attributes = True
         json_schema_extra = {
             "example": {
-                "id": "rp_123",
+                
                 "passenger_name": "John Doe",
                 "phone_number": "+1234567890",
-                "address": "123 Main St, City, Country",
+                "starting_point": "123 Main St, City A",
+                "end_point": "456 Elm St, City B",
                 "starting_lat": 40.7128,
                 "starting_lng": -74.0060,
                 "end_lat": 40.7580,
@@ -659,6 +661,12 @@ class TripScheduleResponse(BaseModel):
     end_point: Optional[str] = None
     way: Optional[str] = None
     trip_type: Optional[str] = None
+    vehicle_registration_number: Optional[str] = None
+    route_points: Optional[List[RoutePoint]] = Field(
+        None,
+        description="List of route points with passenger details. Required when trip_type is 'route'"
+    )
+    driver_name: Optional[str] = None
     passenger_count: int = 1
     distance_km: Optional[float] = None
     duration_min: Optional[int] = None
@@ -690,6 +698,16 @@ class TripScheduleResponse(BaseModel):
     def parse_end_time(cls, v):
         if isinstance(v, datetime):
             return v.time()
+        return v
+
+    @field_validator("route_points", mode="before")
+    @classmethod
+    def parse_route_points(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except:
+                return None
         return v
     
     class Config:
