@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet-routing-machine'
 import { useEffect, useState } from 'react'
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css'
- 
+
 // Fix marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -15,7 +15,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl:
     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
- 
+
 // Props
 interface Props {
   mode: 'starting_point' | 'end_point' | null
@@ -23,7 +23,7 @@ interface Props {
   endPoint?: { lat: number; lng: number }
   onSelect: (lat: number, lng: number, distanceKm?: number, timeMin?: number) => void
 }
- 
+
 // Helper: calculate distance in km (Haversine formula)
 const distanceInKm = (a: any, b: any) => {
   const R = 6371
@@ -36,7 +36,7 @@ const distanceInKm = (a: any, b: any) => {
       Math.sin(dLng / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))
 }
- 
+
 // Handle map clicks
 const ClickHandler = ({ onClick }: any) => {
   const map = useMap()
@@ -50,7 +50,7 @@ const ClickHandler = ({ onClick }: any) => {
   }, [map, onClick])
   return null
 }
- 
+
 // Routing setup
 const SetupRouting = ({
   start,
@@ -64,18 +64,18 @@ const SetupRouting = ({
   setTime: (minutes: number) => void
 }) => {
   const map = useMap()
- 
+
   useEffect(() => {
     if (!start || !end) return
- 
-    const control = L.Routing.control({
+
+    const control = (L as any).Routing.control({
       waypoints: [L.latLng(start.lat, start.lng), L.latLng(end.lat, end.lng)],
       routeWhileDragging: true,
       show: false,
       addWaypoints: false,
       lineOptions: { styles: [{ color: 'blue', weight: 5, opacity: 0.7 }], extendToWaypoints: true, missingRouteTolerance: 2 }
     }).addTo(map)
- 
+
     // Listen for route calculation
     control.on('routesfound', function (e: any) {
       const route = e.routes[0]
@@ -86,28 +86,28 @@ const SetupRouting = ({
         setTime(minutes)
       }
     })
- 
+
     return () => {
       map.removeControl(control)
     }
   }, [start, end, map, setDistance, setTime])
- 
+
   return null
 }
- 
+
 // Main component
 const MapPicker = ({ mode, startPoint, endPoint, onSelect }: Props) => {
   const [start, setStart] = useState(startPoint || null)
   const [end, setEnd] = useState(endPoint || null)
   const [distance, setDistance] = useState<number | null>(null)
   const [time, setTime] = useState<number | null>(null)
- 
+
   useEffect(() => {
     setStart(startPoint || null)
    
     setEnd(endPoint || null)
   }, [startPoint, endPoint])
- 
+
   const handleClick = (latlng: any) => {
     if (mode === 'starting_point') {
       setStart(latlng)
@@ -123,7 +123,7 @@ const MapPicker = ({ mode, startPoint, endPoint, onSelect }: Props) => {
       }
     }
   }
- 
+
   return (
     <div>
       <MapContainer
@@ -142,7 +142,7 @@ const MapPicker = ({ mode, startPoint, endPoint, onSelect }: Props) => {
           setTime={setTime}
         />
       </MapContainer>
- 
+
       {start && end && distance !== null && time !== null && (
         <p className="mt-2 text-sm font-medium text-center">
           Distance: {distance.toFixed(2)} km | Estimated Time: {Math.ceil(time)} min
@@ -151,7 +151,5 @@ const MapPicker = ({ mode, startPoint, endPoint, onSelect }: Props) => {
     </div>
   )
 }
- 
+
 export default MapPicker
- 
- 

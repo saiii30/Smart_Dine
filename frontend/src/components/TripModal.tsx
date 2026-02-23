@@ -29,6 +29,11 @@ const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
 const [activeScheduleIndex, setActiveScheduleIndex] = useState<number | null>(null)
 const [activeField, setActiveField] = useState<'starting_point' | 'end_point' | null>(null)
 
+const inputClass =
+  "w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 \
+   bg-white dark:bg-gray-800 text-sm \
+   focus:ring-2 focus:ring-primary-500 focus:border-primary-500 \
+   outline-none transition-all duration-200";
 
   const [formData, setFormData] = useState({
   company_id: '',
@@ -60,7 +65,9 @@ const [activeField, setActiveField] = useState<'starting_point' | 'end_point' | 
   }[]
   passenger_count: number
   driver_id?: string
+  driver_name?: string
   vehicle_id?: number
+  vehicle_registration_number?: string
   trip_type: string
   notes?: string
   distance_km?: number      // ADD
@@ -91,6 +98,41 @@ const [activeField, setActiveField] = useState<'starting_point' | 'end_point' | 
   fetchCompanies()
 }, [])
 
+// useEffect(() => {
+//   formData.schedules.forEach((s, index) => {
+//     if (s.start_date && s.start_time) {
+//       fetchDrivers(index)
+//       fetchVehicles(index)
+//     }
+//   })
+// }, [
+//   formData.schedules.map(s => `${s.start_date}-${s.start_time}`).join('|')
+// ])
+
+useEffect(() => {
+  formData.schedules.forEach((s, index) => {
+    if (
+      s.start_date &&
+      s.end_date &&
+      s.start_time &&
+      s.end_time
+    ) {
+      fetchDrivers(index)
+      fetchVehicles(index)
+    }
+  })
+
+ 
+}, [
+  formData.schedules
+    .map(
+      s =>
+        `${s.end_time}`
+    )
+    .join('|')
+])
+
+
 const getAddressFromLatLng = async (lat: number, lng: number) => {
   try {
     const res = await fetch(
@@ -102,17 +144,6 @@ const getAddressFromLatLng = async (lat: number, lng: number) => {
     return `${lat}, ${lng}`
   }
 }
-
-
-
-
-  useEffect(() => {
-    fetchVehicles()
-    fetchDrivers()
-    
-  }, [])
-
-  
 
 useEffect(() => {
   if (!trip) return
@@ -136,6 +167,8 @@ useEffect(() => {
       passenger_count: s.passenger_count || 0,
       driver_id: s.driver_id ?? undefined,
       vehicle_id: s.vehicle_id ?? undefined,
+      vehicle_registration_number: s.vehicle_registration_number ?? '',
+      driver_name: s.driver_name ?? '',
       trip_type: s.trip_type || '',
       notes: s.notes || '',
       way: (s.way || 'one_way') as 'one_way' | 'two_way',
@@ -155,40 +188,91 @@ useEffect(() => {
     })),
   })
 
+
+
+  
+
   
 }, [trip])
 
 
+const fetchVehicles = async (scheduleIndex: number) => {
+  const s = formData.schedules[scheduleIndex]
 
-
-  const fetchVehicles = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/api/vehicles/')
-      setVehicles(response.data)
-      
-    } catch (error) {
-      console.error('Failed to fetch vehicles:', error)
-    }
+  if (
+    !s.start_date ||
+    !s.end_date ||
+    !s.start_time ||
+    !s.end_time
+  ) {
+    return
   }
+
+  const token = localStorage.getItem('token') || ''
+
+  try {
+    const res = await axios.get(
+                            
+      'http://127.0.0.1:8000/api/vehicles/available/vehicles/',
+      {
+        params: {
+          start_date: s.start_date,
+          end_date: s.end_date,
+          start_time: s.start_time,
+          end_time: s.end_time,
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
+
+    setVehicles(res.data)
+  } catch (err) {
+    console.error('Vehicle fetch failed', err)
+  }
+}
+
+
 
   
 
-  const fetchDrivers = async () => {
+const fetchDrivers = async (scheduleIndex: number) => {
+  const s = formData.schedules[scheduleIndex]
+
+  if (
+    !s.start_date ||
+    !s.end_date ||
+    !s.start_time ||
+    !s.end_time
+  ) {
+    return
+  }
+
+  const token = localStorage.getItem('token') || ''
+
   try {
-    const token = localStorage.getItem('token') || ''
-
-    const response = await axios.get('http://127.0.0.1:8000/api/drivers', {
-      headers: {
-        Authorization: `Bearer ${token}`
+    const res = await axios.get(
+      'http://127.0.0.1:8000/api/drivers/available/drivers/',
+      {
+        params: {
+          start_date: s.start_date,
+          end_date: s.end_date,
+          start_time: s.start_time,
+          end_time: s.end_time,
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
-    })
+    )
 
-    setDrivers(response.data)
-   
-  } catch (error) {
-    console.error('Failed to fetch drivers:', error)
+    setDrivers(res.data)
+  } catch (err) {
+    console.error('Driver fetch failed', err)
   }
 }
+
 
 
   const getHeaderColorClasses = (color: MenuColor) => {
@@ -253,24 +337,6 @@ useEffect(() => {
   })
 }
 
-// const updatePassengerCount = (scheduleIndex: number, count: number) => {
-//   const updated = [...formData.schedules]
-//   const s = updated[scheduleIndex]
-
-//   s.passenger_count = count
-
-//   if (s.trip_type === 'route') {
-//     s.passengers = Array.from({ length: count }, (_, i) => ({
-//       name: s.passengers?.[i]?.name || '',
-//       phone: s.passengers?.[i]?.phone || '',
-//       address: s.passengers?.[i]?.address || '',
-//       start_point: s.passengers?.[i]?.start_point || '',
-//       end_point: s.passengers?.[i]?.end_point || '',
-//     }))
-//   }
-
-//   setFormData({ ...formData, schedules: updated })
-// }
 
 const updatePassengerCount = (scheduleIndex: number, count: number) => {
   const updated = [...formData.schedules]
@@ -303,6 +369,15 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
     const updated = [...formData.schedules]
     updated[index] = { ...updated[index], [field]: value }
     setFormData({ ...formData, schedules: updated })
+
+    if(field === "vechile_id"){
+      fetchVehicles(index)
+    }
+    else if(field === "driver_id"){
+      fetchDrivers(index)
+    }
+
+
   }
 
  
@@ -438,6 +513,12 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 }
 
+const selectClass =
+  "w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 \
+   bg-white dark:bg-gray-800 \
+   text-gray-900 dark:text-white text-sm \
+   focus:ring-2 focus:ring-primary-500 focus:border-primary-500 \
+   outline-none transition-all duration-200";
 
 
   return (
@@ -565,13 +646,13 @@ const handleSubmit = async (e: React.FormEvent) => {
                     {label}
                   </label>
                   <input
+                  
                     type={type}
                     value={(schedule as any)[field] || ''}
                     onChange={(e) =>
                       updateSchedule(index, field as any, e.target.value)
                     }
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                               bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary-500"
+                    className={inputClass}
                   />
                 </div>
               ))}
@@ -592,11 +673,12 @@ const handleSubmit = async (e: React.FormEvent) => {
   <label className="block text-xs font-medium mb-1">Trip Type</label>
 
   <select
+   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
   value={schedule.trip_type}
   onChange={(e) => {
     const updated = [...formData.schedules]
     const s = updated[index]
-
+ 
     s.trip_type = e.target.value
 
     if (e.target.value === 'route') {
@@ -621,7 +703,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 >
 
     <option value="">Select Trip Type</option>
-    <option value="ambulance">Ambulance</option>
+    
     <option value="shuttle">Shuttle</option>
     <option value="route">Route</option>
     
@@ -630,7 +712,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
               <div>
                 <label className="block text-xs font-medium mb-1">Passengers</label>
-                <input
+                <input className={inputClass}
   type="number"
   value={schedule.passenger_count}
   onChange={(e) =>
@@ -658,7 +740,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         updateSchedule(index, 'starting_point', e.target.value)
       }
       placeholder="Select starting location"
-      className="w-full border rounded px-3 py-2 pr-10"
+      className={inputClass}
     />
 
     <button
@@ -690,7 +772,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         updateSchedule(index, 'end_point', e.target.value)
       }
       placeholder="Select ending location"
-      className="w-full border rounded px-3 py-2 pr-10"
+      className={inputClass}
     />
 
     <button
@@ -713,170 +795,6 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   </>
 )}
-
-{schedule.trip_type === 'route' &&
-  schedule.passengers &&
-  schedule.passengers.length > 0 && (
-
-  <div className="mt-8">
-
-    {/* ================= PASSENGER STEPPER ================= */}
-    <div className="flex gap-3 overflow-x-auto mb-6 pb-2">
-      {schedule.passengers.map((_, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => setActivePassengerTab(i)}
-          className={`px-5 py-2 rounded-xl text-sm font-medium transition-all
-            ${
-              activePassengerTab === i
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-            }`}
-        >
-         Passenger {i + 1}
-        </button>
-      ))}
-    </div>
-
-    {/* ================= ACTIVE PASSENGER ================= */}
-    {(() => {
-      const p = schedule.passengers![activePassengerTab]
-
-      return (
-        <div
-          className="relative rounded-2xl border border-gray-200 dark:border-gray-700
-                     bg-white/90 dark:bg-gray-900/90 backdrop-blur
-                     p-6 shadow-xl"
-        >
-
-          {/* HEADER */}
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              Passenger {activePassengerTab + 1}
-            </h3>
-
-            <span className="text-xs px-4 py-1 rounded-full
-                             bg-indigo-100 text-indigo-700 font-medium">
-              ROUTE TRIP
-            </span>
-          </div>
-
-          {/* NAME & PHONE */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">
-                Passenger Name
-              </label>
-              <input
-                type="text"
-                value={p.name}
-                onChange={(e) => {
-                  const updated = [...formData.schedules]
-                  updated[index].passengers![activePassengerTab].name = e.target.value
-                  setFormData({ ...formData, schedules: updated })
-                }}
-                className="w-full rounded-xl border border-gray-300 dark:border-gray-600
-                           bg-white dark:bg-gray-800 px-4 py-2
-                           focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">
-                Phone Number
-              </label>
-              <input
-                type="text"
-                value={p.phone}
-                onChange={(e) => {
-                  const updated = [...formData.schedules]
-                  updated[index].passengers![activePassengerTab].phone = e.target.value
-                  setFormData({ ...formData, schedules: updated })
-                }}
-                className="w-full rounded-xl border border-gray-300 dark:border-gray-600
-                           bg-white dark:bg-gray-800 px-4 py-2
-                           focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-          </div>
-
-          {/* LOCATION */}
-          <div className="mt-8">
-            <p className="text-xs text-gray-500 mb-3">
-              Pickup & Drop Location
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-
-              {/* START POINT */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScheduleIndex(index)
-                  setActivePassengerIndex(activePassengerTab)
-                  setActiveField('starting_point')
-                  setShowMap(true)
-                }}
-                className="rounded-xl border border-dashed border-indigo-400
-                           p-4 text-left hover:bg-indigo-50 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-indigo-100
-                                  flex items-center justify-center">
-                    📍
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Start Point</p>
-                    <p className="text-xs text-gray-500 max-w-[220px] 
-              break-words line-clamp-2">
-  {p.start_point || 'Select pickup location'}
-</p>
-
-                  </div>
-                </div>
-              </button>
-
-              {/* END POINT */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScheduleIndex(index)
-                  setActivePassengerIndex(activePassengerTab)
-                  setActiveField('end_point')
-                  setShowMap(true)
-                }}
-                className="rounded-xl border border-dashed border-emerald-400
-                           p-4 text-left hover:bg-emerald-50 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-emerald-100
-                                  flex items-center justify-center">
-                    📍
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">End Point</p>
-                   <p className="text-xs text-gray-500 max-w-[220px] 
-              break-words line-clamp-2">
-  {p.end_point || 'Select drop location'}
-</p>
-
-                  </div>
-                </div>
-              </button>
-
-            </div>
-          </div>
-
-        </div>
-      )
-    })()}
-  </div>
-)}
-
-
-
-
 
 
 
@@ -997,17 +915,35 @@ const handleSubmit = async (e: React.FormEvent) => {
               <div>
                 <label className="block text-xs font-medium mb-1">Select Driver</label>
                 <select
-                  value={schedule.driver_id || ''}
-                   onChange={(e) => updateSchedule(index, 'driver_id', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
-                >
-                  <option value="">Select Driver</option>
-       {getAvailableDrivers(index).map((driver) => (
-                          <option key={driver.id} value={driver.id}>
-                            {driver.full_name}
-                          </option>
-                        ))}
-                </select>
+  value={schedule.driver_id || ''}
+
+  onChange={(e) =>
+   
+    updateSchedule(index, 'driver_id', e.target.value)
+  }
+  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
+>
+  {
+    schedule.driver_name ? (
+      <option value="">{schedule.driver_name}</option>
+
+    ) : 
+    (
+<option value="">Select Driver</option>
+    )
+  }
+  
+  
+  
+
+  {getAvailableDrivers(index).map((driver) => (
+   <option key={driver.id} value={driver.id}>
+  {driver.user.name}
+</option>
+
+  ))}
+</select>
+
               </div>
 
               <div>
@@ -1018,13 +954,25 @@ const handleSubmit = async (e: React.FormEvent) => {
     
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
                 >
-                  <option value="">Select Vehicle</option>
+                  {
+                    schedule.vehicle_id ? (
+                      <option value="">{schedule.vehicle_registration_number}</option>
+                    ) : (
+                      <option value="">Select Vehicle</option>
+                    )
+                  }
+                 
+
+                  
       {getAvailableVehicles(index).map((vehicle) => (
                           <option key={vehicle.id} value={vehicle.id}>
-                            {vehicle.vehicle_registration_number} - {vehicle.vehicle_brand}- {vehicle.vehicle_model}
+                            {vehicle.vehicle_registration_number} 
                           </option>
                         ))}
-                </select>
+                </select> 
+
+               
+
               </div>
 
 
@@ -1050,6 +998,170 @@ const handleSubmit = async (e: React.FormEvent) => {
                            bg-gray-50 dark:bg-gray-700"
               />
             </div>
+
+
+
+            {schedule.trip_type === 'route' &&
+  schedule.passengers &&
+  schedule.passengers.length > 0 && (
+
+  <div className="mt-8">
+
+    {/* ================= PASSENGER STEPPER ================= */}
+    <div className="flex gap-3 overflow-x-auto mb-6 pb-2">
+      {schedule.passengers.map((_, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => setActivePassengerTab(i)}
+          className={`px-5 py-2 rounded-xl text-sm font-medium transition-all
+            ${
+              activePassengerTab === i
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+        >
+         Passenger {i + 1}
+        </button>
+      ))}
+    </div>
+
+    {/* ================= ACTIVE PASSENGER ================= */}
+    {(() => {
+      const p = schedule.passengers![activePassengerTab]
+
+      return (
+        <div
+          className="relative rounded-2xl border border-gray-200 dark:border-gray-700
+                     bg-white/90 dark:bg-gray-900/90 backdrop-blur
+                     p-6 shadow-xl"
+        >
+
+          {/* HEADER */}
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+              Passenger {activePassengerTab + 1}
+            </h3>
+
+            <span className="text-xs px-4 py-1 rounded-full
+                             bg-indigo-100 text-indigo-700 font-medium">
+              ROUTE TRIP
+            </span>
+          </div>
+
+          {/* NAME & PHONE */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">
+                Passenger Name
+              </label>
+              <input
+                type="text"
+                value={p.name}
+                onChange={(e) => {
+                  const updated = [...formData.schedules]
+                  updated[index].passengers![activePassengerTab].name = e.target.value
+                  setFormData({ ...formData, schedules: updated })
+                }}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">
+                Phone Number
+              </label>
+              <input
+                type="text"
+                value={p.phone}
+                onChange={(e) => {
+                  const updated = [...formData.schedules]
+                  updated[index].passengers![activePassengerTab].phone = e.target.value
+                  setFormData({ ...formData, schedules: updated })
+                }}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          {/* LOCATION */}
+          <div className="mt-8">
+            <p className="text-xs text-gray-500 mb-3">
+              Pickup & Drop Location
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+              {/* START POINT */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveScheduleIndex(index)
+                  setActivePassengerIndex(activePassengerTab)
+                  setActiveField('starting_point')
+                  setShowMap(true)
+                }}
+                className="rounded-xl border border-dashed border-indigo-400
+                           p-4 text-left hover:bg-indigo-50 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-indigo-100
+                                  flex items-center justify-center">
+                    📍
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Start Point</p>
+                    <p className="text-xs text-gray-500 max-w-[220px] 
+              break-words line-clamp-2">
+  {p.start_point || 'Select pickup location'}
+</p>
+
+                  </div>
+                </div>
+              </button>
+
+              {/* END POINT */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveScheduleIndex(index)
+                  setActivePassengerIndex(activePassengerTab)
+                  setActiveField('end_point')
+                  setShowMap(true)
+                }}
+                className="rounded-xl border border-dashed border-emerald-400
+                           p-4 text-left hover:bg-emerald-50 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-emerald-100
+                                  flex items-center justify-center">
+                    📍
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">End Point</p>
+                   <p className="text-xs text-gray-500 max-w-[220px] 
+              break-words line-clamp-2">
+  {p.end_point || 'Select drop location'}
+</p>
+
+                  </div>
+                </div>
+              </button>
+
+            </div>
+          </div>
+
+        </div>
+      )
+    })()}
+  </div>
+)}
+
+
+
+
+
+
           </div>
         ))}
       </div>
