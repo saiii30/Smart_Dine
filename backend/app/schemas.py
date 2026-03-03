@@ -312,19 +312,62 @@ class DriverUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 class DriverResponse(BaseModel):
+
     id: str
+
     user: Optional[UserBase] = None
+
     agency_id: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+
+    gender: Optional[str] = None
+
+    blood_group: Optional[str] = None
+
+    aadhar_number: Optional[str] = None
+
+ 
+
     driving_license_number: Optional[str] = None
+
     license_expiry_date: Optional[datetime] = None
+
     verification_status: Optional[str] = None
+
     status: Optional[str] = None
+
+    current_address: Optional[str] = None
+
+    city: Optional[str] = None
+
+    state: Optional[str] = None
+
+    pincode: Optional[str] = None
+
+    emergency_contact_name: Optional[str] = None
+
+    emergency_contact_number: Optional[str] = None
+
+    previous_employer_experience: Optional[str] = None
+
+    languages_spoken: Optional[str] = None
+
+    shift_preference: Optional[str] = None
+
+    assigned_vehicle_id: Optional[Union[int, str]] = None
+
+    notes: Optional[str] = None
+
     is_active: bool = True
+
     created_at: Optional[datetime] = None
+
     updated_at: Optional[datetime] = None
-    
+
     class Config:
+
         orm_mode = True
+
 
 # Location Tracking Schemas
 class LocationUpdate(BaseModel):
@@ -332,8 +375,9 @@ class LocationUpdate(BaseModel):
     longitude: float
     accuracy: Optional[float] = None
     speed: Optional[float] = None
-    heading: Optional[float] = None
-    vehicle_id: Optional[int] = None
+    trip_id: Optional[str] = None
+
+    agency_id: Optional[str] = None  # Add agency_id field
 
 class LocationResponse(BaseModel):
     id: int
@@ -345,6 +389,9 @@ class LocationResponse(BaseModel):
     speed: Optional[float] = None
     heading: Optional[float] = None
     timestamp: datetime
+    trip_id: Optional[str] = None
+
+    agency_id: Optional[str] = None  # Add agency_id field
     
     class Config:
         from_attributes = True
@@ -359,7 +406,13 @@ class DriverLocationStatus(BaseModel):
     speed: Optional[float] = None
     heading: Optional[float] = None
     last_update: datetime
-    is_online: bool
+    trip_id: Optional[str] = None
+
+    agency_id: Optional[str] = None  # Add agency_id field  
+
+    class Config:
+
+        from_attributes = True
 
 # Company Schemas
 class CompanyBase(BaseModel):
@@ -644,6 +697,14 @@ class TripScheduleUpdate(BaseModel):
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
 
+    class Config:
+
+        json_encoders = {
+
+            # Add any custom JSON encoders if needed
+
+        }
+
 class TripScheduleResponse(BaseModel):
     id: str
     agency_id: Optional[str] = None
@@ -747,9 +808,9 @@ class TripResponse(BaseModel):
 
 class User(BaseModel):
     id: str
-    email: EmailStr
-    name: str
-    role: UserRole          # ⬅️ REQUIRED
+    email: Optional[EmailStr] = None
+    name : Optional[str] = None 
+    role : Optional[str] = None
     company_name: Optional[str] = None
    
 

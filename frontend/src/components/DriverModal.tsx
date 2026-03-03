@@ -3,6 +3,7 @@ import axios from 'axios'
 import * as XLSX from 'xlsx'
 import { X, Upload, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react'
 import { Driver } from '../types'
+import { useAuth } from '../contexts/AuthContext'
 interface DriverModalProps {
   driver: Driver | null
   onClose: () => void
@@ -10,8 +11,21 @@ interface DriverModalProps {
 }
 
 const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
+  const { user } = useAuth()
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+const isAdmin = user?.role === 'ADMIN'
+const isSupervisor = user?.role === 'SUPERVISOR'
   const labelStyle = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5";
-  const inputStyle = "w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all";
+  const isReadOnly = isSupervisor
+  const inputStyle = `
+  w-full p-2.5 border border-gray-300 dark:border-gray-600 
+  rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white 
+  focus:ring-2 focus:ring-blue-500 focus:border-transparent 
+  outline-none transition-all
+  ${isReadOnly ? 'bg-gray-100 cursor-not-allowed opacity-70' : ''}
+`
+  
+
 
   const FieldLabel = ({ children, required = false, optional = false }: { children: React.ReactNode; required?: boolean; optional?: boolean }) => (
     <label className={labelStyle}>
@@ -107,8 +121,8 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     if (!driver) return;
     const d: any = driver as any;
     const mapped: Record<string, any> = {
-      full_name: d.full_name || '',
-      phone_number: d.phone_number || d.phone || '',
+      full_name: d.full_name || d.user?.name || '',
+      phone_number: d.user?.contact_number || d.phone || '',
       password: '', // Never load existing password for security
       date_of_birth: d.date_of_birth ? new Date(d.date_of_birth).toISOString().split('T')[0] : '',
       gender: d.gender || '',
@@ -243,7 +257,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
             if (row['Previous Employer Experience']) formData.append('previous_employer_experience', String(row['Previous Employer Experience']).trim());
             if (row['Languages Spoken']) formData.append('languages_spoken', String(row['Languages Spoken']).trim());
 
-            await axios.post('/api/drivers/', formData);
+            await axios.post('http://127.0.0.1:8000/api/drivers/', formData);
             successCount++;
           } catch (err: any) {
             failCount++;
@@ -390,14 +404,14 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
         if (!draft.password) {
           payload.delete('password'); // Don't update password if field is empty
         }
-        await axios.put(`/api/drivers/${(driver as any).id}`, payload);
+        await axios.put(`http://127.0.0.1:8000/api/drivers/${(driver as any).id}`, payload);
       } else {
         // For new drivers, require a password
         if (!draft.password) {
           alert('Please enter a password');
           return;
         }
-        await axios.post('/api/drivers/', payload);
+        await axios.post('http://127.0.0.1:8000/api/drivers/', payload);
       }
 
       clearDraft();
@@ -419,16 +433,22 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
               Driver Details
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage driver identity, documents and assignments</p>
+            {isSupervisor && (
+  <span className="inline-block mt-2 px-3 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+    View Only Mode
+  </span>
+)}
             <p className="text-xs text-gray-500 mt-2"><span className="text-red-600 font-bold">*</span> Required fields — fields labeled <span className="text-gray-400">(optional)</span> are not mandatory.</p>
           </div>
           <div className="flex items-center gap-2">
-            {!driver && (
+            {!driver && !isSupervisor && (
               <>
                 <button onClick={downloadTemplate} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Download Template">
                   <Download size={18} />
                   <span className="hidden sm:inline">Template</span>
                 </button>
-                <input type="file" ref={fileInputRef} onChange={handleBulkUpload} className="hidden" accept=".xlsx,.xls,.csv" />
+                <input
+  disabled={isReadOnly}  type="file" ref={fileInputRef} onChange={handleBulkUpload} className="hidden" accept=".xlsx,.xls,.csv" />
                 <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors" title="Bulk Upload">
                   <Upload size={18} />
                   <span className="hidden sm:inline">Bulk Upload</span>
@@ -456,11 +476,12 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Full Name</FieldLabel>
-                    <input required type="text" className={inputStyle} value={draft.full_name} onChange={e => saveDraft({ full_name: e.target.value })} />
+                    <input
+  disabled={isReadOnly} required type="text" className={inputStyle} value={draft.full_name} onChange={e => saveDraft({ full_name: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel required>Phone Number</FieldLabel>
-                    <input required type="tel" maxLength={10} placeholder="10-digit number" className={inputStyle} value={draft.phone_number} onChange={e => saveDraft({ phone_number: e.target.value.replace(/\D/g, '') })} />
+                    <input disabled={isReadOnly} required type="tel" maxLength={10} placeholder="10-digit number" className={inputStyle} value={draft.phone_number} onChange={e => saveDraft({ phone_number: e.target.value.replace(/\D/g, '') })} />
                   </div>
                   <div>
                     <div className="space-y-2">
@@ -479,7 +500,8 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                         )}
                       </div>
                       <div className="relative">
-                        <input
+                      <input
+  disabled={isReadOnly}
                           type={draft.showPassword ? 'text' : 'password'}
                           required={!isEditing}
                           placeholder={isEditing ? 'Leave empty to keep current' : 'Password will be auto-generated'}
@@ -534,7 +556,8 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                   </div>
                   <div>
                     <FieldLabel required>Date of Birth</FieldLabel>
-                    <input type="date" className={inputStyle} value={draft.date_of_birth} onChange={e => saveDraft({ date_of_birth: e.target.value })} />
+                    <input
+  disabled={isReadOnly} type="date" className={inputStyle} value={draft.date_of_birth} onChange={e => saveDraft({ date_of_birth: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel required>Gender</FieldLabel>
@@ -562,11 +585,11 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                   </div>
                   <div>
                     <FieldLabel >Languages Spoken</FieldLabel>
-                    <input type="text" placeholder="e.g. English, Tamil" className={inputStyle} value={draft.languages_spoken} onChange={e => saveDraft({ languages_spoken: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" placeholder="e.g. English, Tamil" className={inputStyle} value={draft.languages_spoken} onChange={e => saveDraft({ languages_spoken: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel>Shift Preference</FieldLabel>
-                    <select className={inputStyle} value={draft.shift_preference} onChange={e => saveDraft({ shift_preference: e.target.value })}>
+                    <select disabled={isReadOnly} className={inputStyle} value={draft.shift_preference} onChange={e => saveDraft({ shift_preference: e.target.value })}>
                       <option value="">Select</option>
                       <option value="morning">Morning</option>
                       <option value="night">Night</option>
@@ -575,7 +598,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                   </div>
                   <div>
                     <FieldLabel>Status</FieldLabel>
-                    <select className={inputStyle} value={draft.status} onChange={e => saveDraft({ status: e.target.value })}>
+                    <select disabled={isReadOnly} className={inputStyle} value={draft.status} onChange={e => saveDraft({ status: e.target.value })}>
                       <option>Active</option>
                       <option>Inactive</option>
                       <option>Suspended</option>
@@ -590,41 +613,42 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Aadhar Number</FieldLabel>
-                    <input type="text" className={inputStyle} value={draft.aadhar_number} onChange={e => saveDraft({ aadhar_number: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.aadhar_number} onChange={e => saveDraft({ aadhar_number: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel required>Aadhar Document</FieldLabel>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'aadhar_document', 'aadhar_document_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
+                    <input
+  disabled={isReadOnly} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'aadhar_document', 'aadhar_document_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
                     {draft.aadhar_document_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.aadhar_document_name}</p>}
                   </div>
                   <div>
                     <FieldLabel required>Driving License Number</FieldLabel>
-                    <input type="text" className={inputStyle} value={draft.driving_license_number} onChange={e => saveDraft({ driving_license_number: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.driving_license_number} onChange={e => saveDraft({ driving_license_number: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel required>License Expiry Date</FieldLabel>
-                    <input type="date" className={inputStyle} value={draft.license_expiry_date} onChange={e => saveDraft({ license_expiry_date: e.target.value })} />
+                    <input disabled={isReadOnly} type="date" className={inputStyle} value={draft.license_expiry_date} onChange={e => saveDraft({ license_expiry_date: e.target.value })} />
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Driver Photo</FieldLabel>
-                    <input type="file" accept="image/*" onChange={e => handleFile(e, 'driver_photo', 'driver_photo_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
+                    <input disabled={isReadOnly} type="file" accept="image/*" onChange={e => handleFile(e, 'driver_photo', 'driver_photo_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
                     {draft.driver_photo_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.driver_photo_name}</p>}
                   </div>
                   <div>
                     <FieldLabel required>Police Verification Certificate</FieldLabel>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'police_verification_certificate', 'police_verification_certificate_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
+                    <input disabled={isReadOnly}   type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'police_verification_certificate', 'police_verification_certificate_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
                     {draft.police_verification_certificate_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.police_verification_certificate_name}</p>}
                   </div>
                   <div>
                     <FieldLabel required>Medical Fitness Certificate</FieldLabel>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'medical_fitness_certificate', 'medical_fitness_certificate_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
+                    <input disabled={isReadOnly} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'medical_fitness_certificate', 'medical_fitness_certificate_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
                     {draft.medical_fitness_certificate_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.medical_fitness_certificate_name}</p>}
                   </div>
                   <div>
                     <FieldLabel required>Verification Status</FieldLabel>
-                    <select className={inputStyle} value={draft.verification_status} onChange={e => saveDraft({ verification_status: e.target.value })}>
+                    <select disabled={isReadOnly} className={inputStyle} value={draft.verification_status} onChange={e => saveDraft({ verification_status: e.target.value })}>
                       <option>Pending</option>
                       <option>Verified</option>
                       <option>Rejected</option>
@@ -640,33 +664,33 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
 
                   <div>
                     <FieldLabel required>Emergency Contact Name</FieldLabel>
-                    <input type="text" className={inputStyle} value={draft.emergency_contact_name} onChange={e => saveDraft({ emergency_contact_name: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.emergency_contact_name} onChange={e => saveDraft({ emergency_contact_name: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel required>Emergency Contact Number</FieldLabel>
-                    <input type="tel" className={inputStyle} value={draft.emergency_contact_number} onChange={e => saveDraft({ emergency_contact_number: e.target.value })} />
+                    <input disabled={isReadOnly} type="tel" className={inputStyle} value={draft.emergency_contact_number} onChange={e => saveDraft({ emergency_contact_number: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel>Previous Employer Experience</FieldLabel>
-                    <textarea rows={3} className={inputStyle} value={draft.previous_employer_experience} onChange={e => saveDraft({ previous_employer_experience: e.target.value })} />
+                    <textarea disabled={isReadOnly} rows={3} className={inputStyle} value={draft.previous_employer_experience} onChange={e => saveDraft({ previous_employer_experience: e.target.value })} />
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Current Address</FieldLabel>
-                    <textarea rows={2} className={inputStyle} value={draft.current_address} onChange={e => saveDraft({ current_address: e.target.value })} />
+                    <textarea disabled={isReadOnly} rows={2} className={inputStyle} value={draft.current_address} onChange={e => saveDraft({ current_address: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel required>City</FieldLabel>
-                    <input type="text" className={inputStyle} value={draft.city} onChange={e => saveDraft({ city: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.city} onChange={e => saveDraft({ city: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel required>State</FieldLabel>
-                    <input type="text" className={inputStyle} value={draft.state} onChange={e => saveDraft({ state: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.state} onChange={e => saveDraft({ state: e.target.value })} />
                   </div>
                   <div>
                     <FieldLabel required>Pincode</FieldLabel>
-                    <input type="text" className={inputStyle} value={draft.pincode} onChange={e => saveDraft({ pincode: e.target.value })} />
+                    <input disabled={isReadOnly}   type="text" className={inputStyle} value={draft.pincode} onChange={e => saveDraft({ pincode: e.target.value })} />
                   </div>
                 </div>
               </div>
@@ -676,8 +700,12 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
 
           <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
             <button type="button" onClick={onClose} className="px-6 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">Cancel</button>
+            {!isSupervisor && (
             <button type="button" onClick={clearDraft} className="px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Clear Draft</button>
+            )}
+            {!isSupervisor && (
             <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">Submit Record</button>
+            )}
           </div>
 
       {/* Custom Alert/Confirm Modal */}

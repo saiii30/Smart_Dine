@@ -21,6 +21,33 @@ import traceback
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def map_driver_response(driver, user):
+    """Map driver and user models to a DriverResponse schema."""
+    return schemas.DriverResponse(
+        id=driver.id,
+        user=schemas.UserBase(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            contact_number=user.contact_number,
+            role=user.role
+        ),
+        agency_id=driver.agency_id,
+        date_of_birth=driver.date_of_birth,
+        gender=driver.gender,
+        status=driver.status,
+        verification_status=driver.verification_status,
+        city=driver.city,
+        state=driver.state,
+        pincode=driver.pincode,
+        emergency_contact_name=driver.emergency_contact_name,
+        emergency_contact_number=driver.emergency_contact_number,
+        driving_license_number=driver.driving_license_number,
+        license_expiry_date=driver.license_expiry_date,
+        created_at=driver.created_at,
+        updated_at=driver.updated_at
+    )
+
 router = APIRouter(tags=["Drivers"])
 
 # Helper to save upload file
@@ -46,9 +73,15 @@ def validate_phone_number(phone: str) -> str:
     # Remove all non-digit characters
     cleaned = ''.join(filter(str.isdigit, phone))
    
-    # Check length (assuming 10-digit phone numbers)
-    if len(cleaned) != 10:
-        raise HTTPException(status_code=400, detail="Phone number must be 10 digits")
+    # Check length (allowing 10 digits for standard Indian numbers)
+    if len(cleaned) < 10:
+        raise HTTPException(status_code=400, detail="Phone number must be at least 10 digits")
+    if len(cleaned) > 15:
+        raise HTTPException(status_code=400, detail="Phone number is too long")
+   
+    # Take last 10 digits (handles country codes)
+    if len(cleaned) > 10:
+        cleaned = cleaned[-10:]
    
     return cleaned
  
@@ -279,9 +312,9 @@ def read_drivers(
         .options(joinedload(models.Driver.user))
     )
     
-    # Apply agency filter for non-super admins
-    if current_user.role not in [models.UserRole.SUPER_ADMIN]:
-        query = query.filter(models.User.agency_id == current_user.agency_id)
+   # Apply agency filter for all users (including super_admin)
+
+    query = query.filter(models.User.agency_id == current_user.agency_id)
     
     # Apply status filter if provided
     if status:
@@ -296,8 +329,25 @@ def read_drivers(
     )
     
     # Map to response model (user is already loaded)
-    return drivers
- 
+    driver_responses = []
+
+    for driver in drivers:
+
+        if hasattr(driver, 'user') and driver.user:
+
+            driver_responses.append(map_driver_response(driver, driver.user))
+
+        else:
+
+            # Handle case where user is not loaded (shouldn't happen with joinedload)
+
+            driver_responses.append(map_driver_response(driver, None))
+
+   
+
+    return driver_responses
+
+
 @router.get("/{driver_id}", response_model=schemas.DriverResponse)
 def read_driver(
     driver_id: str,
@@ -321,9 +371,12 @@ def read_driver(
         raise HTTPException(status_code=404, detail="Driver not found")
     
     # Access control
-    if (current_user.role not in [models.UserRole.SUPER_ADMIN] and 
-        current_user.agency_id != driver.user.agency_id and
+    # Access control - restrict to same agency for all users including super_admin
+
+    if (current_user.agency_id != driver.user.agency_id and
+
         current_user.id != driver_id):
+
         raise HTTPException(status_code=403, detail="Not authorized to access this driver")
     
     return driver
@@ -379,7 +432,6 @@ async def update_driver(
    
     # Check permissions
     if current_user.agency_id and db_user.agency_id != current_user.agency_id:
-        if current_user.role != models.UserRole.SUPER_ADMIN:
             raise HTTPException(status_code=403, detail="Not authorized")
    
     # Date helper
@@ -466,6 +518,12 @@ def delete_driver(
     db.delete(db_driver)
     db.delete(db_user)
 
+    db.commit()
+
+   
+
+    return None  # Return proper response for 204 status
+
 
 
 # list available drivers within a specific time range
@@ -541,4 +599,4 @@ def get_available_drivers(
             status_code=500,
             detail="Error fetching available drivers"
         )
- 
+

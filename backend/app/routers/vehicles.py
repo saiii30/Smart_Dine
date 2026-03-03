@@ -222,9 +222,8 @@ def get_vehicles(
     # Start with a base query
     query = db.query(models.Vehicle)
     
-    # Apply agency filter for non-super admins
-    if current_user.role not in [models.UserRole.SUPER_ADMIN]:
-        query = query.filter(models.Vehicle.agency_id == current_user.agency_id)
+    
+    query = query.filter(models.Vehicle.agency_id == current_user.agency_id)
     
     # Apply filters if provided
     if status:
@@ -280,9 +279,9 @@ def get_vehicle(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     
-    # Check if user has access to this vehicle
-    if (current_user.role not in [models.UserRole.ADMIN, models.UserRole.SUPER_ADMIN] and 
-        vehicle.agency_id != current_user.agency_id):
+    # Check if user has access to this vehicle - restrict to same agency for all users including super_admin
+
+    if vehicle.agency_id != current_user.agency_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this vehicle")
     
     return vehicle
@@ -312,8 +311,9 @@ async def update_vehicle(
                 detail="Vehicle not found"
             )
         
-        # Check permissions
-        if db_vehicle.user_id != current_user.id and current_user.role != models.UserRole.SUPER_ADMIN:
+        # Check permissions - restrict to same agency for all users including super_admin
+
+        if db_vehicle.agency_id != current_user.agency_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to update this vehicle"
@@ -413,6 +413,15 @@ def delete_vehicle(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to delete this vehicle"
             )
+        elif db_vehicle.agency_id != current_user.agency_id:
+
+            raise HTTPException(
+
+                status_code=status.HTTP_403_FORBIDDEN,
+
+                detail="Not authorized to delete this vehicle"
+
+            )
         
         # Delete associated files
         if db_vehicle.insurance_copy:
@@ -462,8 +471,9 @@ async def get_vehicle_document(
             detail="Vehicle not found"
         )
     
-    # Check permissions
-    if db_vehicle.user_id != current_user.id and current_user.role != models.UserRole.SUPER_ADMIN:
+    # Check permissions - restrict to same agency for all users including super_admin
+
+    if db_vehicle.agency_id != current_user.agency_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this document"
