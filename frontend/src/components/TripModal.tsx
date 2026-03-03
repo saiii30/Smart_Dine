@@ -6,6 +6,8 @@ import { useTheme } from '../contexts/ThemeContext'
 import MapPicker from '../components/MapPicker'
 import { MapPin } from 'lucide-react'
 
+import { useAuth } from '../contexts/AuthContext'
+
 
 type MenuColor = 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo'
 
@@ -23,7 +25,10 @@ const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
   const [error, setError] = useState('')
   const [activePassengerIndex, setActivePassengerIndex] = useState<number | null>(null)
   const [activePassengerTab, setActivePassengerTab] = useState(0)
-
+ const { user } = useAuth()
+   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+ const isAdmin = user?.role === 'ADMIN'
+ const isSupervisor = user?.role === 'SUPERVISOR'
 
   const [showMap, setShowMap] = useState(false)
 const [activeScheduleIndex, setActiveScheduleIndex] = useState<number | null>(null)
@@ -526,7 +531,11 @@ const selectClass =
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className={`sticky top-0 ${headerColors.bg} px-6 py-4 flex justify-between items-center rounded-t-lg`}>
           <h2 className={`text-xl font-semibold ${headerColors.text}`}>
-            {trip ? 'Edit Trip' : 'Add Trip'}
+            {isSupervisor
+    ? 'View Trip'
+    : trip
+    ? 'Edit Trip'
+    : 'Add Trip'}
           </h2>
           <button
             onClick={onClose}
@@ -537,14 +546,27 @@ const selectClass =
         </div>
 
        <form
-  onSubmit={handleSubmit}
+ onSubmit={(e) => {
+    if (isSupervisor) {
+      e.preventDefault()
+      return
+    }
+    handleSubmit(e)
+  }}
   className="max-w-6xl mx-auto bg-white dark:bg-gray-900
              rounded-2xl shadow-lg border border-gray-200 dark:border-gray-800"
 >
-  <div className="p-8 space-y-8">
 
+  
+  <div className="p-8 space-y-8">
+   
+
+   
     {/* ================= HEADER ================= */}
-    <div className="border-b border-gray-200 dark:border-gray-800 pb-4">
+
+    {
+      !isSupervisor && (
+         <div className="border-b border-gray-200 dark:border-gray-800 pb-4">
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
         {trip ? 'Update Trip' : 'Create New Trip'}
       </h2>
@@ -552,6 +574,9 @@ const selectClass =
         Manage trip details and schedules
       </p>
     </div>
+      )
+    }
+   
 
     {/* ================= ERROR ================= */}
     {error && (
@@ -568,6 +593,7 @@ const selectClass =
           Company Name *
         </label>
         <select
+        disabled={isSupervisor}
           required
           value={formData.company_id}
           onChange={(e) => {
@@ -599,16 +625,18 @@ const selectClass =
       <div className="flex justify-between items-center mb-4">
         
 
-        <button
-          type="button"
-          onClick={addSchedule}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl
-                     bg-primary-600 text-white shadow-md
-                     hover:bg-primary-700 transition"
-        >
-          <Plus className="h-4 w-4" />
-          Add Schedule
-        </button>
+        {!isSupervisor && (
+  <button
+    type="button"
+    onClick={addSchedule}
+    className="flex items-center gap-2 px-4 py-2 rounded-xl
+               bg-primary-600 text-white shadow-md
+               hover:bg-primary-700 transition"
+  >
+    <Plus className="h-4 w-4" />
+    Add Schedule
+  </button>
+)}
       </div>
 
       <div className="space-y-6">
@@ -623,13 +651,15 @@ const selectClass =
               <h4 className="text-sm font-semibold">
                 Schedule {index + 1}
               </h4>
-              <button
-                type="button"
-                onClick={() => removeSchedule(index)}
-                className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30"
-              >
-                <Trash2 className="h-4 w-4 text-red-600" />
-              </button>
+              {!isSupervisor && (
+  <button
+    type="button"
+    onClick={() => removeSchedule(index)}
+    className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30"
+  >
+    <Trash2 className="h-4 w-4 text-red-600" />
+  </button>
+)}
             </div>
 
             {/* ===== Inputs ===== */}
@@ -646,7 +676,7 @@ const selectClass =
                     {label}
                   </label>
                   <input
-                  
+                  disabled={isSupervisor}
                     type={type}
                     value={(schedule as any)[field] || ''}
                     onChange={(e) =>
@@ -660,6 +690,7 @@ const selectClass =
               <div>
                 <label className="block text-xs font-medium mb-1">Trip Way</label>
                 <select
+                disabled={isSupervisor}
                   value={schedule.way}
                   onChange={(e) => updateSchedule(index, 'way', e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
@@ -673,6 +704,7 @@ const selectClass =
   <label className="block text-xs font-medium mb-1">Trip Type</label>
 
   <select
+  disabled={isSupervisor}
    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
   value={schedule.trip_type}
   onChange={(e) => {
@@ -712,7 +744,7 @@ const selectClass =
 
               <div>
                 <label className="block text-xs font-medium mb-1">Passengers</label>
-                <input className={inputClass}
+                <input disabled={isSupervisor} className={inputClass}
   type="number"
   value={schedule.passenger_count}
   onChange={(e) =>
@@ -733,6 +765,7 @@ const selectClass =
 
   <div className="relative">
     <input
+    disabled={isSupervisor}
       type="text"
       readOnly  
       value={schedule.starting_point}
@@ -765,6 +798,7 @@ const selectClass =
 
   <div className="relative">
     <input
+    disabled={isSupervisor}
       type="text"
       value={schedule.end_point}
       readOnly  
@@ -915,6 +949,7 @@ const selectClass =
               <div>
                 <label className="block text-xs font-medium mb-1">Select Driver</label>
                 <select
+                disabled={isSupervisor}
   value={schedule.driver_id || ''}
 
   onChange={(e) =>
@@ -949,6 +984,7 @@ const selectClass =
               <div>
                 <label className="block text-xs font-medium mb-1">Select Vehicle</label>
                 <select
+                disabled={isSupervisor}
                     value={schedule.vehicle_id || ''}
       onChange={(e) => updateSchedule(index, 'vehicle_id', Number(e.target.value))}
     
@@ -989,6 +1025,7 @@ const selectClass =
             <div className="mt-4">
               <label className="block text-xs font-medium mb-1">Notes</label>
               <textarea
+              disabled={isSupervisor}
                 rows={2}
                 value={schedule.notes || ''}
                 onChange={(e) =>
@@ -1056,6 +1093,7 @@ const selectClass =
                 Passenger Name
               </label>
               <input
+              disabled={isSupervisor}
                 type="text"
                 value={p.name}
                 onChange={(e) => {
@@ -1072,6 +1110,7 @@ const selectClass =
                 Phone Number
               </label>
               <input
+              disabled={isSupervisor}
                 type="text"
                 value={p.phone}
                 onChange={(e) => {
@@ -1178,7 +1217,8 @@ const selectClass =
         Cancel
       </button>
 
-      <button
+       {!isSupervisor && (
+  <button
         type="submit"
         disabled={loading}
         className="px-6 py-2.5 rounded-xl bg-primary-600 text-white
@@ -1186,6 +1226,9 @@ const selectClass =
       >
         {loading ? 'Saving...' : trip ? 'Update Trip' : 'Create Trip'}
       </button>
+)}
+
+      
     </div>
 
   </div>

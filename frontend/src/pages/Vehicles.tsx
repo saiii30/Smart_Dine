@@ -3,8 +3,14 @@ import axios from 'axios'
 import { Plus, Edit, Trash2, Car, Search } from 'lucide-react'
 import { Vehicle, Trip } from '../types'
 import VehicleModal from '../components/VehicleModal'
-
+import { useAuth } from '../contexts/AuthContext'
 const Vehicles = () => {
+ 
+
+  const { user } = useAuth()
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+const isAdmin = user?.role === "ADMIN";
+const isSupervisor = user?.role === "SUPERVISOR";
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
@@ -19,7 +25,7 @@ const Vehicles = () => {
 
   const fetchVehicles = async () => {
     try {
-      const response = await axios.get('/api/vehicles/')
+      const response = await axios.get('http://127.0.0.1:8000/api/vehicles/')
       setVehicles(response.data)
     } catch (error) {
       console.error('Failed to fetch vehicles:', error)
@@ -30,7 +36,7 @@ const Vehicles = () => {
 
   const fetchTrips = async () => {
     try {
-      const response = await axios.get('/api/trips/')
+      const response = await axios.get('http://127.0.0.1:8000/api/trips/')
       setTrips(response.data)
     } catch (error) {
       console.error('Failed to fetch trips:', error)
@@ -51,6 +57,7 @@ const Vehicles = () => {
 
   const handleEdit = (vehicle: Vehicle) => {
     setEditingVehicle(vehicle)
+    console.log('Editing vehicle:', vehicle)
     setIsModalOpen(true)
   }
 
@@ -58,7 +65,7 @@ const Vehicles = () => {
     if (!confirm('Are you sure you want to delete this vehicle?')) return
 
     try {
-      await axios.delete(`/api/vehicles/${id}`)
+      await axios.delete(`http://127.0.0.1:8000/api/vehicles/${id}`)
       fetchVehicles()
     } catch (error) {
       console.error('Failed to delete vehicle:', error)
@@ -129,13 +136,17 @@ const Vehicles = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
           </div>
-          <button
+         {
+          !isSupervisor && (
+             <button
             onClick={handleCreate}
             className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
           >
             <Plus className="mr-2 h-5 w-5" />
             Add Vehicle
           </button>
+          )
+         }
         </div>
       </div>
 
@@ -150,7 +161,17 @@ const Vehicles = () => {
               ? 'Try adjusting your search criteria.'
               : 'Get started by adding your first vehicle.'}
           </p>
-          {!searchQuery.trim() && (
+
+          {/* {!searchQuery.trim() && !isSupervisor && (
+            <button
+              onClick={handleCreate}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              Add Driver
+            </button>
+          )} */}
+          {!searchQuery.trim() && !isSupervisor && (
             <button
               onClick={handleCreate}
               className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
@@ -201,7 +222,7 @@ const Vehicles = () => {
                     {vehicle.vehicle_status}
                   </span>
                 </div>
-                {getVehicleTrips(vehicle.id).length > 0 && (
+                {/* {getVehicleTrips(vehicle.id).length > 0 && (
                   <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Assigned to:</div>
                     <div className="space-y-1">
@@ -212,25 +233,44 @@ const Vehicles = () => {
                       ))}
                     </div>
                   </div>
-                )}
+                )} */}
               </div>
 
-              <div className="flex space-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => handleEdit(vehicle)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(vehicle.id)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </button>
-              </div>
+              <div className="flex gap-2">
+
+                 {isSupervisor ? (
+    <button
+      onClick={() => handleEdit(vehicle)}
+      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+    >
+      <Search className="mr-2 h-4 w-4" />
+      View
+    </button>
+  ) : (
+    <>
+      <button
+        onClick={() => handleEdit(vehicle)}
+        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+      >
+        <Edit className="mr-2 h-4 w-4" />
+        Edit
+      </button>
+
+      <button
+        onClick={() => handleDelete(vehicle.id)}
+        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+      >
+        <Trash2 className="mr-2 h-4 w-4" />
+        Delete
+      </button>
+    </>
+  )}
+
+
+                </div>
+
+              
+              
             </div>
           ))}
         </div>

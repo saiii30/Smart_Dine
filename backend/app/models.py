@@ -7,6 +7,9 @@ import enum
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from sqlalchemy import Time,  DateTime, Date
+from datetime import datetime
+
+import pytz
 
 # ADDED USER AND COMPANY CHANGES ID LINE OF CODE 29 AND 188 11,12
 
@@ -116,7 +119,6 @@ class Vehicle(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     # Relationships
     user = relationship("User", back_populates="vehicles")
-    location_updates = relationship("DriverLocation", back_populates="vehicle", cascade="all, delete-orphan")
     trip_schedules = relationship("TripSchedule", back_populates="vehicle", cascade="all, delete-orphan")
 
 class Driver(Base):
@@ -177,17 +179,18 @@ class DriverLocation(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     driver_id = Column(String, ForeignKey("drivers.id"), nullable=False)
-    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     accuracy = Column(Float, nullable=True)  # GPS accuracy in meters
     speed = Column(Float, nullable=True)  # Speed in km/h
-    heading = Column(Float, nullable=True)  # Direction in degrees (0-360)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    agency_id = Column(String, ForeignKey("agencies.id"), nullable=False)
+    trip_id = Column(String, ForeignKey("trip_schedules.id"), nullable=True)
     
     # Relationships
     driver = relationship("Driver", back_populates="location_updates")
-    vehicle = relationship("Vehicle", back_populates="location_updates")
+    trip_schedule = relationship("TripSchedule", back_populates="location_updates")
+    
 
 class Company(Base):
     __tablename__ = "companies"
@@ -276,6 +279,7 @@ class TripSchedule(Base):
     vehicle = relationship("Vehicle", back_populates="trip_schedules")
     driver = relationship("Driver", back_populates="trip_schedules")
     agency = relationship("Agency", back_populates="trip_schedules")
+    location_updates = relationship("DriverLocation", back_populates="trip_schedule")
     
     def update_status_based_on_date(self):
         """Update the trip status based on current date and time"""

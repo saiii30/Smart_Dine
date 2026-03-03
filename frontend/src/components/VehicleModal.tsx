@@ -3,6 +3,9 @@ import { X, ShieldCheck, Car, User, Upload, Download, AlertTriangle, CheckCircle
 import axios from 'axios'
 import * as XLSX from 'xlsx'
 import { Vehicle } from '../types'
+import { useAuth } from '../contexts/AuthContext'
+
+
 
 interface VehicleModalProps {
   vehicle: Vehicle | null
@@ -27,6 +30,9 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
   );
 
   const DRAFT_KEY = 'vehicle_modal_draft_v1';
+
+  const { user } = useAuth();
+const isSupervisor = user?.role === 'SUPERVISOR';
 
   // --- Form State ---
   const [draft, setDraft] = useState<Record<string, any>>({
@@ -113,7 +119,7 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
     const mapped: Record<string, any> = {
       vehicle_registration_number: v.registration_number || v.vehicle_registration_number || '',
       vehicle_type: v.vehicle_type || v.type || '',
-      vehicle_brand: v.brand || v.make || '',
+      vehicle_brand: v.vehicle_brand || v.make || '',
       vehicle_model: v.model || '',
       vehicle_status: v.is_active ? 'Active' : (v.status || v.vehicle_status || ''),
       manufacturing_year: v.year || v.manufacturing_year || '',
@@ -250,7 +256,7 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
             formData.append('seating_capacity', String(row['Seating Capacity'] || 4));
             if(row['GPS ID']) formData.append('gps_device_id', row['GPS ID']);
 
-            await axios.post('/api/vehicles/', formData);
+            await axios.post('http://127.0.0.1:8000/api/vehicles/', formData);
             successCount++;
           } catch (err) {
             failCount++;
@@ -309,9 +315,9 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
 
       // For edit mode: use PUT; for create mode: use POST
       if (vehicle?.id) {
-        await axios.put(`/api/vehicles/${vehicle.id}`, formData);
+        await axios.put(`http://127.0.0.1:8000/api/vehicles/${vehicle.id}`, formData);
       } else {
-        await axios.post('/api/vehicles/', formData);
+        await axios.post('http://127.0.0.1:8000/api/vehicles/', formData);
       }
 
       clearDraft();
@@ -368,14 +374,20 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
         <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
           <div>
             <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight flex items-center">
-              <Car className="mr-3 text-blue-600" size={28} />
-              Vehicle Specifications
-            </h2>
+  <Car className="mr-3 text-blue-600" size={28} />
+  Vehicle Specifications
+
+  {isSupervisor && (
+    <span className="ml-4 px-3 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+      View Only Mode
+    </span>
+  )}
+</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage fleet asset details and compliance records</p>
             <p className="text-xs text-gray-500 mt-2"><span className="text-red-600 font-bold">*</span> Required fields — fields labeled <span className="text-gray-400">(optional)</span> are not mandatory.</p>
           </div>
           <div className="flex items-center gap-2">
-            {!vehicle && (
+            {!vehicle && !isSupervisor && (
               <>
                 <button onClick={downloadTemplate} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Download Template">
                   <Download size={18} />
@@ -416,7 +428,11 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 pt-2">
+        <form 
+  onSubmit={!isSupervisor ? handleSubmit : undefined} 
+  className="p-8 pt-2"
+>
+  <fieldset disabled={isSupervisor}>
           <div className="min-h-[380px]">
             {/* TAB 1: STATIC DATA (Core Identity) */}
             {activeTab === 'static-info' && (
@@ -567,6 +583,7 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
               </div>
             )}
           </div>
+          </fieldset>
 
           {/* Footer Actions */}
           <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
@@ -576,9 +593,11 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
             <button type="button" onClick={clearDraft} className="px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
               Clear Draft
             </button>
-            <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">
-              Submit Record
-            </button>
+            {!isSupervisor && (
+  <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">
+    Submit Record
+  </button>
+)}
           </div>
         </form>
       </div>

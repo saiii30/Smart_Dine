@@ -81,19 +81,38 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     # Format validation errors
     errors = []
     for error in exc.errors():
-        error_dict = {
-            "loc": list(error.get("loc", [])),
-            "msg": str(error.get("msg", "")),
-            "type": str(error.get("type", ""))
-        }
-        if "ctx" in error and error["ctx"]:
-            error_dict["ctx"] = {str(k): str(v) for k, v in error["ctx"].items()}
-        errors.append(error_dict)
-        print(f"Validation error: {error_dict}")
-    
+
+        field = error.get("loc", [""])[-1]  # Get the field name
+
+        msg = error.get("msg", "")
+
+        # Convert complex validation messages to simple ones
+
+        if "password" in field.lower() and "least 8 characters" in msg:
+
+            error_messages.append("Password must be at least 8 characters long")
+
+        elif "email" in field.lower() and "valid" in msg.lower():
+
+            error_messages.append("Invalid email format")
+
+        elif "contact_number" in field.lower() and "valid" in msg.lower():
+
+            error_messages.append("Invalid phone number format")
+
+        else:
+
+            # Use original message for other cases
+
+            error_messages.append(msg)
+   
+
     return JSONResponse(
+
         status_code=422,
-        content={"detail": errors},
+
+        content={"detail": error_messages},
+
     )
 # CORS middleware configuration - simplified for development
 app.add_middleware(

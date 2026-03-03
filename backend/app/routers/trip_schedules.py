@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException , Query
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime , date
 import uuid
 import json
 import logging
@@ -307,3 +307,303 @@ def delete_trip(
     db.delete(trip)
     db.commit()
     return None
+
+ 
+
+# -------------------------------------------------------
+
+# GET TRIPS BY DRIVER + AGENCY
+
+# -------------------------------------------------------
+
+ 
+
+@router.get("/agency/{agency_id}/driver/{driver_id}",
+
+            response_model=List[schemas.TripScheduleResponse])
+
+def get_trips_by_driver_and_agency(
+
+    agency_id: str,
+
+    driver_id: str,
+
+    start_date: Optional[date] = Query(None),
+
+    end_date: Optional[date] = Query(None),
+
+    status_filter: Optional[str] = Query(None),
+
+    current_user: models.User = Depends(auth.get_current_active_user),
+
+    db: Session = Depends(get_db)
+
+):
+
+ 
+
+    if str(current_user.agency_id) != str(agency_id):
+
+        raise HTTPException(403, "Unauthorized")
+
+ 
+
+    query = _base_query(db).filter(
+
+        models.TripSchedule.driver_id == driver_id,
+
+        models.TripSchedule.agency_id == agency_id
+
+    )
+
+ 
+
+    if start_date:
+
+        query = query.filter(models.TripSchedule.start_date >= start_date)
+
+ 
+
+    if end_date:
+
+        query = query.filter(models.TripSchedule.start_date <= end_date)
+
+ 
+
+    if status_filter:
+
+        query = query.filter(models.TripSchedule.status == status_filter)
+
+ 
+
+    return query.order_by(
+
+        models.TripSchedule.start_date,
+
+        models.TripSchedule.start_time
+
+    ).all()
+
+ 
+
+# -------------------------------------------------------
+
+# DRIVER UPDATE
+
+# -------------------------------------------------------
+
+ 
+
+@router.put("/driver/{trip_id}", response_model=schemas.TripScheduleResponse)
+
+def update_trip_by_driver(
+
+    trip_id: str,
+
+    update: schemas.TripUpdate,
+
+    current_user: models.User = Depends(auth.get_current_active_user),
+
+    db: Session = Depends(get_db)
+
+):
+
+ 
+
+    trip = _base_query(db).filter(
+
+        models.TripSchedule.id == trip_id,
+
+        models.TripSchedule.driver_id == current_user.driver.id
+
+    ).first()
+
+ 
+
+    if not trip:
+
+        raise HTTPException(404, "Trip not assigned to this driver")
+
+ 
+
+    update_data = update.dict(exclude_unset=True)
+
+ 
+
+    if update_data.get("route_points"):
+
+        update_data["route_points"] = json.dumps(update_data["route_points"])
+
+ 
+
+    for field, value in update_data.items():
+
+        setattr(trip, field, value)
+
+ 
+
+    trip.updated_at = datetime.utcnow()
+
+ 
+
+    db.commit()
+
+    db.refresh(trip)
+
+ 
+
+    return trip
+
+ 
+
+# -------------------------------------------------------
+
+# ACTIVE TRIPS
+
+# -------------------------------------------------------
+
+ 
+
+@router.get("/agency/{agency_id}/active",
+
+            response_model=List[schemas.TripScheduleResponse])
+
+def get_active_trips(
+
+    agency_id: str,
+
+    current_user: models.User = Depends(auth.get_current_active_user),
+
+    db: Session = Depends(get_db)
+
+):
+
+ 
+
+    if str(current_user.agency_id) != str(agency_id):
+
+        raise HTTPException(403, "Unauthorized")
+
+ 
+
+    now = datetime.utcnow()
+
+ 
+
+    return _base_query(db).filter(
+
+        models.TripSchedule.agency_id == agency_id,
+
+        models.TripSchedule.is_active == True,
+
+        models.TripSchedule.start_date <= now.date(),
+
+        models.TripSchedule.end_date >= now.date(),
+
+        models.TripSchedule.start_time <= now.time(),
+
+        models.TripSchedule.end_time >= now.time(),
+
+    ).all()
+
+ 
+
+# -------------------------------------------------------
+
+# MANUAL STATUS UPDATE
+
+# -------------------------------------------------------
+
+ 
+
+@router.get("/update-status",
+
+            response_model=List[schemas.TripStatusResponse])
+
+def update_trip_statuses(
+
+    current_user: models.User = Depends(auth.get_current_active_user),
+
+    db: Session = Depends(get_db)
+
+):
+
+ 
+
+    from ..utils.trip_scheduler import update_trip_schedule_status
+
+ 
+
+    return update_trip_schedule_status(db)
+
+ 
+
+# -------------------------------------------------------
+
+# GET TRIP STATUS
+
+# -------------------------------------------------------
+
+ 
+
+@router.get("/{trip_id}/status",
+
+            response_model=schemas.TripStatusResponse)
+
+def get_trip_status(
+
+    trip_id: str,
+
+    current_user: models.User = Depends(auth.get_current_active_user),
+
+    db: Session = Depends(get_db)
+
+):
+
+ 
+
+    from ..utils.trip_scheduler import check_trip_active_status
+
+ 
+
+    trip = _base_query(db).filter(
+
+        models.TripSchedule.id == trip_id,
+
+        models.TripSchedule.agency_id == current_user.agency_id
+
+    ).first()
+
+ 
+
+    if not trip:
+
+        raise HTTPException(404, "Trip not found")
+
+ 
+
+    is_active = check_trip_active_status(trip)
+
+ 
+
+    if is_active != trip.is_active:
+
+        trip.is_active = is_active
+
+        trip.status_updated_at = datetime.utcnow()
+
+        db.commit()
+
+        db.refresh(trip)
+
+ 
+
+    return {
+
+        "trip_id": trip.id,
+
+        "is_active": is_active,
+
+        "status_updated_at": trip.status_updated_at
+
+    }
