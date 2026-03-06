@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { useSettings } from '../contexts/SettingsContext.tsx'
-import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Palette, RouteIcon, Bell, Settings } from 'lucide-react'
+import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Palette, RouteIcon, Bell, Settings, MapPin } from 'lucide-react'
 import SettingsModal from './SettingsModal'
 import { Wallet } from 'lucide-react'
 import axios from 'axios'
@@ -120,6 +120,7 @@ const Layout = () => {
     { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
     { name: 'Drivers', href: '/drivers', icon: Users },
     { name: 'Trips', href: '/trips', icon: RouteIcon },
+    { name: 'Live Tracking', href: '/live-tracking', icon: MapPin },
     { name: 'Notifications', href: '/notifications', icon: Bell, badge: notificationCount },
     { name: 'Settings', href: '/settings', icon: Settings },
     
