@@ -16,6 +16,7 @@ import Users from './pages/Users'
 import PricingSection from './pages/PricesSection'
 import ITCompanyDashboard from './pages/ITCompanyDashboard'
 import Settings from './pages/Settings.tsx'
+import LiveTracking from './pages/LiveTracking.tsx'
 
 
 function App() {
@@ -45,6 +46,7 @@ function App() {
                <Route path="notifications" element={<Notifications />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="users" element={<Users />} />
+                <Route path="/live-tracking" element={<LiveTracking />} />
               <Route path="prices" element={<PricingSection />} />
                <Route path="/ITCompanyDashboard" element={<ITCompanyDashboard />} />
             </Route>
