@@ -387,25 +387,15 @@ def get_trips_by_driver_and_agency(
  
 
 # -------------------------------------------------------
-
 # DRIVER UPDATE
-
 # -------------------------------------------------------
 
- 
-
 @router.put("/driver/{trip_id}", response_model=schemas.TripScheduleResponse)
-
 def update_trip_by_driver(
-
     trip_id: str,
-
     update: schemas.TripUpdate,
-
     current_user: models.User = Depends(auth.get_current_active_user),
-
     db: Session = Depends(get_db)
-
 ):
 
  
@@ -457,67 +447,37 @@ def update_trip_by_driver(
  
 
 # -------------------------------------------------------
-
 # ACTIVE TRIPS
-
 # -------------------------------------------------------
 
- 
-
 @router.get("/agency/{agency_id}/active",
-
-            response_model=List[schemas.TripScheduleResponse])
+           response_model=List[schemas.TripScheduleResponse])
 
 def get_active_trips(
-
     agency_id: str,
-
     current_user: models.User = Depends(auth.get_current_active_user),
-
     db: Session = Depends(get_db)
-
 ):
 
- 
-
     if str(current_user.agency_id) != str(agency_id):
-
         raise HTTPException(403, "Unauthorized")
-
- 
-
     now = datetime.utcnow()
-
- 
-
     return _base_query(db).filter(
 
         models.TripSchedule.agency_id == agency_id,
-
         models.TripSchedule.is_active == True,
-
         models.TripSchedule.start_date <= now.date(),
-
         models.TripSchedule.end_date >= now.date(),
-
         models.TripSchedule.start_time <= now.time(),
-
         models.TripSchedule.end_time >= now.time(),
-
     ).all()
 
  
 
 # -------------------------------------------------------
-
 # MANUAL STATUS UPDATE
-
 # -------------------------------------------------------
-
- 
-
 @router.get("/update-status",
-
             response_model=List[schemas.TripStatusResponse])
 
 def update_trip_statuses(
