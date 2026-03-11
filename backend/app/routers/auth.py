@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas, auth
-
+from typing import Optional, List, Any, Dict, Union
 router = APIRouter()
 from uuid import uuid4 
 @router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
@@ -119,6 +119,7 @@ class LoginRequest(BaseModel):
     username: str  # Can be email or phone
     password: str
     agency_id: str  # Agency ID from dropdown
+    it_company_id : Optional[str] = None  # Optional IT company ID for future use
 
 @router.post("/login", response_model=schemas.Token)
 def login(
@@ -140,6 +141,15 @@ def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User does not belong to the selected agency"
         )
+
+    # IT company validation (only if provided)
+    if login_data.it_company_id:
+        if str(user.company_id) != login_data.it_company_id:
+            print(f"User's company_id: {user.company_id}, Provided IT company ID: {login_data.it_company_id}")  # 🔴 DEBUG
+            raise HTTPException(
+                status_code=403,
+                detail="User does not belong to the selected IT company"
+            )
     
     if not user.is_active:
         raise HTTPException(

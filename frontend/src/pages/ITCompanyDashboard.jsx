@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getCompany, createCompany, updateCompany, updateCompanyWithAdmin, deleteCompany, getCompanyUser, createCompanyWithAdmin } from "../api/companiesApi";
 import { Trash2, X, Building2, Briefcase, User, ClipboardCheck } from "lucide-react";
 import Swal from "sweetalert2";
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -10,6 +11,14 @@ export default function Dashboard() {
   const [theme, setTheme] = useState("dark");
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [contactInfo, setContactInfo] = useState(null);
+
+const { user } = useAuth();
+
+const isSuperAdmin = user?.role === "SUPER_ADMIN";
+const isAdmin = user?.role === "ADMIN";
+const isSupervisor = user?.role === "SUPERVISOR";
+const isItCompany = user?.role === "IT_COMPANY";
+const isReadOnly = isSupervisor;
 
   useEffect(() => {
     loadCompanies();
@@ -373,13 +382,18 @@ const [form, setForm] = useState({
       {/* HEADER */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">IT Companies</h1>
-        <button
-          onClick={handleCreate}
-          className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
-        >
-          <span className="mr-2">+</span>
-          Add Company
-        </button>
+      {
+            (isAdmin || isSuperAdmin) && (
+              <button
+            onClick={handleCreate}
+            className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
+          >
+            <span className="mr-2">+</span>
+            Add Company
+          </button>
+             )
+
+          }
       </div>
 
       {/* EMPTY STATE OR TABLE */}
@@ -388,13 +402,18 @@ const [form, setForm] = useState({
           <Building2 className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No companies</h3>
           <p className="text-gray-500 dark:text-gray-400 mb-4">Get started by adding your first company.</p>
-          <button
-            onClick={handleCreate}
-            className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
-          >
-            <span className="mr-2">+</span>
-            Add Company
-          </button>
+          {
+          (isAdmin || isSuperAdmin) && (
+             <button
+          onClick={handleCreate}
+          className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
+        >
+          <span className="mr-2">+</span>
+          Add Company
+        </button>
+
+          )
+        }
         </div>
       ) : (
         <>
@@ -491,7 +510,11 @@ const [form, setForm] = useState({
                 <Building2 className="h-6 w-6 text-gray-600 dark:text-gray-300" />
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {selectedCompany ? "Edit Company" : "Company Specifications"}
+                    {selectedCompany
+    ? isSupervisor
+      ? "View Company"
+      : "Edit Company"
+    : "Company Specifications"}
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Manage company details and contact information
@@ -551,6 +574,7 @@ const [form, setForm] = useState({
                         errors.company_name ? "border-red-500" : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="e.g. Tech Solutions"
+                      readOnly={isReadOnly}
                       value={form.company_name}
                       onChange={(e) => {
                         setForm({ ...form, company_name: e.target.value });
@@ -571,6 +595,7 @@ const [form, setForm] = useState({
                         errors.company_phone ? "border-red-500" : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="1234567890"
+                      readOnly={isReadOnly}
                       value={form.company_phone}
                       onChange={(e) => {
                         setForm({ ...form, company_phone: e.target.value });
@@ -591,6 +616,7 @@ const [form, setForm] = useState({
                         errors.company_email ? "border-red-500" : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="info@company.com"
+                      readOnly={isReadOnly}
                       value={form.company_email}
                       onChange={(e) => {
                         setForm({ ...form, company_email: e.target.value });
@@ -611,6 +637,7 @@ const [form, setForm] = useState({
                         errors.company_branch ? "border-red-500" : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="e.g. Chennai"
+                      readOnly={isReadOnly}
                       value={form.company_branch}
                       onChange={(e) => {
                         setForm({ ...form, company_branch: e.target.value });
@@ -633,6 +660,7 @@ const [form, setForm] = useState({
                       }`}
                       placeholder="Enter company address"
                       value={form.company_address}
+                      readOnly={isReadOnly}
                       onChange={(e) => {
                         setForm({ ...form, company_address: e.target.value });
                         validateField("company_address", e.target.value);
@@ -658,17 +686,18 @@ const [form, setForm] = useState({
 </div> */}
 
 {selectedCompany && (
-  <div className="space-y-1">
+  <div className="space-y-1" readOnly={isReadOnly}>
     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
       STATUS
     </label>
     <select
+    readOnly={isReadOnly}
       value={form.status}
       onChange={(e) => setForm({ ...form, status: e.target.value })}
       className="w-full px-3 py-2 border rounded-lg bg-transparent dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600"
     >
-      <option value="Active">Active</option>
-      <option value="Blocked">Blocked</option>
+      <option readOnly={isReadOnly} value="Active">Active</option>
+      <option readOnly={isReadOnly} value="Blocked">Blocked</option>
     </select>
   </div>
 )}
@@ -687,6 +716,7 @@ const [form, setForm] = useState({
                       }`}
                       placeholder="Brief description of the company"
                       value={form.description}
+                      readOnly={isReadOnly}
                       onChange={(e) => {
                         setForm({ ...form, description: e.target.value });
                         validateField("description", e.target.value);
@@ -707,6 +737,7 @@ const [form, setForm] = useState({
                       CONTACT NAME <span className="text-red-500">*</span>
                     </label>
                     <input
+                    readOnly={isReadOnly}
                       className={`w-full px-3 py-2 border rounded-lg bg-transparent dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
                         errors.contact_name ? "border-red-500" : "border-gray-300 dark:border-gray-600"
                       }`}
@@ -730,6 +761,7 @@ const [form, setForm] = useState({
                       className={`w-full px-3 py-2 border rounded-lg bg-transparent dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
                         errors.contact_phone ? "border-red-500" : "border-gray-300 dark:border-gray-600"
                       }`}
+                      readOnly={isReadOnly}
                       placeholder="1234567890"
                       value={form.contact_phone}
                       onChange={(e) => {
@@ -747,6 +779,7 @@ const [form, setForm] = useState({
                       CONTACT EMAIL <span className="text-red-500">*</span>
                     </label>
                     <input
+                    readOnly={isReadOnly}
                       className={`w-full px-3 py-2 border rounded-lg bg-transparent dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
                         errors.contact_email ? "border-red-500" : "border-gray-300 dark:border-gray-600"
                       }`}
@@ -769,6 +802,7 @@ const [form, setForm] = useState({
                       </label>
                       <div className="flex gap-3">
                         <input
+                        readOnly={isReadOnly}
                           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-gray-700 dark:text-white"
                           value={form.password}
                           readOnly
@@ -869,7 +903,8 @@ const [form, setForm] = useState({
                     Next
                   </button>
                 ) : (
-                  <button
+                  (isAdmin || isSuperAdmin) && (
+                   <button
                     disabled={hasErrors}
                     onClick={saveCompany}
                     className={`px-6 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg transition ${
@@ -878,6 +913,7 @@ const [form, setForm] = useState({
                   >
                     Submit Record
                   </button>
+                 )
                 )}
               </div>
             </div>

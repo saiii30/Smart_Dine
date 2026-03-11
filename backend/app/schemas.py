@@ -474,6 +474,7 @@ class CompanyDropdown(BaseModel):
 class CompanyWithAdminCreate(BaseModel):
     # -------- Business Info (Company Table) --------
     company_name: str
+    password: str
     company_email: Optional[EmailStr] = None
     company_phone: Optional[str] = None
     company_address: Optional[str] = None
@@ -566,6 +567,7 @@ class AgencyResponse(AgencyBase):
       
 class RoutePoint(BaseModel):
     
+    passenger_id: Optional[str] = None
     passenger_name: str = Field(..., min_length=2, max_length=100)
     passenger_phone: str = Field(..., min_length=10, max_length=15)
     starting_point: str = Field(..., min_length=5, max_length=500)

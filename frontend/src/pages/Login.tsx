@@ -29,18 +29,21 @@ const Login = () => {
     agencyId: "",
     itCompanyId: "",
   });
+
+  const[itCompanies, setItCompanies] = useState<any[]>([]);
   const [agencies, setAgencies] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isItCompaniesLoading, setIsItCompaniesLoading] = useState(true);
   const [isAgenciesLoading, setIsAgenciesLoading] = useState(true);
   // Account type switch: 'agency' or 'it'
   const [accountType, setAccountType] = useState<'agency' | 'it'>('agency');
   // Hardcoded IT companies list for IT Login dropdown
-  const itCompanies = [
-    { id: 'it1', name: 'IT Company1' },
-    { id: 'it2', name: 'IT Company2' },
-    { id: 'it3', name: 'IT Company3' },
-  ];
+  // const itCompanies = [
+  //   { id: 'it1', name: 'IT Company1' },
+  //   { id: 'it2', name: 'IT Company2' },
+  //   { id: 'it3', name: 'IT Company3' },
+  // ];
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -62,6 +65,22 @@ const Login = () => {
     fetchAgencies();
   }, []);
 
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        const response = await api.get("/companies/api/companies/dropdown");
+       setItCompanies(response.data);
+      } catch (err) {
+        console.error("Error fetching companies:", err);
+        setError("Failed to load companies. Please try again later.");
+      } finally {
+        setIsItCompaniesLoading(false);
+      }
+    };
+
+    fetchCompanies();
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -73,27 +92,59 @@ const Login = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   setError("");
+  //   setLoading(true);
 
-    try {
-      // For IT login, use the chosen IT company id as agency_id payload so backend receives a reference
-      const agencyPayload = accountType === 'it' ? formData.itCompanyId : formData.agencyId;
-      await login({
-        username: formData.username,
-        password: formData.password,
-        agency_id: agencyPayload,
-      });
-      navigate("/dashboard");
-    } catch (err: any) {
-      console.error("Login error:", err);
-      setError(err.response?.data?.detail || "Failed to login. Please check your credentials.");
-    } finally {
-      setLoading(false);
+  //   try {
+  //     // For IT login, use the chosen IT company id as agency_id payload so backend receives a reference
+  //     const agencyPayload = accountType === 'it' ? formData.itCompanyId : formData.agencyId;
+  //     await login({
+  //       username: formData.username,
+  //       password: formData.password,
+  //       agency_id: agencyPayload,
+  //     });
+  //     navigate("/dashboard");
+  //   } catch (err: any) {
+  //     console.error("Login error:", err);
+  //     setError(err.response?.data?.detail || "Failed to login. Please check your credentials.");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError("");
+  setLoading(true);
+
+  try {
+
+    let payload: any = {
+      username: formData.username,
+      password: formData.password,
+      agency_id: formData.agencyId,
+    };
+
+    // If IT login add extra field
+    if (accountType === "it") {
+      payload.it_company_id = formData.itCompanyId;
     }
-  };
+
+    console.log("Payload:", payload);
+
+    await login(payload);
+
+    navigate("/dashboard");
+
+  } catch (err: any) {
+    console.error("Login error:", err);
+    setError(err.response?.data?.detail || "Failed to login. Please check your credentials.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <AuthLayout title={accountType === 'agency' ? 'Agency Login' : 'IT Login'} subtitle={accountType === 'agency' ? 'Login to your account' : 'Login for IT company employees'}>
@@ -182,7 +233,7 @@ const Login = () => {
                 >
                   <option value="">Select IT Company</option>
                   {itCompanies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.id}>{c.company_name}</option>
                   ))}
                 </select>
               </div>

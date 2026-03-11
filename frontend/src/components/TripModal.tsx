@@ -5,6 +5,7 @@ import { Trip, Vehicle, Driver, TripSchedule } from '../types'
 import { useTheme } from '../contexts/ThemeContext'
 import MapPicker from '../components/MapPicker'
 import { MapPin } from 'lucide-react'
+import { v4 as uuidv4 } from 'uuid'
 
 import { useAuth } from '../contexts/AuthContext'
 
@@ -58,6 +59,7 @@ const inputClass =
   end_time: string
   way: 'one_way' | 'two_way'
   passengers?: {
+    id : string
     name: string
     phone: string
     address: string
@@ -180,6 +182,7 @@ useEffect(() => {
       distance_km: s.distance_km,
       duration_min: s.duration_min,
       passengers: s.route_points ? s.route_points.map((p: any) => ({
+        id : p.id,
         name: p.passenger_name || '',
         phone: p.passenger_phone || '',
         address: p.passenger_address || '',
@@ -351,6 +354,7 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
 
   if (s.trip_type === 'route') {
     s.passengers = Array.from({ length: count }, (_, i) => ({
+      id : s.passengers?.[i]?.id || crypto.randomUUID(),
       name: s.passengers?.[i]?.name || '',
       phone: s.passengers?.[i]?.phone || '',
       address: s.passengers?.[i]?.address || '',
@@ -478,6 +482,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   duration_min: s.duration_min || null,
 
         route_points: s.passengers?.map(p => ({
+          passenger_id: uuidv4(),
           passenger_name: p.name,
           passenger_phone: p.phone,
           passenger_address: p.address,
@@ -716,6 +721,7 @@ const selectClass =
     if (e.target.value === 'route') {
       const count = s.passenger_count || 0
       s.passengers = Array.from({ length: count }, (_, i) => ({
+        id : "",
         name: '',
         phone: '',
         address: '',
