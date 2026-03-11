@@ -2,8 +2,9 @@ from pydantic import BaseModel, EmailStr, Field
 from fastapi import UploadFile
 from datetime import datetime
 from typing import Optional, List, Any, Dict, Union
-from app.models import UserRole  # Removed VehicleType as it's now a string
+from app.models import UserRole, VehicleType  # Removed VehicleType as it's now a string
 from datetime import time, date, datetime, timezone
+import json
 
 # ADDED NEW LINES OF CODE 405 TO 443 FOR ITDASHBOARDCOMPANY
 # compatibility: prefer pydantic v2 `field_validator`, fall back to v1 `validator`
@@ -86,6 +87,7 @@ class LoginSchema(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: Optional['UserResponse'] = None
 
 class TokenData(BaseModel):
     email: Optional[str] = None
@@ -312,63 +314,35 @@ class DriverUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 class DriverResponse(BaseModel):
-
     id: str
-
     user: Optional[UserBase] = None
-
     agency_id: Optional[str] = None
     date_of_birth: Optional[datetime] = None
-
     gender: Optional[str] = None
-
     blood_group: Optional[str] = None
-
     aadhar_number: Optional[str] = None
-
  
-
     driving_license_number: Optional[str] = None
-
     license_expiry_date: Optional[datetime] = None
-
     verification_status: Optional[str] = None
-
     status: Optional[str] = None
-
     current_address: Optional[str] = None
-
     city: Optional[str] = None
-
     state: Optional[str] = None
-
     pincode: Optional[str] = None
-
     emergency_contact_name: Optional[str] = None
-
     emergency_contact_number: Optional[str] = None
-
     previous_employer_experience: Optional[str] = None
-
     languages_spoken: Optional[str] = None
-
     shift_preference: Optional[str] = None
-
     assigned_vehicle_id: Optional[Union[int, str]] = None
-
     notes: Optional[str] = None
-
     is_active: bool = True
-
     created_at: Optional[datetime] = None
-
     updated_at: Optional[datetime] = None
-
+   
     class Config:
-
         orm_mode = True
-
-
 # Location Tracking Schemas
 class LocationUpdate(BaseModel):
     latitude: float
@@ -376,42 +350,36 @@ class LocationUpdate(BaseModel):
     accuracy: Optional[float] = None
     speed: Optional[float] = None
     trip_id: Optional[str] = None
-
     agency_id: Optional[str] = None  # Add agency_id field
-
+    trip_type: Optional[str] = Field(None, description="Type: 'shuttle' or 'route'")
+    route_point: Optional[dict] = Field(None, description="Route point data as JSON for route type trips")
+ 
 class LocationResponse(BaseModel):
+    """Location response using DriverLocation model fields"""
     id: int
-    driver_id: int
-    vehicle_id: Optional[int] = None
+    driver_id: str
     latitude: float
     longitude: float
     accuracy: Optional[float] = None
     speed: Optional[float] = None
-    heading: Optional[float] = None
     timestamp: datetime
     trip_id: Optional[str] = None
-
+    route_point: Optional[dict] = None  # Route point data as JSON for route type trips
     agency_id: Optional[str] = None  # Add agency_id field
-    
+ 
     class Config:
         from_attributes = True
-
+ 
 class DriverLocationStatus(BaseModel):
     driver_id: int
-    driver_name: str
-    vehicle_id: Optional[int] = None
-    vehicle_number: Optional[str] = None
     latitude: float
     longitude: float
     speed: Optional[float] = None
-    heading: Optional[float] = None
     last_update: datetime
     trip_id: Optional[str] = None
-
     agency_id: Optional[str] = None  # Add agency_id field  
-
+ 
     class Config:
-
         from_attributes = True
 
 # Company Schemas
@@ -566,16 +534,21 @@ class AgencyResponse(AgencyBase):
       
 class RoutePoint(BaseModel):
     
+    passenger_id: str = Field(..., min_length=2, max_length=100)
     passenger_name: str = Field(..., min_length=2, max_length=100)
     passenger_phone: str = Field(..., min_length=10, max_length=15)
-    starting_point: str = Field(..., min_length=5, max_length=500)
-    end_point: str = Field(..., min_length=5, max_length=500)
-    starting_lat: float = Field(..., ge=-90, le=90)
-    starting_lng: float = Field(..., ge=-180, le=180)
-    end_lat: float = Field(..., ge=-90, le=90)
-    end_lng: float = Field(..., ge=-180, le=180)
+    status: str = Field(..., pattern=r'^(pickup|dropped)$')  # Only "pickup" or "dropped"
+    timestamp: str = Field(..., description="ISO datetime string")
+    
+    # Optional location coordinates for route tracking
+    starting_point: Optional[str] = Field(None, min_length=5, max_length=500)
+    end_point: Optional[str] = Field(None, min_length=5, max_length=500)
+    starting_lat: Optional[float] = Field(None, ge=-90, le=90)
+    starting_lng: Optional[float] = Field(None, ge=-180, le=180)
+    end_lat: Optional[float] = Field(None, ge=-90, le=90)
+    end_lng: Optional[float] = Field(None, ge=-180, le=180)
 
-    @field_validator('passenger_phone')
+    @field_validator('phonenumber')
     def validate_phone_number(cls, v):
         # Remove all non-digit characters
         digits = ''.join(filter(str.isdigit, v))
@@ -625,7 +598,7 @@ class TripScheduleBase(BaseModel):
     starting_lng: Optional[float] = None
     end_lat: Optional[float] = None
     end_lng: Optional[float] = None
-    driver_response: Optional[bool] = None
+    driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
     driver_response_at: Optional[datetime] = None
     route_points: Optional[List[RoutePoint]] = Field(
@@ -689,7 +662,7 @@ class TripScheduleUpdate(BaseModel):
     starting_lng: Optional[float] = None
     end_lat: Optional[float] = None
     end_lng: Optional[float] = None
-    driver_response: Optional[bool] = None
+    driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
     driver_response_at: Optional[datetime] = None
     route_points: Optional[List[RoutePoint]] = Field(
@@ -697,14 +670,12 @@ class TripScheduleUpdate(BaseModel):
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
 
+      
     class Config:
-
         json_encoders = {
-
             # Add any custom JSON encoders if needed
-
         }
-
+        
 class TripScheduleResponse(BaseModel):
     id: str
     agency_id: Optional[str] = None
@@ -761,6 +732,20 @@ class TripScheduleResponse(BaseModel):
             return v.time()
         return v
 
+    @field_validator('start_date', mode='before')
+    @classmethod
+    def parse_start_date(cls, v):
+        if isinstance(v, datetime):
+            return v.date()
+        return v
+        
+    @field_validator('end_date', mode='before')
+    @classmethod
+    def parse_end_date(cls, v):
+        if isinstance(v, datetime):
+            return v.date()
+        return v
+
     @field_validator("route_points", mode="before")
     @classmethod
     def parse_route_points(cls, v):
@@ -790,6 +775,12 @@ class TripUpdate(BaseModel):
     class Config:
         from_attributes = True
 
+class TripDeclineRequest(BaseModel):
+    reason: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
 class TripResponse(BaseModel):
     id: int
     user_id: str
@@ -808,9 +799,9 @@ class TripResponse(BaseModel):
 
 class User(BaseModel):
     id: str
-    email: Optional[EmailStr] = None
-    name : Optional[str] = None 
-    role : Optional[str] = None
+    email: EmailStr
+    name: str
+    role: UserRole          # ⬅️ REQUIRED
     company_name: Optional[str] = None
    
 
@@ -880,3 +871,33 @@ class NotificationSummary(BaseModel):
     warning_count: int
     info_count: int
     notifications: List[NotificationResponse]
+    
+    class Config:
+        from_attributes = True
+
+# Mobile Location API Schemas
+class MobileLocationCreate(BaseModel):
+    driver_id: str
+    trip_id: str
+    agency_id: str
+    trip_type: str  # "shuttle" or "route"
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    speed: Optional[float] = None
+    route_point: Optional[str] = None  # JSON string for route type trips
+
+class MobileLocationResponse(BaseModel):
+    id: int
+    driver_id: str
+    trip_id: str
+    agency_id: str
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    speed: Optional[float] = None
+    timestamp: datetime
+    route_point: Optional[dict] = None  # Route point data as JSON for route type trips
+    
+    class Config:
+        from_attributes = True

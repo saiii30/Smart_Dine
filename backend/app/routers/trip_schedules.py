@@ -567,3 +567,177 @@ def get_trip_status(
         "status_updated_at": trip.status_updated_at
 
     }
+    
+# -------------------------------------------------------
+# ACCEPT TRIP SCHEDULE
+# -------------------------------------------------------
+
+@router.post("/{schedule_id}/accept", response_model=schemas.TripScheduleResponse)
+async def accept_trip_schedule(
+    schedule_id: str,
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Accept a trip schedule and set it to active"""
+    # Get the trip schedule
+    trip = db.query(models.TripSchedule).filter(
+        models.TripSchedule.id == schedule_id,
+        models.TripSchedule.agency_id == current_user.agency_id
+    ).first()
+   
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip schedule not found")
+   
+    # Remove is_active check - allow accepting any trip
+    # The accept action will reactivate trip automatically
+   
+    # Update status to ACTIVE and set active to True
+    trip.status = "ACTIVE"
+    trip.is_active = True
+    trip.driver_response = "accepted"
+    trip.driver_response_at = datetime.utcnow()
+    trip.driver_reason = None
+    trip.updated_at = datetime.utcnow()
+   
+    print(f"✅ Trip {schedule_id} saved as ACTIVE in DB")
+   
+    db.commit()
+    db.refresh(trip)
+   
+    # Load relationships for response
+    vehicle = db.query(models.Vehicle).filter(models.Vehicle.id == trip.vehicle_id).first() if trip.vehicle_id else None
+    driver = db.query(models.Driver).filter(models.Driver.id == trip.driver_id).first() if trip.driver_id else None
+    company = db.query(models.Company).filter(models.Company.id == trip.company_id).first() if trip.company_id else None
+   
+    # Return proper TripScheduleResponse
+    return schemas.TripScheduleResponse(
+        id=trip.id,
+        agency_id=trip.agency_id,
+        user_id=trip.user_id,
+        company_id=trip.company_id,
+        company_name=company.company_name if company else trip.company_name,
+        company_branch=company.company_branch if company else trip.company_branch,
+        start_date=trip.start_date,
+        end_date=trip.end_date,
+        starting_point=trip.starting_point,
+        end_point=trip.end_point,
+        start_time=trip.start_time,
+        end_time=trip.end_time,
+        way=trip.way,
+        trip_type=trip.trip_type,
+        vehicle_id=trip.vehicle_id,
+        driver_id=trip.driver_id,
+        passenger_count=trip.passenger_count,
+        notes=trip.notes,
+        distance_km=trip.distance_km,
+        duration_min=trip.duration_min,
+        starting_lat=trip.starting_lat,
+        starting_lng=trip.starting_lng,
+        end_lat=trip.end_lat,
+        end_lng=trip.end_lng,
+        route_points=json.loads(trip.route_points) if trip.route_points else None,
+        is_active=trip.is_active,
+        created_at=trip.created_at,
+        updated_at=trip.updated_at,
+        vehicle_registration_number=vehicle.vehicle_registration_number if vehicle else None,
+        driver_name=driver.user.name if (driver and driver.user) else None,
+        # Driver response fields from database
+        driver_response=trip.driver_response,
+        driver_response_at=trip.driver_response_at,
+        driver_reason=trip.driver_reason
+    )
+
+# -------------------------------------------------------
+# DECLINE TRIP SCHEDULE
+# -------------------------------------------------------
+
+@router.post("/{schedule_id}/decline")
+async def decline_trip_schedule(
+    schedule_id: str,
+    decline_data: Optional[schemas.TripDeclineRequest] = None,
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Decline a trip schedule"""
+    try:
+        # Get the trip schedule
+        trip = db.query(models.TripSchedule).filter(
+            models.TripSchedule.id == schedule_id,
+            models.TripSchedule.agency_id == current_user.agency_id
+        ).first()
+       
+        if not trip:
+            raise HTTPException(status_code=404, detail="Trip schedule not found")
+       
+        # Update status to INACTIVE and set active to False
+        trip.status = "INACTIVE"
+        trip.is_active = False
+        trip.driver_response = "declined"
+        trip.driver_response_at = datetime.utcnow()
+        trip.updated_at = datetime.utcnow()
+       
+        print(f"❌ Trip {schedule_id} saved as INACTIVE in DB")
+       
+        # Store decline reason if provided
+        if decline_data and decline_data.reason:
+            trip.driver_reason = decline_data.reason
+        else:
+            trip.driver_reason = None
+       
+        db.commit()
+        db.refresh(trip)
+       
+        # Load relationships for response
+        vehicle = db.query(models.Vehicle).filter(models.Vehicle.id == trip.vehicle_id).first() if trip.vehicle_id else None
+        driver = db.query(models.Driver).filter(models.Driver.id == trip.driver_id).first() if trip.driver_id else None
+        company = db.query(models.Company).filter(models.Company.id == trip.company_id).first() if trip.company_id else None
+       
+        # Return proper TripScheduleResponse with all driver response fields
+        return schemas.TripScheduleResponse(
+            id=trip.id,
+            agency_id=trip.agency_id,
+            user_id=trip.user_id,
+            company_id=trip.company_id,
+            company_name=company.company_name if company else trip.company_name,
+            company_branch=company.company_branch if company else trip.company_branch,
+            start_date=trip.start_date,
+            end_date=trip.end_date,
+            starting_point=trip.starting_point,
+            end_point=trip.end_point,
+            start_time=trip.start_time,
+            end_time=trip.end_time,
+            way=trip.way,
+            trip_type=trip.trip_type,
+            vehicle_id=trip.vehicle_id,
+            driver_id=trip.driver_id,
+            passenger_count=trip.passenger_count,
+            notes=trip.notes,
+            distance_km=trip.distance_km,
+            duration_min=trip.duration_min,
+            starting_lat=trip.starting_lat,
+            starting_lng=trip.starting_lng,
+            end_lat=trip.end_lat,
+            end_lng=trip.end_lng,
+            route_points=json.loads(trip.route_points) if trip.route_points else None,
+            is_active=trip.is_active,
+            created_at=trip.created_at,
+            updated_at=trip.updated_at,
+            vehicle_registration_number=vehicle.vehicle_registration_number if vehicle else None,
+            driver_name=driver.user.name if (driver and driver.user) else None,
+            # Driver response fields from database
+            driver_response=trip.driver_response,
+            driver_response_at=trip.driver_response_at,
+            driver_reason=trip.driver_reason
+        )
+   
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error declining trip {schedule_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to decline trip: {str(e)}"
+        )
+

@@ -20,7 +20,7 @@ from app.routers import (
     auth,
     vehicles,
     drivers,
-    locations,
+    mobile_location_api,
     company,
     agency,
     trip_schedules,
@@ -127,7 +127,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(drivers.router, prefix="/api/drivers", tags=["Drivers"])
 app.include_router(vehicles.router, prefix="/api/vehicles", tags=["Vehicles"])
-app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])
+app.include_router(mobile_location_api.router, prefix="/api/mobile", tags=["Mobile Location"])
 app.include_router(trip_schedules.router, prefix="/api/trip-schedules", tags=["Trip Schedules"])
 app.include_router(company.router, prefix="/api/companies", tags=["Companies"])
 app.include_router(agency.router, prefix="/api/agency", tags=["Agency"])
