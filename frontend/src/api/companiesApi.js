@@ -73,18 +73,18 @@ API.interceptors.request.use((config) => {
 
 // GET ALL
 export const getCompany = async () => {
-  const res = await API.get("http://127.0.0.1:8000/api/companies/api/companies/");
+  const res = await API.get("/companies/");
   return res.data;
 };
 
 // CREATE (company only)
 export const createCompany = async (data) => {
-  const res = await API.post("http://127.0.0.1:8000/api/companies/", data);
+  const res = await API.post("/companies/", data);
   return res.data;
 };
 
 export const createCompanyWithAdmin = async (data) => {
-  const res = await API.post("http://127.0.0.1:8000/api/companies/api/companies/with-admin", data, {
+  const res = await API.post("/companies/with-admin", data, {
     headers: { "Content-Type": "application/json" },
   });
   return res.data;
@@ -93,25 +93,25 @@ export const createCompanyWithAdmin = async (data) => {
 
 // UPDATE
 export const updateCompany = async (id, data) => {
-  const res = await API.put(`http://127.0.0.1:8000/api/companies/api/companies/${id}`, data);
+  const res = await API.put(`/companies/${id}`, data);
   return res.data;
 };
 
 // DELETE
 export const deleteCompany = async (id) => {
-  const res = await API.delete(`http://127.0.0.1:8000/api/companies/api/companies/${id}`);
+  const res = await API.delete(`/companies/${id}`);
   return res.data;
 };
 
 // GET USERS BY COMPANY
 export const getCompanyUser = async (companyId) => {
-  const res = await API.get(`http://127.0.0.1:8000/api/companies/api/companies/${companyId}/users`);
+  const res = await API.get(`/companies/${companyId}/users`);
   return res.data;
 };
 
 
 // UPDATE company + contact person
 export const updateCompanyWithAdmin = async (id, data) => {
-  const res = await API.put(`http://127.0.0.1:8000/api/companies/api/companies/${id}/with-admin`, data);
+  const res = await API.put(`/companies/${id}/with-admin`, data);
   return res.data;
 };
