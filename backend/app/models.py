@@ -8,8 +8,8 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from sqlalchemy import Time,  DateTime, Date
 from datetime import datetime
-
 import pytz
+from sqlalchemy import JSON 
 
 # ADDED USER AND COMPANY CHANGES ID LINE OF CODE 29 AND 188 11,12
 
@@ -173,24 +173,23 @@ class Driver(Base):
     user = relationship("User", back_populates="driver", uselist=False) # uselist=False for 1-to-1
     location_updates = relationship("DriverLocation", back_populates="driver")
     trip_schedules = relationship("TripSchedule", back_populates="driver")
-
 class DriverLocation(Base):
     __tablename__ = "driver_locations"
-    
+   
     id = Column(Integer, primary_key=True, index=True)
     driver_id = Column(String, ForeignKey("drivers.id"), nullable=False)
+    agency_id = Column(String, ForeignKey("agencies.id"), nullable=False)
+    trip_id = Column(String, ForeignKey("trip_schedules.id"), nullable=True)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     accuracy = Column(Float, nullable=True)  # GPS accuracy in meters
     speed = Column(Float, nullable=True)  # Speed in km/h
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    agency_id = Column(String, ForeignKey("agencies.id"), nullable=False)
-    trip_id = Column(String, ForeignKey("trip_schedules.id"), nullable=True)
-    
+    route_point = Column(JSON, nullable=True)  # Store route point data as JSON for route type trips
+   
     # Relationships
     driver = relationship("Driver", back_populates="location_updates")
     trip_schedule = relationship("TripSchedule", back_populates="location_updates")
-    
 
 class Company(Base):
     __tablename__ = "companies"
@@ -267,7 +266,7 @@ class TripSchedule(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    driver_response = Column(Boolean, nullable=True)
+    driver_response = Column(String, nullable=True)
     driver_reason = Column(Text, nullable=True)
     driver_response_at = Column(DateTime(timezone=True), nullable=True)
     route_points = Column(Text, nullable=True)
