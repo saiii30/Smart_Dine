@@ -166,8 +166,10 @@ def create_company_with_admin(
         db.add(db_company)
         db.flush()
 
-        raw_password = generate_password()
+        raw_password = payload.password 
+        print("Generated password for new company admin:", raw_password)  # 🔴 DEBUG
         hashed_password = hash_password(raw_password)
+        print("Hashed password for new company admin:", hashed_password)  # 🔴 DEBUG
 
         db_user = models.User(
             agency_id=current_user.agency_id,   # ✅ FIX

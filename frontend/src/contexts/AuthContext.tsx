@@ -6,6 +6,7 @@ interface LoginPayload {
   username: string;
   password: string;
   agency_id: string;
+  it_company_id?: string;
 }
 
 interface AuthContextType {
@@ -67,11 +68,7 @@ const login = async (data: LoginPayload) => {
   try {
     const res = await axios.post(
       "http://127.0.0.1:8000/api/auth/login",
-      {
-        username: data.username,
-        password: data.password,
-        agency_id: data.agency_id,
-      },
+      data,
       { 
         headers: { "Content-Type": "application/json" },
         withCredentials: true

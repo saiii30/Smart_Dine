@@ -6,6 +6,7 @@ import { useSettings } from '../contexts/SettingsContext.tsx'
 import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Palette, RouteIcon, Bell, Settings, MapPin } from 'lucide-react'
 import SettingsModal from './SettingsModal'
 import { Wallet } from 'lucide-react'
+import { Building2} from "lucide-react";
 import axios from 'axios'
 const Layout = () => {
   const { user, logout } = useAuth()
@@ -114,15 +115,33 @@ const Layout = () => {
   }, [expirySettings]) // Add expirySettings as dependency
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+  const isAdmin = user?.role === 'ADMIN'
+  const isSupervisor = user?.role === 'SUPERVISOR'
+  const isITCompany = user?.role === 'IT_COMPANY'
 
   const navigation = useMemo(() => [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
-    { name: 'Drivers', href: '/drivers', icon: Users },
+
+    ...(isAdmin || isSupervisor || isSuperAdmin
+      ? [{ name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
+    { name: 'Drivers', href: '/drivers', icon: Users },]
+      : []),
+    // { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
+    // { name: 'Drivers', href: '/drivers', icon: Users },
     { name: 'Trips', href: '/trips', icon: RouteIcon },
     { name: 'Live Tracking', href: '/live-tracking', icon: MapPin },
     { name: 'Notifications', href: '/notifications', icon: Bell, badge: notificationCount },
     { name: 'Settings', href: '/settings', icon: Settings },
+
+    
+
+
+    ...((isAdmin || isSuperAdmin || isSupervisor) ? [
+
+
+    { name : "It Companies", href: "/ITCompanyDashboard", icon: Building2 },
+
+      ] : []),
     
 
     ...(isSuperAdmin
