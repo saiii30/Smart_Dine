@@ -69,6 +69,8 @@ const inputClass =
     end_point: string
     end_lat?: number
     end_lng?: number
+    timestamp?: string
+    pickup?: boolean
   }[]
   passenger_count: number
   driver_id?: string
@@ -192,6 +194,8 @@ useEffect(() => {
         end_point: p.end_point || '',
         end_lat: p.end_lat,
         end_lng: p.end_lng,
+        timestamp: p.timestamp,
+        pickup: p.pickup,
         })) : []
     })),
   })
@@ -364,6 +368,8 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
       end_point: s.passengers?.[i]?.end_point || '',
       end_lat: s.passengers?.[i]?.end_lat,       // ✅ KEEP
       end_lng: s.passengers?.[i]?.end_lng,       // ✅ KEEP
+      pickup: s.passengers?.[i]?.pickup,       // ✅ KEEP
+        timestamp: s.passengers?.[i]?.timestamp, // ✅ KEEP
     }))
   }
 
@@ -492,6 +498,9 @@ const handleSubmit = async (e: React.FormEvent) => {
           end_point: p.end_point,
           end_lat: p.end_lat,
           end_lng: p.end_lng,
+          pickup:false,
+          timestamp:  new Date().toISOString(),
+
         })) || []
 
       }
@@ -731,6 +740,8 @@ const selectClass =
         end_point: '',
         end_lat: undefined,
         end_lng: undefined,
+        pickup: false,
+        timestamp: '',
       }))
     } else {
       s.passengers = []

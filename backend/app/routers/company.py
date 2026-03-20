@@ -57,6 +57,7 @@ def get_company_dropdown(db: Session = Depends(get_db)):
             "id": company.id,
             "company_name": company.company_name,
             "company_address": company.company_address,
+            "agency_id": company.agency_id
         }
         for company in companies
     ]

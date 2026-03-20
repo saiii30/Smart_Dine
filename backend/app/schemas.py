@@ -538,8 +538,9 @@ class RoutePoint(BaseModel):
     passenger_id: Optional[str] = None
     passenger_name: str = Field(..., min_length=2, max_length=100)
     passenger_phone: str = Field(..., min_length=10, max_length=15)
-    status: str = Field(..., pattern=r'^(pickup|dropped)$')  # Only "pickup" or "dropped"
-    timestamp: str = Field(..., description="ISO datetime string")
+    # status: str = Field(..., pattern=r'^(pickup|dropped)$')  # Only "pickup" or "dropped"
+    timestamp:Optional[str] = Field(None, description="ISO datetime string")
+    pickup :Optional[bool] = Field(None, description="True if pickup point, False if drop-off point")
     
     # Optional location coordinates for route tracking
     starting_point: Optional[str] = Field(None, min_length=5, max_length=500)
@@ -549,7 +550,7 @@ class RoutePoint(BaseModel):
     end_lat: Optional[float] = Field(None, ge=-90, le=90)
     end_lng: Optional[float] = Field(None, ge=-180, le=180)
 
-    @field_validator('phonenumber')
+    @field_validator('passenger_phone')
     def validate_phone_number(cls, v):
         # Remove all non-digit characters
         digits = ''.join(filter(str.isdigit, v))
@@ -559,19 +560,7 @@ class RoutePoint(BaseModel):
 
     class Config:
         from_attributes = True
-        json_schema_extra = {
-            "example": {
-                
-                "passenger_name": "John Doe",
-                "phone_number": "+1234567890",
-                "starting_point": "123 Main St, City A",
-                "end_point": "456 Elm St, City B",
-                "starting_lat": 40.7128,
-                "starting_lng": -74.0060,
-                "end_lat": 40.7580,
-                "end_lng": -73.9855
-            }
-        }
+        
 
 class TripScheduleBase(BaseModel):
     # Agency and Company Information
@@ -800,7 +789,7 @@ class TripResponse(BaseModel):
 
 class User(BaseModel):
     id: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
     name: str
     role: UserRole          # ⬅️ REQUIRED
     company_name: Optional[str] = None
