@@ -47,7 +47,8 @@ class User(Base):
     last_login = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+    notification_acknowledgements = relationship("NotificationAcknowledgement", back_populates="user", cascade="all, delete-orphan")
+
     # Relationships
     vehicles = relationship("Vehicle", back_populates="user", cascade="all, delete-orphan")
     driver = relationship("Driver", back_populates="user", uselist=False, cascade="all, delete-orphan")
@@ -235,6 +236,7 @@ class Agency(Base):
     users = relationship("User", back_populates="agency", cascade="all, delete-orphan")
     companies = relationship("Company", back_populates="agency", cascade="all, delete-orphan")
     trip_schedules = relationship("TripSchedule", back_populates="agency", cascade="all, delete-orphan")
+    notification_acknowledgements = relationship("NotificationAcknowledgement", back_populates="agency", cascade="all, delete-orphan")
 
 class TripSchedule(Base):
     __tablename__ = "trip_schedules"
@@ -288,3 +290,20 @@ class TripSchedule(Base):
             self.status_updated_at = now
             self.status = 'completed'
         return self.is_active
+
+
+class NotificationAcknowledgement(Base):
+    __tablename__ = "notification_acknowledgements"
+    
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    notification_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, ForeignKey('users.id'), nullable=False, index=True)
+    agency_id = Column(String, ForeignKey('agencies.id'), nullable=False, index=True)
+    acknowledged_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="notification_acknowledgements")
+    agency = relationship("Agency", back_populates="notification_acknowledgements")
+    
+    class Config:
+        from_attributes = True

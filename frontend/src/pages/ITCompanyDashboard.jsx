@@ -805,7 +805,7 @@ const [form, setForm] = useState({
                         readOnly={isReadOnly}
                           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-gray-700 dark:text-white"
                           value={form.password}
-                          readOnly
+                        
                           placeholder="Click Generate to create password"
                         />
                         <button

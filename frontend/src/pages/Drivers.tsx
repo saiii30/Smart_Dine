@@ -166,12 +166,12 @@ const isSupervisor = user?.role === "SUPERVISOR";
                   )}
                 </div>
                 <span
-                  className={`px-2 py-1 text-xs font-medium rounded ${driver.is_active
+                  className={`px-2 py-1 text-xs font-medium rounded ${driver.status === 'Active'
                     ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
                     : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                     }`}
                 >
-                  {driver.is_active ? 'Active' : 'Inactive'}
+                  {driver.status || 'Active'}
                 </span>
               </div>
 

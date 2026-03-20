@@ -109,13 +109,18 @@ const isSupervisor = user?.role === 'SUPERVISOR'
     if (callback) callback();
   };
 
-  // --- Effects ---
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) setDraft(prev => ({ ...prev, ...JSON.parse(saved) }));
-    } catch (e) { }
-  }, []);
+    // Only load draft if we're editing an existing driver
+    if (driver) {
+      try {
+        const saved = localStorage.getItem(DRAFT_KEY);
+        if (saved) setDraft(prev => ({ ...prev, ...JSON.parse(saved) }));
+      } catch (e) { }
+    } else {
+      // Clear draft when opening new driver form to ensure empty fields
+      clearDraft();
+    }
+  }, [driver]);
 
   useEffect(() => {
     if (!driver) return;
@@ -144,7 +149,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
       previous_employer_experience: d.previous_employer_experience || '',
       languages_spoken: d.languages_spoken || '',
       shift_preference: d.shift_preference || '',
-      status: d.status || (d.is_active ? 'Active' : 'Inactive') || 'Active',
+      status: d.status || 'Active',
       assigned_vehicle_id: d.assigned_vehicle_id || '',
       showPassword: false, // Reset password visibility when editing
     };
@@ -608,12 +613,12 @@ const isSupervisor = user?.role === 'SUPERVISOR'
               </div>
             )}
 
-            {activeTab === 'documents' && (
+             {activeTab === 'documents' && (
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 animate-in fade-in duration-300">
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Aadhar Number</FieldLabel>
-                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.aadhar_number} onChange={e => saveDraft({ aadhar_number: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" maxLength={12} placeholder="12-digit Aadhar number" className={inputStyle} value={draft.aadhar_number} onChange={e => saveDraft({ aadhar_number: e.target.value.replace(/\D/g, '') })} />
                   </div>
                   <div>
                     <FieldLabel required>Aadhar Document</FieldLabel>
@@ -668,7 +673,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
                   </div>
                   <div>
                     <FieldLabel required>Emergency Contact Number</FieldLabel>
-                    <input disabled={isReadOnly} type="tel" className={inputStyle} value={draft.emergency_contact_number} onChange={e => saveDraft({ emergency_contact_number: e.target.value })} />
+                    <input disabled={isReadOnly} type="tel" maxLength={10} placeholder="10-digit number" className={inputStyle} value={draft.emergency_contact_number} onChange={e => saveDraft({ emergency_contact_number: e.target.value.replace(/\D/g, '') })} />
                   </div>
                   <div>
                     <FieldLabel>Previous Employer Experience</FieldLabel>
@@ -690,7 +695,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
                   </div>
                   <div>
                     <FieldLabel required>Pincode</FieldLabel>
-                    <input disabled={isReadOnly}   type="text" className={inputStyle} value={draft.pincode} onChange={e => saveDraft({ pincode: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" maxLength={6} placeholder="6-digit pincode" className={inputStyle} value={draft.pincode} onChange={e => saveDraft({ pincode: e.target.value.replace(/\D/g, '') })} />
                   </div>
                 </div>
               </div>

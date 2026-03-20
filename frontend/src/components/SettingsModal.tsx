@@ -79,7 +79,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className={`flex items-center justify-between p-6 ${headerColors.bg} rounded-t-lg`}>
-            <h2 className={`text-xl font-semibold ${headerColors.text}`}>Settings</h2>
+            <h2 className={`text-xl font-semibold ${headerColors.text}`}>Theme</h2>
             <button
               onClick={onClose}
               className={`${headerColors.text} hover:opacity-70 transition-opacity`}
