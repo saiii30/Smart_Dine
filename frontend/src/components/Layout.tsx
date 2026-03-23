@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useSettings } from '../contexts/SettingsContext.tsx'
 import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Palette, RouteIcon, Bell, Settings, MapPin } from 'lucide-react'
 import SettingsModal from './SettingsModal'
+import DriverUnauthorizedScreen from './DriverUnauthorizedScreen'
 import { Wallet } from 'lucide-react'
 import { Building2} from "lucide-react";
 import axios from 'axios'
@@ -117,7 +118,13 @@ const Layout = () => {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const isAdmin = user?.role === 'ADMIN'
   const isSupervisor = user?.role === 'SUPERVISOR'
-  const isITCompany = user?.role === 'IT_COMPANY'
+  const isDriver = user?.role === 'DRIVER'
+  const isItCompany = user?.role === 'IT_COMPANY'
+
+  // Show unauthorized screen for drivers
+  if (isDriver) {
+    return <DriverUnauthorizedScreen />
+  }
 
   const navigation = useMemo(() => [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -130,8 +137,10 @@ const Layout = () => {
     // { name: 'Drivers', href: '/drivers', icon: Users },
     { name: 'Trips', href: '/trips', icon: RouteIcon },
     { name: 'Live Tracking', href: '/live-tracking', icon: MapPin },
-    { name: 'Notifications', href: '/notifications', icon: Bell, badge: notificationCount },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    // Hide Notifications for IT Company users - they only see trip notifications on dashboard
+    ...(!isItCompany ? [{ name: 'Notifications', href: '/notifications', icon: Bell, badge: notificationCount }] : []),
+    // Hide Settings for IT Company users
+    ...(!isItCompany ? [{ name: 'Settings', href: '/settings', icon: Settings }] : []),
 
     
 
@@ -147,7 +156,7 @@ const Layout = () => {
     ...(isSuperAdmin
       ? [{ name: 'Users', href: '/users', icon: Users },{ name: "Prices", href: "/prices", icon: Wallet   }]
       : []),
-  ], [notificationCount, isSuperAdmin])
+  ], [notificationCount, isSuperAdmin, isItCompany])
 
   const isActive = (path: string) => location.pathname === path
 
@@ -248,14 +257,16 @@ const Layout = () => {
 
         {/* Right: Settings and User Info */}
         <div className="flex items-center space-x-3">
-          {/* Settings Button */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Settings"
-          >
-            <Palette className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-          </button>
+          {/* Settings Button - Hide for IT Company users */}
+          {!isItCompany && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Settings"
+            >
+              <Palette className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+            </button>
+          )}
 
           {/* User Info */}
           <div className="relative">
