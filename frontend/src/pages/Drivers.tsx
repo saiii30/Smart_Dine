@@ -7,9 +7,9 @@ import { useAuth } from '../contexts/AuthContext'
 const Drivers = () => {
   const { user } = useAuth()
 
-const isSuperAdmin = user?.role === "SUPER_ADMIN";
-const isAdmin = user?.role === "ADMIN";
-const isSupervisor = user?.role === "SUPERVISOR";
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const isAdmin = user?.role === "ADMIN";
+  const isSupervisor = user?.role === "SUPERVISOR";
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
@@ -88,8 +88,8 @@ const isSupervisor = user?.role === "SUPERVISOR";
     }
     const query = searchQuery.toLowerCase().trim()
     return drivers.filter((driver) => {
-      const nameMatch = driver.full_name.toLowerCase().includes(query)
-      const phoneMatch = driver.phone_number.toLowerCase().includes(query)
+      const nameMatch = driver.user.name.toLowerCase().includes(query)
+      const phoneMatch = driver.user.contact_number?.toLowerCase().includes(query) || ''
       return nameMatch || phoneMatch
     })
   }, [drivers, searchQuery])
@@ -119,13 +119,13 @@ const isSupervisor = user?.role === "SUPERVISOR";
             />
           </div>
           {!isSupervisor && (
-          <button
-            onClick={handleCreate}
-            className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
-          >
-            <Plus className="mr-2 h-5 w-5" />
-            Add Driver
-          </button>
+            <button
+              onClick={handleCreate}
+              className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              Add Driver
+            </button>
           )}
         </div>
       </div>
@@ -141,7 +141,7 @@ const isSupervisor = user?.role === "SUPERVISOR";
               ? 'Try adjusting your search criteria.'
               : 'Get started by adding your first driver.'}
           </p>
-         {!searchQuery.trim() && !isSupervisor && (
+          {!searchQuery.trim() && !isSupervisor && (
             <button
               onClick={handleCreate}
               className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
@@ -212,39 +212,39 @@ const isSupervisor = user?.role === "SUPERVISOR";
                 )} */}
               </div>
 
-             <div className="flex gap-2">
+              <div className="flex gap-2">
 
-  {/* Supervisor → Only View */}
-   {isSupervisor ? (
-    <button
-      onClick={() => handleEdit(driver)}
-      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-    >
-      <Search className="mr-2 h-4 w-4" />
-      View
-    </button>
-  ) : (
-    <>
-      <button
-        onClick={() => handleEdit(  driver)}
-        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-      >
-        <Edit className="mr-2 h-4 w-4" />
-        Edit
-      </button>
+                {/* Supervisor → Only View */}
+                {isSupervisor ? (
+                  <button
+                    onClick={() => handleEdit(driver)}
+                    className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                  >
+                    <Search className="mr-2 h-4 w-4" />
+                    View
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleEdit(driver)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit
+                    </button>
 
-      <button
-        onClick={() => handleDelete(driver.id)}
-        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-      >
-        <Trash2 className="mr-2 h-4 w-4" />
-        Delete
-      </button>
-    </>
-  )}
-  
+                    <button
+                      onClick={() => handleDelete(driver.id)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </button>
+                  </>
+                )}
 
-</div>
+
+              </div>
             </div>
           ))}
         </div>
