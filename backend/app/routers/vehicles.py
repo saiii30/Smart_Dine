@@ -433,6 +433,17 @@ def delete_vehicle(
         if db_vehicle.pollution_certificate:
             delete_old_file(db_vehicle.pollution_certificate)
         
+        # Check for associated trip schedules
+        associated_trips = db.query(models.TripSchedule).filter(
+            models.TripSchedule.vehicle_id == vehicle_id
+        ).all()
+        
+        if associated_trips:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete vehicle: It is associated with {len(associated_trips)} trip(s). Please reassign or delete the trips first."
+            )
+        
         # Delete the vehicle
         db.delete(db_vehicle)
         db.commit()
@@ -441,8 +452,16 @@ def delete_vehicle(
         
     except HTTPException:
         raise
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"Integrity error deleting vehicle {vehicle_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete vehicle: It has associated records (trips, schedules, or other dependencies). Please remove these associations first."
+        )
     except Exception as e:
         db.rollback()
+        logger.error(f"Error deleting vehicle {vehicle_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting vehicle: {str(e)}"

@@ -102,43 +102,48 @@ const isSupervisor = user?.role === 'SUPERVISOR';
 
   // --- Effects ---
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) {
-        setDraft(prev => ({ ...prev, ...JSON.parse(saved) }));
+    // Load saved draft only when NOT in edit mode (no vehicle prop)
+    if (!vehicle) {
+      // Clear any existing form data when opening in create mode
+      clearDraft();
+      try {
+        const saved = localStorage.getItem(DRAFT_KEY);
+        if (saved) {
+          setDraft(prev => ({ ...prev, ...JSON.parse(saved) }));
+        }
+      } catch (e) {
+        // ignore
       }
-    } catch (e) {
-      // ignore
     }
-  }, []);
+  }, [vehicle]);
 
   useEffect(() => {
     // If a vehicle prop is passed (edit mode), populate draft with vehicle data
     if (!vehicle) return;
     const v: any = vehicle as any;
     const mapped: Record<string, any> = {
-      vehicle_registration_number: v.registration_number || v.vehicle_registration_number || '',
-      vehicle_type: v.vehicle_type || v.type || '',
-      vehicle_brand: v.vehicle_brand || v.make || '',
-      vehicle_model: v.model || '',
-      vehicle_status: v.is_active ? 'Active' : (v.status || v.vehicle_status || ''),
-      manufacturing_year: v.year || v.manufacturing_year || '',
-      fuel_type: v.fuel_type || v.fuelType || 'Diesel',
-      seating_capacity: v.seating_capacity || '',
-      gps_device_id: v.gps_device_id || v.gpsDeviceId || '',
+      vehicle_registration_number: v.vehicle_registration_number || '',
+      vehicle_type: v.vehicle_type || '',
+      vehicle_brand: v.vehicle_brand || '',
+      vehicle_model: v.vehicle_model || '',
+      vehicle_status: v.vehicle_status || 'Active',
+      manufacturing_year: v.manufacturing_year ? String(v.manufacturing_year) : '',
+      fuel_type: v.fuel_type || 'Diesel',
+      seating_capacity: v.seating_capacity ? String(v.seating_capacity) : '',
+      gps_device_id: v.gps_device_id || '',
       fire_extinguisher_available: !!v.fire_extinguisher_available,
       first_aid_kit_available: !!v.first_aid_kit_available,
-      emergency_support_number: v.emergency_number || v.emergency_support_number || '',
+      emergency_support_number: v.emergency_support_number || '',
       rc_number: v.rc_number || '',
       registration_date: v.registration_date ? v.registration_date.split('T')[0] : '',
       registration_expiry: v.registration_expiry ? v.registration_expiry.split('T')[0] : '',
       insurance_number: v.insurance_number || '',
       insurance_date: v.insurance_date ? v.insurance_date.split('T')[0] : '',
       insurance_expiry: v.insurance_expiry ? v.insurance_expiry.split('T')[0] : '',
-      insurance_copy_name: v.insurance_copy_name || v.insurance_copy || '',
-      policy_certificate_name: v.policy_certificate_name || v.policy_certificate || '',
-      registration_certificate_name: v.registration_certificate_name || v.registration_certificate || '',
-      pollution_certificate_name: v.pollution_certificate_name || v.pollution_certificate || '',
+      insurance_copy_name: v.insurance_copy || '',
+      policy_certificate_name: v.policy_certificate || '',
+      registration_certificate_name: v.registration_certificate || '',
+      pollution_certificate_name: v.pollution_certificate || '',
       assignedDriverId: v.assigned_driver_id || '',
       service_expiry: v.service_expiry ? v.service_expiry.split('T')[0] : '',
       puc_expiry: v.puc_expiry ? v.puc_expiry.split('T')[0] : '',
@@ -183,6 +188,15 @@ const isSupervisor = user?.role === 'SUPERVISOR';
       service_expiry: '',
       puc_expiry: '',
     });
+    // Reset file states
+    setFiles({
+      insurance_copy: null,
+      policy_certificate: null,
+      registration_certificate: null,
+      pollution_certificate: null
+    });
+    // Reset to first tab
+    setActiveTab('static-info');
     try { localStorage.removeItem(DRAFT_KEY) } catch (e) { }
   };
 

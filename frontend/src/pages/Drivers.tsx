@@ -1,17 +1,14 @@
 import { useEffect, useState, useMemo } from 'react'
 import axios from 'axios'
 import { Plus, Edit, Trash2, User, Search } from 'lucide-react'
-import { Driver, Trip } from '../types'
+import { Driver } from '../types'
 import DriverModal from '../components/DriverModal'
 import { useAuth } from '../contexts/AuthContext'
 const Drivers = () => {
   const { user } = useAuth()
 
-  const isSuperAdmin = user?.role === "SUPER_ADMIN";
-  const isAdmin = user?.role === "ADMIN";
   const isSupervisor = user?.role === "SUPERVISOR";
   const [drivers, setDrivers] = useState<Driver[]>([])
-  const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null)
@@ -19,33 +16,17 @@ const Drivers = () => {
 
   useEffect(() => {
     fetchDrivers()
-    fetchTrips()
   }, [])
 
   const fetchDrivers = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/drivers/')
+      const response = await axios.get('/api/drivers/')
       setDrivers(response.data)
     } catch (error) {
       console.error('Failed to fetch drivers:', error)
     } finally {
       setLoading(false)
     }
-  }
-
-  const fetchTrips = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/api/trips/')
-      setTrips(response.data)
-    } catch (error) {
-      console.error('Failed to fetch trips:', error)
-    }
-  }
-
-  const getDriverTrips = (driverId: string): Trip[] => {
-    return trips.filter(trip =>
-      trip.schedules.some(schedule => schedule.driver_id === driverId)
-    )
   }
 
   const handleCreate = () => {
@@ -63,11 +44,30 @@ const Drivers = () => {
     if (!confirm('Are you sure you want to delete this driver?')) return
 
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/drivers/${id}`)
+      await axios.delete(`/api/drivers/${id}`)
       fetchDrivers()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete driver:', error)
-      alert('Failed to delete driver')
+      
+      let errorMessage = 'Failed to delete driver'
+      
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === 'string') {
+          errorMessage = error.response.data.detail
+        } else if (Array.isArray(error.response.data.detail)) {
+          errorMessage = error.response.data.detail.join(', ')
+        }
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error occurred. Please try again.'
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.'
+      } else if (error.response?.status === 403) {
+        errorMessage = 'You are not authorized to delete this driver.'
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Driver not found.'
+      }
+      
+      alert(errorMessage)
     }
   }
 

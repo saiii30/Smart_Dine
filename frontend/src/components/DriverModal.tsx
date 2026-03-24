@@ -14,7 +14,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
   const { user } = useAuth()
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
 const isAdmin = user?.role === 'ADMIN'
-const isSupervisor = user?.role === 'SUPERVISOR'
+  const isSupervisor = user?.role === 'SUPERVISOR'
   const labelStyle = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5";
   const isReadOnly = isSupervisor
   const inputStyle = `
@@ -47,6 +47,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
     full_name: '',
     phone_number: '',
     password: '',
+    has_existing_password: false, // Track if driver has existing password
     date_of_birth: '',
     gender: '',
     aadhar_number: '',
@@ -153,12 +154,12 @@ const isSupervisor = user?.role === 'SUPERVISOR'
       assigned_vehicle_id: d.assigned_vehicle_id || '',
       showPassword: false, // Reset password visibility when editing
     };
-    setDraft(prev => ({ ...prev, ...mapped }));
+    setDraft(prev => ({ ...prev, ...mapped, has_existing_password: !!(driver as any)?.user?.password_hash, showPassword: false }));
   }, [driver]);
 
   // Clear password when switching between different drivers
   useEffect(() => {
-    saveDraft({ password: '', showPassword: false });
+    saveDraft({ password: '', showPassword: false, has_existing_password: !!(driver as any)?.user?.password_hash });
   }, [driver?.id]);
     // --- Handlers ---
   
@@ -306,6 +307,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
       full_name: '',
       phone_number: '',
       password: '', // Clear password when resetting draft
+      has_existing_password: false,
       date_of_birth: '',
       gender: '',
       aadhar_number: '',
@@ -509,7 +511,10 @@ const isSupervisor = user?.role === 'SUPERVISOR'
   disabled={isReadOnly}
                           type={draft.showPassword ? 'text' : 'password'}
                           required={!isEditing}
-                          placeholder={isEditing ? 'Leave empty to keep current' : 'Password will be auto-generated'}
+                          placeholder={isEditing 
+                            ? (draft.has_existing_password ? 'Enter new password to change' : 'Set a password for this driver')
+                            : 'Password will be auto-generated'
+                          }
                           className={`${inputStyle} pr-20`}
                           value={draft.password || ''}
                           onChange={e => saveDraft({ password: e.target.value })}
@@ -523,6 +528,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
                             }}
                             className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 p-1"
                             title="Copy to clipboard"
+                            disabled={!draft.password}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -553,9 +559,12 @@ const isSupervisor = user?.role === 'SUPERVISOR'
                         This will be the driver's initial password
                       </p>
                     )}
-                    {isEditing && !draft.password && (
+                    {isEditing && (
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Leave empty to keep current password
+                        {draft.has_existing_password 
+                          ? 'Leave empty to keep current password, or enter new password to change it'
+                          : 'Set a password for this driver'
+                        }
                       </p>
                     )}
                   </div>

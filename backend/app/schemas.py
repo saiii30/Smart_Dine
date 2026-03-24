@@ -23,6 +23,7 @@ class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     contact_number: Optional[str] = None
     role: Optional[UserRole] = None
+    password_hash: Optional[str] = None  # Include to indicate if password exists (don't expose actual hash)
     
     class Config:
         orm_mode = True
@@ -228,8 +229,42 @@ class VehicleResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
+    # Optional fields for detailed vehicle information
+    rc_number: Optional[str] = None
+    gps_device_id: Optional[str] = None
+    assigned_driver_id: Optional[str] = None
+    
+    # Insurance Information
+    insurance_number: Optional[str] = None
+    insurance_date: Optional[datetime] = None
+    insurance_expiry: Optional[datetime] = None
+    insurance_copy: Optional[str] = None
+    policy_certificate: Optional[str] = None
+    
+    # Registration Information
+    registration_date: Optional[datetime] = None
+    registration_expiry: Optional[datetime] = None
+    registration_certificate: Optional[str] = None
+    
+    # Safety Equipment
+    fire_extinguisher_available: bool = False
+    first_aid_kit_available: bool = False
+    
+    # Contact Information
+    emergency_support_number: Optional[str] = None
+    
+    # Additional Fields
+    notes: Optional[str] = None
+    service_expiry: Optional[datetime] = None
+    puc_expiry: Optional[datetime] = None
+    insurance_renewal_date: Optional[datetime] = None
+    category: Optional[str] = None
+    owner_name: Optional[str] = None
+    ownership_type: Optional[str] = None
+    pollution_certificate: Optional[str] = None
+    
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Driver Schemas
 class DriverBase(BaseModel):
