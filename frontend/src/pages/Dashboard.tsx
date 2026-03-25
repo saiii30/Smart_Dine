@@ -57,7 +57,13 @@ const Dashboard = () => {
             vehicles: vehicles.length,
             drivers: drivers.length,
             activeVehicles: vehicles.filter((v) => v.is_active).length,
-            activeDrivers: drivers.filter((d) => d.is_active).length,
+            activeDrivers: drivers.filter((d) => {
+              // Use is_active if available, otherwise fallback to status field
+              if (d.is_active !== undefined) {
+                return d.is_active !== false;
+              }
+              return d.status !== 'Inactive' && d.status !== 'Suspended';
+            }).length,
           })
         } catch (error) {
           console.error('Failed to fetch stats:', error)
@@ -89,7 +95,13 @@ const Dashboard = () => {
           vehicles: vehicles.length,
           drivers: drivers.length,
           activeVehicles: vehicles.filter((v) => v.is_active).length,
-          activeDrivers: drivers.filter((d) => d.is_active).length,
+          activeDrivers: drivers.filter((d) => {
+            // Use is_active if available, otherwise fallback to status field
+            if (d.is_active !== undefined) {
+              return d.is_active !== false;
+            }
+            return d.status !== 'Inactive' && d.status !== 'Suspended';
+          }).length,
         })
 
         // Try to fetch trips and notifications separately with error handling
