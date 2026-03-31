@@ -5,6 +5,8 @@ from typing import Optional, List, Any, Dict, Union
 from app.models import UserRole, VehicleType  # Removed VehicleType as it's now a string
 from datetime import time, date, datetime, timezone
 import json
+import uuid
+from uuid import UUID
 
 # ADDED NEW LINES OF CODE 405 TO 443 FOR ITDASHBOARDCOMPANY
 # compatibility: prefer pydantic v2 `field_validator`, fall back to v1 `validator`
@@ -23,7 +25,6 @@ class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     contact_number: Optional[str] = None
     role: Optional[UserRole] = None
-    password_hash: Optional[str] = None  # Include to indicate if password exists (don't expose actual hash)
     
     class Config:
         orm_mode = True
@@ -229,42 +230,8 @@ class VehicleResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
-    # Optional fields for detailed vehicle information
-    rc_number: Optional[str] = None
-    gps_device_id: Optional[str] = None
-    assigned_driver_id: Optional[str] = None
-    
-    # Insurance Information
-    insurance_number: Optional[str] = None
-    insurance_date: Optional[datetime] = None
-    insurance_expiry: Optional[datetime] = None
-    insurance_copy: Optional[str] = None
-    policy_certificate: Optional[str] = None
-    
-    # Registration Information
-    registration_date: Optional[datetime] = None
-    registration_expiry: Optional[datetime] = None
-    registration_certificate: Optional[str] = None
-    
-    # Safety Equipment
-    fire_extinguisher_available: bool = False
-    first_aid_kit_available: bool = False
-    
-    # Contact Information
-    emergency_support_number: Optional[str] = None
-    
-    # Additional Fields
-    notes: Optional[str] = None
-    service_expiry: Optional[datetime] = None
-    puc_expiry: Optional[datetime] = None
-    insurance_renewal_date: Optional[datetime] = None
-    category: Optional[str] = None
-    owner_name: Optional[str] = None
-    ownership_type: Optional[str] = None
-    pollution_certificate: Optional[str] = None
-    
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Driver Schemas
 class DriverBase(BaseModel):
@@ -406,7 +373,7 @@ class LocationResponse(BaseModel):
         from_attributes = True
  
 class DriverLocationStatus(BaseModel):
-    driver_id: int
+    driver_id: UUID
     latitude: float
     longitude: float
     speed: Optional[float] = None
@@ -579,11 +546,12 @@ class RoutePoint(BaseModel):
     
     # Optional location coordinates for route tracking
     starting_point: Optional[str] = Field(None, min_length=5, max_length=500)
-    end_point: Optional[str] = Field(None, min_length=5, max_length=500)
+    # end_point: Optional[str] = Field(None, min_length=5, max_length=500)
     starting_lat: Optional[float] = Field(None, ge=-90, le=90)
     starting_lng: Optional[float] = Field(None, ge=-180, le=180)
-    end_lat: Optional[float] = Field(None, ge=-90, le=90)
-    end_lng: Optional[float] = Field(None, ge=-180, le=180)
+    ispresent: Optional[bool] = Field(None, description="True if passenger is present, False otherwise")
+    # end_lat: Optional[float] = Field(None, ge=-90, le=90)
+    # end_lng: Optional[float] = Field(None, ge=-180, le=180)
 
     @field_validator('passenger_phone')
     def validate_phone_number(cls, v):

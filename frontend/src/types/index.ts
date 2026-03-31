@@ -161,9 +161,6 @@ export interface RoutePoint {
   start_point: string
   start_lat: number
   start_lng: number
-  end_point: string
-  end_lat: number
-  end_lng: number
 }
 
 export interface Trip {
