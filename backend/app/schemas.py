@@ -359,6 +359,13 @@ class DriverResponse(BaseModel):
  
     driving_license_number: Optional[str] = None
     license_expiry_date: Optional[datetime] = None
+    
+    # Documents
+    aadhar_document: Optional[str] = None
+    driver_photo: Optional[str] = None
+    police_verification_certificate: Optional[str] = None
+    medical_fitness_certificate: Optional[str] = None
+    
     verification_status: Optional[str] = None
     status: Optional[str] = None
     current_address: Optional[str] = None

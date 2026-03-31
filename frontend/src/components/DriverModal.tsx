@@ -13,7 +13,7 @@ interface DriverModalProps {
 const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
   const { user } = useAuth()
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
-const isAdmin = user?.role === 'ADMIN'
+  const isAdmin = user?.role === 'ADMIN'
   const isSupervisor = user?.role === 'SUPERVISOR'
   const labelStyle = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5";
   const isReadOnly = isSupervisor
@@ -128,24 +128,24 @@ const isAdmin = user?.role === 'ADMIN'
     const d: any = driver as any;
     const mapped: Record<string, any> = {
       full_name: d.full_name || d.user?.name || '',
-      phone_number: d.user?.contact_number || d.phone || '',
+      phone_number: d.phone_number || d.user?.contact_number || '',
       password: '', // Never load existing password for security
       date_of_birth: d.date_of_birth ? new Date(d.date_of_birth).toISOString().split('T')[0] : '',
       gender: d.gender || '',
       aadhar_number: d.aadhar_number || '',
       aadhar_document_name: d.aadhar_document || '',
-      driving_license_number: d.driving_license_number || d.license_number || '',
-      license_expiry_date: d.license_expiry_date ? new Date(d.license_expiry_date).toISOString().split('T')[0] : (d.license_expiry ? new Date(d.license_expiry).toISOString().split('T')[0] : ''),
+      driving_license_number: d.driving_license_number || '',
+      license_expiry_date: d.license_expiry_date ? new Date(d.license_expiry_date).toISOString().split('T')[0] : '',
       driver_photo_name: d.driver_photo || '',
       police_verification_certificate_name: d.police_verification_certificate || '',
       medical_fitness_certificate_name: d.medical_fitness_certificate || '',
       verification_status: d.verification_status || 'Pending',
-      current_address: d.current_address || d.address || '',
+      current_address: d.current_address || '',
       city: d.city || '',
       state: d.state || '',
       pincode: d.pincode || '',
       emergency_contact_name: d.emergency_contact_name || '',
-      emergency_contact_number: d.emergency_contact_number || d.emergency_contact_phone || '',
+      emergency_contact_number: d.emergency_contact_number || '',
       blood_group: d.blood_group || '',
       previous_employer_experience: d.previous_employer_experience || '',
       languages_spoken: d.languages_spoken || '',

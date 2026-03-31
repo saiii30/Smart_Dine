@@ -60,11 +60,17 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
     const storedToken = localStorage.getItem("token");
     if (storedToken) {
       setToken(storedToken);
-      fetchUser();
+      axios.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
     } else {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (token) {
+      fetchUser();
+    }
+  }, [token]);
 
   /* -------------------- LOGIN -------------------- */
   const login = async (data: LoginPayload) => {

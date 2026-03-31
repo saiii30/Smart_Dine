@@ -62,8 +62,11 @@ export interface Vehicle {
 export interface Driver {
   id: string
   user_id: string
-  full_name: string
-  phone_number: string
+  user: {
+    name: string
+    email?: string
+    contact_number?: string
+  }
   email?: string
 
   date_of_birth?: string
@@ -99,12 +102,6 @@ export interface Driver {
   notes?: string
   created_at: string
   updated_at?: string
-
-  user: {
-    name: string
-    email?: string
-    contact_number?: string
-  }
 }
 
 export interface Company {
