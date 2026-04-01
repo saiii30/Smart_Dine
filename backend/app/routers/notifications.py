@@ -178,9 +178,8 @@ def get_notifications(
     # Get agency_id from current user
     agency_id = current_user.agency_id
     
-    # Get acknowledged notification IDs for this user
+    # Get acknowledged notification IDs for this agency (shared across all users)
     acknowledged_query = db.query(models.NotificationAcknowledgement.notification_id).filter(
-        models.NotificationAcknowledgement.user_id == current_user.id,
         models.NotificationAcknowledgement.agency_id == agency_id
     )
     acknowledged_ids = [row[0] for row in acknowledged_query.all()]
@@ -226,9 +225,8 @@ def get_notification_summary(
     # Get agency_id from current user
     agency_id = current_user.agency_id
     
-    # Get acknowledged notification IDs for this user
+    # Get acknowledged notification IDs for this agency (shared across all users)
     acknowledged_query = db.query(models.NotificationAcknowledgement.notification_id).filter(
-        models.NotificationAcknowledgement.user_id == current_user.id,
         models.NotificationAcknowledgement.agency_id == agency_id
     )
     acknowledged_ids = [row[0] for row in acknowledged_query.all()]
@@ -273,9 +271,8 @@ def get_notification_count(
     # Get agency_id from current user
     agency_id = current_user.agency_id
     
-    # Get acknowledged notification IDs for this user
+    # Get acknowledged notification IDs for this agency (shared across all users)
     acknowledged_query = db.query(models.NotificationAcknowledgement.notification_id).filter(
-        models.NotificationAcknowledgement.user_id == current_user.id,
         models.NotificationAcknowledgement.agency_id == agency_id
     )
     acknowledged_ids = [row[0] for row in acknowledged_query.all()]
@@ -305,20 +302,19 @@ def mark_notification_resolved(
     Mark a notification as resolved by creating an acknowledgement record.
     """
     try:
-        # Check if notification is already acknowledged
+        # Check if notification is already acknowledged by anyone in the agency
         existing_acknowledgement = db.query(models.NotificationAcknowledgement).filter(
             models.NotificationAcknowledgement.notification_id == notification_id,
-            models.NotificationAcknowledgement.user_id == current_user.id,
             models.NotificationAcknowledgement.agency_id == current_user.agency_id
         ).first()
         
         if existing_acknowledgement:
             return {"message": "Notification already acknowledged", "notification_id": notification_id}
         
-        # Create new acknowledgement record
+        # Create new acknowledgement record (agency-wide, not user-specific)
         acknowledgement = models.NotificationAcknowledgement(
             notification_id=notification_id,
-            user_id=current_user.id,
+            user_id=current_user.id,  # Keep track of who acknowledged it
             agency_id=current_user.agency_id
         )
         
@@ -346,9 +342,8 @@ def get_dashboard_stats(
     # Get agency_id from current user
     agency_id = current_user.agency_id
     
-    # Get acknowledged notification IDs for this user
+    # Get acknowledged notification IDs for this agency (shared across all users)
     acknowledged_query = db.query(models.NotificationAcknowledgement.notification_id).filter(
-        models.NotificationAcknowledgement.user_id == current_user.id,
         models.NotificationAcknowledgement.agency_id == agency_id
     )
     acknowledged_ids = [row[0] for row in acknowledged_query.all()]
