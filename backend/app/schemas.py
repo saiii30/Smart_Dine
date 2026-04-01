@@ -5,6 +5,8 @@ from typing import Optional, List, Any, Dict, Union
 from app.models import UserRole, VehicleType  # Removed VehicleType as it's now a string
 from datetime import time, date, datetime, timezone
 import json
+import uuid
+from uuid import UUID
 
 # ADDED NEW LINES OF CODE 405 TO 443 FOR ITDASHBOARDCOMPANY
 # compatibility: prefer pydantic v2 `field_validator`, fall back to v1 `validator`
@@ -59,6 +61,7 @@ class UserResponse(BaseModel):
     contact_number: Optional[str] = None
     role: Optional[str] = None
     is_active: bool
+    agency_status: Optional[str] = None
     last_login: Optional[datetime] = None
     created_at: Optional[datetime] =None
     updated_at: Optional[datetime] = None
@@ -228,7 +231,6 @@ class VehicleResponse(BaseModel):
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
     # Optional fields for detailed vehicle information
     rc_number: Optional[str] = None
     gps_device_id: Optional[str] = None
@@ -408,18 +410,27 @@ class LocationResponse(BaseModel):
     trip_id: Optional[str] = None
     route_point: Optional[dict] = None  # Route point data as JSON for route type trips
     agency_id: Optional[str] = None  # Add agency_id field
+
+    company_id: Optional[str] = None  # Add company ID field
+    start_date: Optional[datetime] = None  # Add start date field
+    end_date: Optional[datetime] = None  # Add end date field
+    is_active: Optional[bool] = True  # Add is_active field
  
     class Config:
         from_attributes = True
  
 class DriverLocationStatus(BaseModel):
-    driver_id: int
+    driver_id: UUID
     latitude: float
     longitude: float
     speed: Optional[float] = None
     last_update: datetime
     trip_id: Optional[str] = None
     agency_id: Optional[str] = None  # Add agency_id field  
+    company_id: Optional[str] = None  # Add company ID field
+    start_date: Optional[datetime] = None  # Add start date field
+    end_date: Optional[datetime] = None  # Add end date field
+    is_active: Optional[bool] = True  # Add is_active field 
  
     class Config:
         from_attributes = True
@@ -471,6 +482,7 @@ class CompanyDropdown(BaseModel):
     company_name: str
     company_branch: Optional[str] = None
     agency_id: str
+    agency_name: Optional[str] = None  # Add agency name for display
 
     class Config:
         from_attributes = True
@@ -585,12 +597,12 @@ class RoutePoint(BaseModel):
     pickup :Optional[bool] = Field(None, description="True if pickup point, False if drop-off point")
     
     # Optional location coordinates for route tracking
-    starting_point: Optional[str] = Field(None, min_length=5, max_length=500)
-    end_point: Optional[str] = Field(None, min_length=5, max_length=500)
-    starting_lat: Optional[float] = Field(None, ge=-90, le=90)
-    starting_lng: Optional[float] = Field(None, ge=-180, le=180)
-    end_lat: Optional[float] = Field(None, ge=-90, le=90)
-    end_lng: Optional[float] = Field(None, ge=-180, le=180)
+    pickup_point: Optional[str] = Field(None, min_length=5, max_length=500)
+    pickup_lat: Optional[float] = Field(None, ge=-90, le=90)
+    pickup_lng: Optional[float] = Field(None, ge=-180, le=180)
+    ispresent: Optional[bool] = Field(None, description="True if passenger is present, False otherwise")
+    # end_lat: Optional[float] = Field(None, ge=-90, le=90)
+    # end_lng: Optional[float] = Field(None, ge=-180, le=180)
 
     @field_validator('passenger_phone')
     def validate_phone_number(cls, v):

@@ -216,9 +216,18 @@ def get_trips(
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    trips = _base_query(db).filter(
-        models.TripSchedule.agency_id == current_user.agency_id
-    ).all()
+     # Filter based on user role
+    if current_user.role == models.UserRole.IT_COMPANY:
+        # IT Login: Filter by both agency AND company
+        trips = _base_query(db).filter(
+            models.TripSchedule.agency_id == current_user.agency_id,
+            models.TripSchedule.company_id == current_user.company_id
+        ).all()
+    else:
+        # Agency Login: Filter by agency only
+        trips = _base_query(db).filter(
+            models.TripSchedule.agency_id == current_user.agency_id
+        ).all()
 
     return [_serialize_trip(t) for t in trips]
 
@@ -232,10 +241,20 @@ def get_trip(
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    trip = _base_query(db).filter(
-        models.TripSchedule.id == trip_id,
-        models.TripSchedule.agency_id == current_user.agency_id
-    ).first()
+    # Filter based on user role
+    if current_user.role == models.UserRole.IT_COMPANY:
+        # IT Login: Filter by both agency AND company
+        trip = _base_query(db).filter(
+            models.TripSchedule.id == trip_id,
+            models.TripSchedule.agency_id == current_user.agency_id,
+            models.TripSchedule.company_id == current_user.company_id
+        ).first()
+    else:
+        # Agency Login: Filter by agency only
+        trip = _base_query(db).filter(
+            models.TripSchedule.id == trip_id,
+            models.TripSchedule.agency_id == current_user.agency_id
+        ).first()
 
     if not trip:
         raise HTTPException(404, "Trip not found")
@@ -296,10 +315,20 @@ def delete_trip(
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    trip = db.query(models.TripSchedule).filter(
-        models.TripSchedule.id == trip_id,
-        models.TripSchedule.agency_id == current_user.agency_id
-    ).first()
+     # Filter based on user role
+    if current_user.role == models.UserRole.IT_COMPANY:
+        # IT Login: Filter by both agency AND company
+        trip = db.query(models.TripSchedule).filter(
+            models.TripSchedule.id == trip_id,
+            models.TripSchedule.agency_id == current_user.agency_id,
+            models.TripSchedule.company_id == current_user.company_id
+        ).first()
+    else:
+        # Agency Login: Filter by agency only
+        trip = db.query(models.TripSchedule).filter(
+            models.TripSchedule.id == trip_id,
+            models.TripSchedule.agency_id == current_user.agency_id
+        ).first()
 
     if not trip:
         raise HTTPException(404, "Trip not found")

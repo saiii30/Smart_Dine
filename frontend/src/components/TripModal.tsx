@@ -27,8 +27,6 @@ const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
   const [activePassengerIndex, setActivePassengerIndex] = useState<number | null>(null)
   const [activePassengerTab, setActivePassengerTab] = useState(0)
  const { user } = useAuth()
-   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
- const isAdmin = user?.role === 'ADMIN'
  const isSupervisor = user?.role === 'SUPERVISOR'
 
   const [showMap, setShowMap] = useState(false)
@@ -41,6 +39,15 @@ const inputClass =
    focus:ring-2 focus:ring-primary-500 focus:border-primary-500 \
    outline-none transition-all duration-200";
 
+
+const INPUTClass =
+  "w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 \
+   bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm \
+   focus:ring-2 focus:ring-primary-500 focus:border-primary-500 \
+   outline-none transition-all duration-200";
+
+const labelClass =
+  "block text-xs font-medium mb-1 text-gray-900 dark:text-gray-200";
   const [formData, setFormData] = useState({
   company_id: '',
   company_name: '',
@@ -66,11 +73,9 @@ const inputClass =
     start_point: string
     start_lat?: number
     start_lng?: number
-    end_point: string
-    end_lat?: number
-    end_lng?: number
     timestamp?: string
     pickup?: boolean
+    ispresent?: boolean
   }[]
   passenger_count: number
   driver_id?: string
@@ -95,7 +100,7 @@ const inputClass =
 
   const fetchCompanies = async () => {
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/api/companies/api/companies/trip/dropdown/?agency_id=${agencyId}`)
+      const res = await axios.get(`http://127.0.0.1:8000/api/companies/trip/dropdown/?agency_id=${agencyId}`)
       
       setCompanies(res.data) // [{id, company_name}]
     } catch (err) {
@@ -107,6 +112,8 @@ const inputClass =
   fetchCompanies()
 }, [])
 
+
+
 // useEffect(() => {
 //   formData.schedules.forEach((s, index) => {
 //     if (s.start_date && s.start_time) {
@@ -117,6 +124,47 @@ const inputClass =
 // }, [
 //   formData.schedules.map(s => `${s.start_date}-${s.start_time}`).join('|')
 // ])
+
+const validateForm = () => {
+  for (let i = 0; i < formData.schedules.length; i++) {
+    const s = formData.schedules[i]
+
+    // 🔴 Required fields check
+    if (
+      !formData.company_id ||
+      !s.start_date ||
+      !s.end_date ||
+      !s.start_time ||
+      !s.end_time ||
+      !s.starting_point ||
+      !s.end_point ||
+      !s.trip_type ||
+      !s.passenger_count ||
+      !s.driver_id ||
+      !s.vehicle_id
+    ) {
+      return `Please fill all required fields in Schedule ${i + 1}`
+    }
+
+    // 🔴 Route passengers validation
+    if (s.trip_type === 'route' && s.passengers) {
+      for (let j = 0; j < s.passengers.length; j++) {
+        const p = s.passengers[j]
+
+        if (!p.name || !p.phone || !p.start_point) {
+          return `Passenger ${j + 1} in Schedule ${i + 1} is incomplete`
+        }
+
+        // 📱 Phone validation (10 digits)
+        if (!/^\d{10}$/.test(p.phone)) {
+          return `Passenger ${j + 1} mobile number must be exactly 10 digits`
+        }
+      }
+    }
+  }
+
+  return null
+}
 
 useEffect(() => {
   formData.schedules.forEach((s, index) => {
@@ -191,19 +239,12 @@ useEffect(() => {
         start_point: p.starting_point || '',
         start_lat: p.starting_lat,
         start_lng: p.starting_lng,
-        end_point: p.end_point || '',
-        end_lat: p.end_lat,
-        end_lng: p.end_lng,
         timestamp: p.timestamp,
         pickup: p.pickup,
+        ispresent: p.ispresent,
         })) : []
     })),
   })
-
-
-
-  
-
   
 }, [trip])
 
@@ -365,11 +406,9 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
       start_point: s.passengers?.[i]?.start_point || '',
       start_lat: s.passengers?.[i]?.start_lat,   // ✅ KEEP
       start_lng: s.passengers?.[i]?.start_lng,   // ✅ KEEP
-      end_point: s.passengers?.[i]?.end_point || '',
-      end_lat: s.passengers?.[i]?.end_lat,       // ✅ KEEP
-      end_lng: s.passengers?.[i]?.end_lng,       // ✅ KEEP
       pickup: s.passengers?.[i]?.pickup,       // ✅ KEEP
-        timestamp: s.passengers?.[i]?.timestamp, // ✅ KEEP
+        ispresent: s.passengers?.[i]?.ispresent, // ✅ KEEP
+      timestamp: s.passengers?.[i]?.timestamp, // ✅ KEEP
     }))
   }
 
@@ -439,6 +478,14 @@ const toDateInput = (value?: string | null) => {
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault()
   setError('')
+  
+
+   const validationError = validateForm()
+  if (validationError) {
+    setError(validationError)
+    return
+  }
+
   setLoading(true)
 
   try {
@@ -495,11 +542,9 @@ const handleSubmit = async (e: React.FormEvent) => {
           starting_point: p.start_point,
           starting_lat: p.start_lat,
           starting_lng: p.start_lng,
-          end_point: p.end_point,
-          end_lat: p.end_lat,
-          end_lng: p.end_lng,
           pickup:false,
           timestamp:  new Date().toISOString(),
+          ispresent: p.ispresent || true,
 
         })) || []
 
@@ -517,7 +562,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       } else {
         // 🟢 CREATE
         await axios.post(
-          `http://127.0.0.1:8000/api/trip-schedules/`,
+          `http://127.0.0.1:8000/api/trip-schedules`,
           payload,
           { headers }
         )
@@ -525,9 +570,24 @@ const handleSubmit = async (e: React.FormEvent) => {
     }
 
     onSuccess()
-  } catch (err: any) {
-    setError(err.response?.data?.detail || err.message)
-  } finally {
+  } 
+  catch (err: any) {
+  const msg = err.response?.data?.detail || ""
+
+  if (msg.includes("at least 2")) {
+    setError("Name should be at least 2 characters")
+  } 
+  else if (msg.includes("at least 10")) {
+    setError("Phone number must be 10 digits")
+  } 
+  else if (msg.includes("at least 5")) {
+    setError("Location should be minimum 5 characters")
+  } 
+  else {
+    setError("Something went wrong. Please try again")
+  }
+}
+  finally {
     setLoading(false)
   }
 }
@@ -543,7 +603,7 @@ const selectClass =
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className={`sticky top-0 ${headerColors.bg} px-6 py-4 flex justify-between items-center rounded-t-lg`}>
+        <div className={`sticky z-50 top-0 ${headerColors.bg} px-6 py-4 flex justify-between items-center rounded-t-lg`}>
           <h2 className={`text-xl font-semibold ${headerColors.text}`}>
             {isSupervisor
     ? 'View Trip'
@@ -603,8 +663,8 @@ const selectClass =
     {/* ================= COMPANY ================= */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div>
-        <label className="block text-sm font-medium mb-1">
-          Company Name *
+        <label className={labelClass}>
+          Company Name <span className="text-red-500">*</span>
         </label>
         <select
         disabled={isSupervisor}
@@ -618,9 +678,7 @@ const selectClass =
               company_name: selected?.company_name || '',
             })
           }}
-          className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700
-                     bg-white dark:bg-gray-800
-                     focus:ring-2 focus:ring-primary-500 focus:outline-none"
+         className={selectClass}
         >
           <option value="">Select Company</option>
           {companies.map((company) => (
@@ -662,7 +720,7 @@ const selectClass =
           >
             {/* ===== Schedule Header ===== */}
             <div className="flex justify-between items-center mb-4">
-              <h4 className="text-sm font-semibold">
+              <h4 className={labelClass}>
                 Schedule {index + 1}
               </h4>
               {!isSupervisor && (
@@ -686,8 +744,8 @@ const selectClass =
                 ['End Time', 'time', 'end_time'],
               ].map(([label, type, field]) => (
                 <div key={field}>
-                  <label className="block text-xs font-medium mb-1">
-                    {label}
+                  <label className={labelClass}>
+                    {label} <span className="text-red-500">*</span>
                   </label>
                   <input
                   disabled={isSupervisor}
@@ -696,18 +754,18 @@ const selectClass =
                     onChange={(e) =>
                       updateSchedule(index, field as any, e.target.value)
                     }
-                    className={inputClass}
+                    className={INPUTClass}
                   />
                 </div>
               ))}
 
               <div>
-                <label className="block text-xs font-medium mb-1">Trip Way</label>
+                <label className={labelClass}>Trip Way <span className="text-red-500">*</span></label>
                 <select
                 disabled={isSupervisor}
                   value={schedule.way}
                   onChange={(e) => updateSchedule(index, 'way', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
+                  className={selectClass}
                 >
                   <option value="one_way">One Way</option>
                   <option value="two_way">Two Way</option>
@@ -715,11 +773,11 @@ const selectClass =
               </div>
 
                <div>
-  <label className="block text-xs font-medium mb-1">Trip Type</label>
+  <label className={labelClass}>Trip Type <span className="text-red-500">*</span></label>
 
   <select
   disabled={isSupervisor}
-   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
+   className={selectClass}
   value={schedule.trip_type}
   onChange={(e) => {
     const updated = [...formData.schedules]
@@ -737,9 +795,6 @@ const selectClass =
         start_point: '',
         start_lat: undefined,
         start_lng: undefined,
-        end_point: '',
-        end_lat: undefined,
-        end_lng: undefined,
         pickup: false,
         timestamp: '',
       }))
@@ -759,25 +814,14 @@ const selectClass =
   </select>
 </div>
 
-              <div>
-                <label className="block text-xs font-medium mb-1">Passengers</label>
-                <input disabled={isSupervisor} className={inputClass}
-  type="number"
-  value={schedule.passenger_count}
-  onChange={(e) =>
-    updatePassengerCount(index, Number(e.target.value))
-  }
-/>
-
-              </div>
+             
 
              
 
-{schedule.trip_type !== 'route' && (
-  <>
+
     <div>
-  <label className="block text-xs font-medium mb-1">
-    Starting Point
+  <label className={labelClass}>
+    Starting Point <span className="text-red-500">*</span>
   </label>
 
   <div className="relative">
@@ -790,16 +834,17 @@ const selectClass =
         updateSchedule(index, 'starting_point', e.target.value)
       }
       placeholder="Select starting location"
-      className={inputClass}
+      className={INPUTClass}
     />
 
     <button
-      type="button"
-      onClick={() => {
-        setActiveScheduleIndex(index)
-        setActiveField('starting_point')
-        setShowMap(true)
-      }}
+  type="button"
+  onClick={() => {
+    setActiveScheduleIndex(index)
+    setActivePassengerIndex(null)   // ✅ ADD THIS LINE
+    setActiveField('starting_point')
+    setShowMap(true)
+  }}
       className="absolute right-2 top-1/2 -translate-y-1/2 text-red-600"
       title="Pick location"
     >
@@ -809,8 +854,8 @@ const selectClass =
 </div>
 
 <div>
-  <label className="block text-xs font-medium mb-1">
-    End Point
+  <label className={labelClass}>
+    End Point <span className="text-red-500">*</span>
   </label>
 
   <div className="relative">
@@ -823,16 +868,17 @@ const selectClass =
         updateSchedule(index, 'end_point', e.target.value)
       }
       placeholder="Select ending location"
-      className={inputClass}
+      className={INPUTClass}
     />
 
-    <button
-      type="button"
-      onClick={() => {
-        setActiveScheduleIndex(index)
-        setActiveField('end_point')
-        setShowMap(true)
-      }}
+   <button
+  type="button"
+  onClick={() => {
+    setActiveScheduleIndex(index)
+    setActivePassengerIndex(null)   // ✅ ADD THIS LINE
+    setActiveField('end_point')
+    setShowMap(true)
+  }}
       className="absolute right-2 top-1/2 -translate-y-1/2 text-red-600"
       title="Pick location"
     >
@@ -842,10 +888,6 @@ const selectClass =
 </div>
 
 
-
-
-  </>
-)}
 
 
 
@@ -890,25 +932,22 @@ const selectClass =
       : undefined
   }
   endPoint={
-    activeScheduleIndex !== null
-      ? (() => {
-          const s = formData.schedules[activeScheduleIndex]
+  activeScheduleIndex !== null
+    ? (() => {
+        const s = formData.schedules[activeScheduleIndex]
 
-          // 🔥 ROUTE → PASSENGER
-          if (s.trip_type === 'route' && activePassengerIndex !== null) {
-            const p = s.passengers?.[activePassengerIndex]
-            return p?.end_lat && p?.end_lng
-              ? { lat: p.end_lat, lng: p.end_lng }
-              : undefined
-          }
+        // 🚫 PASSENGER PICKUP → do not show endPoint
+        if (s.trip_type === 'route' && activePassengerIndex !== null) {
+          return undefined
+        }
 
-          // 🔵 SHUTTLE / AMBULANCE → SCHEDULE
-          return s.end_lat && s.end_lng
-            ? { lat: s.end_lat, lng: s.end_lng }
-            : undefined
-        })()
-      : undefined
-  }
+        // 🔵 SHUTTLE / AMBULANCE → SCHEDULE
+        return s.end_lat && s.end_lng
+          ? { lat: s.end_lat, lng: s.end_lng }
+          : undefined
+      })()
+    : undefined
+}
   onSelect={async (lat, lng, distanceKm, durationMin) => {
     if (activeScheduleIndex === null || !activeField) return
 
@@ -924,11 +963,7 @@ const selectClass =
         p.start_point = address
         p.start_lat = lat
         p.start_lng = lng
-      } else {
-        p.end_point = address
-        p.end_lat = lat
-        p.end_lng = lng
-      }
+      } 
     }
 
     // 🔵 SHUTTLE / AMBULANCE – SCHEDULE LEVEL
@@ -964,7 +999,7 @@ const selectClass =
 
 
               <div>
-                <label className="block text-xs font-medium mb-1">Select Driver</label>
+                <label className={labelClass}>Select Driver <span className="text-red-500">*</span></label>
                 <select
                 disabled={isSupervisor}
   value={schedule.driver_id || ''}
@@ -973,7 +1008,7 @@ const selectClass =
    
     updateSchedule(index, 'driver_id', e.target.value)
   }
-  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
+  className={selectClass}
 >
   {
     schedule.driver_name ? (
@@ -999,13 +1034,31 @@ const selectClass =
               </div>
 
               <div>
-                <label className="block text-xs font-medium mb-1">Select Vehicle</label>
+                <label className={labelClass}>Select Vehicle <span className="text-red-500">*</span></label>
                 <select
                 disabled={isSupervisor}
                     value={schedule.vehicle_id || ''}
-      onChange={(e) => updateSchedule(index, 'vehicle_id', Number(e.target.value))}
+      // onChange={(e) => updateSchedule(index, 'vehicle_id', Number(e.target.value))}
+      onChange={(e) => {
+  const vehicleId = Number(e.target.value)
+
+  const selectedVehicle = vehicles.find(v => v.id === vehicleId)
+  const maxCapacity = selectedVehicle?.seating_capacity || 0
+
+  const updated = [...formData.schedules]
+  const s = updated[index]
+
+  s.vehicle_id = vehicleId
+
+  // ✅ Auto adjust passenger count
+  if (s.passenger_count > maxCapacity) {
+    s.passenger_count = maxCapacity
+  }
+
+  setFormData({ ...formData, schedules: updated })
+}}
     
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
+                 className={selectClass}
                 >
                   {
                     schedule.vehicle_id ? (
@@ -1028,6 +1081,57 @@ const selectClass =
 
               </div>
 
+               {/* <div>
+                <label className={labelClass}>Passengers <span className="text-red-500">*</span></label>
+                <input disabled={isSupervisor} className={INPUTClass}
+  type="number"
+  value={schedule.passenger_count}
+  onChange={(e) =>
+    updatePassengerCount(index, Number(e.target.value))
+  }
+/>
+
+              </div> */}
+
+              <div>
+  <label className={labelClass}>
+    Passengers <span className="text-red-500">*</span>
+  </label>
+
+  <input
+    disabled={isSupervisor || !schedule.vehicle_id}   // ✅ disable if no vehicle
+    className={INPUTClass}
+    type="number"
+    min={1}
+    max={
+      vehicles.find(v => v.id === schedule.vehicle_id)?.seating_capacity || 0
+    }
+    value={schedule.passenger_count}
+    onChange={(e) => {
+      const value = Number(e.target.value)
+
+      const selectedVehicle = vehicles.find(
+        v => v.id === schedule.vehicle_id
+      )
+
+      const maxCapacity = selectedVehicle?.seating_capacity || 0
+
+      if (value <= maxCapacity) {
+        updatePassengerCount(index, value)
+      }
+    }}
+  />
+
+  {/* ✅ Optional: show max capacity */}
+  {schedule.vehicle_id && (
+    <p className="text-xs text-gray-500 mt-1">
+      Max Capacity: {
+        vehicles.find(v => v.id === schedule.vehicle_id)?.seating_capacity
+      }
+    </p>
+  )}
+</div>
+
 
 
               
@@ -1038,9 +1142,11 @@ const selectClass =
 
             </div>
 
+            
+
             {/* ===== Notes ===== */}
             <div className="mt-4">
-              <label className="block text-xs font-medium mb-1">Notes</label>
+              <label className={labelClass}>Notes <span className="text-red-500">*</span></label>
               <textarea
               disabled={isSupervisor}
                 rows={2}
@@ -1048,8 +1154,7 @@ const selectClass =
                 onChange={(e) =>
                   updateSchedule(index, 'notes', e.target.value)
                 }
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                           bg-gray-50 dark:bg-gray-700"
+               className={INPUTClass}
               />
             </div>
 
@@ -1106,8 +1211,8 @@ const selectClass =
           {/* NAME & PHONE */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">
-                Passenger Name
+              <label className={labelClass}>
+                Passenger Name <span className="text-red-500">*</span>
               </label>
               <input
               disabled={isSupervisor}
@@ -1118,31 +1223,35 @@ const selectClass =
                   updated[index].passengers![activePassengerTab].name = e.target.value
                   setFormData({ ...formData, schedules: updated })
                 }}
-                className={inputClass}
+               className={INPUTClass}
               />
             </div>
 
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">
-                Phone Number
+              <label className={labelClass}>
+                Phone Number <span className="text-red-500">*</span>
               </label>
               <input
-              disabled={isSupervisor}
-                type="text"
-                value={p.phone}
-                onChange={(e) => {
-                  const updated = [...formData.schedules]
-                  updated[index].passengers![activePassengerTab].phone = e.target.value
-                  setFormData({ ...formData, schedules: updated })
-                }}
-                className={inputClass}
-              />
+  disabled={isSupervisor}
+  type="text"
+  value={p.phone}
+  maxLength={10}
+  onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, '') // only numbers
+
+    const updated = [...formData.schedules]
+    updated[index].passengers![activePassengerTab].phone = value
+
+    setFormData({ ...formData, schedules: updated })
+  }}
+  className={INPUTClass}
+/>
             </div>
           </div>
 
           {/* LOCATION */}
           <div className="mt-8">
-            <p className="text-xs text-gray-500 mb-3">
+            <p className={labelClass}>
               Pickup & Drop Location
             </p>
 
@@ -1166,7 +1275,7 @@ const selectClass =
                     📍
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Start Point</p>
+                    <p className={labelClass}>Pickup Point</p>
                     <p className="text-xs text-gray-500 max-w-[220px] 
               break-words line-clamp-2">
   {p.start_point || 'Select pickup location'}
@@ -1176,33 +1285,6 @@ const selectClass =
                 </div>
               </button>
 
-              {/* END POINT */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScheduleIndex(index)
-                  setActivePassengerIndex(activePassengerTab)
-                  setActiveField('end_point')
-                  setShowMap(true)
-                }}
-                className="rounded-xl border border-dashed border-emerald-400
-                           p-4 text-left hover:bg-emerald-50 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-emerald-100
-                                  flex items-center justify-center">
-                    📍
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">End Point</p>
-                   <p className="text-xs text-gray-500 max-w-[220px] 
-              break-words line-clamp-2">
-  {p.end_point || 'Select drop location'}
-</p>
-
-                  </div>
-                </div>
-              </button>
 
             </div>
           </div>

@@ -6,7 +6,7 @@ import AuthLayout from "../components/AuthLayout";
 
 // Create an Axios instance with default config
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  baseURL: 'http://127.0.0.1:8000',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -38,14 +38,14 @@ const Login = () => {
   // Account type switch: 'agency' or 'it'
   const [accountType, setAccountType] = useState<'agency' | 'it'>('agency');
 
-  const { login } = useAuth();
+  const { user, logout ,login} = useAuth()
   const navigate = useNavigate();
 
   // Fetch agencies on component mount
   useEffect(() => {
     const fetchAgencies = async () => {
       try {
-        const response = await api.get("/auth/agencies");
+        const response = await api.get("api/auth/agencies");
         setAgencies(response.data);
       } catch (err) {
         console.error("Error fetching agencies:", err);
@@ -117,9 +117,31 @@ const Login = () => {
 
     console.log("Payload:", payload);
 
-    await login(payload);
+    const loggedInUser: any = await login(payload)
 
-    navigate("/dashboard");
+console.log("USER DATA:", loggedInUser)
+console.log("AGENCY STATUS:", loggedInUser?.agency_status)
+
+const role = loggedInUser?.role
+const status = loggedInUser?.agency_status?.toLowerCase()
+
+console.log("ROLE:", role)
+console.log("STATUS:", status)
+
+// 🔥 ONLY for SUPER_ADMIN
+if (role === "SUPER_ADMIN") {
+  if (status === "inactive") {
+    navigate("/prices")
+  } else {
+    navigate("/dashboard")
+  }
+}
+
+// 🔥 For ADMIN / SUPERVISOR / others
+else {
+  navigate("/dashboard")
+}
+
 
   } catch (err: any) {
     console.error("Login error:", err);

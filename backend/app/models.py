@@ -11,6 +11,7 @@ from datetime import datetime
 import pytz
 from sqlalchemy import JSON 
 
+
 # ADDED USER AND COMPANY CHANGES ID LINE OF CODE 29 AND 188 11,12
 
 def generate_uuid():
@@ -174,6 +175,7 @@ class Driver(Base):
     user = relationship("User", back_populates="driver", uselist=False) # uselist=False for 1-to-1
     location_updates = relationship("DriverLocation", back_populates="driver")
     trip_schedules = relationship("TripSchedule", back_populates="driver")
+    
 class DriverLocation(Base):
     __tablename__ = "driver_locations"
    
@@ -187,16 +189,22 @@ class DriverLocation(Base):
     speed = Column(Float, nullable=True)  # Speed in km/h
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     route_point = Column(JSON, nullable=True)  # Store route point data as JSON for route type trips
+    company_id = Column(String, ForeignKey("companies.id"), nullable=True)  # New field - use this
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True)
+    
    
     # Relationships
     driver = relationship("Driver", back_populates="location_updates")
     trip_schedule = relationship("TripSchedule", back_populates="location_updates")
+    company = relationship("Company", back_populates="driver_locations")
+ 
+
 
 class Company(Base):
     __tablename__ = "companies"
-    # changing line 188 with     id = Column(text to String, primary_key=True, index=True, default=generate_uuid)
-    # id = Column(String, primary_key=True, index=True,class Company(Base):
-    __tablename__ = "companies"
+    
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     agency_id = Column(String, ForeignKey("agencies.id"), nullable=False)
     company_name = Column(Text, nullable=False)
@@ -215,6 +223,7 @@ class Company(Base):
     users = relationship("User", back_populates="company", cascade="all, delete-orphan")
     trip_schedules = relationship("TripSchedule", back_populates="company", cascade="all, delete-orphan")
     agency = relationship("Agency", back_populates="companies")
+    driver_locations = relationship("DriverLocation", back_populates="company")
 
 class Agency(Base):
     __tablename__ = "agencies"

@@ -51,6 +51,16 @@ async def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Agency with ID {user.agency_id} not found"
                 )
+
+        # Role-based agency status validation for registration
+            # SUPER_ADMIN can register regardless of agency status
+            # Other roles (ADMIN, SUPERVISOR, IT_COMPANY, DRIVER) can only register if agency is active
+            if user.role not in [models.UserRole.SUPER_ADMIN]:
+                if db_agency.status != "Active":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Agency is {db_agency.status}. Only active agencies allow registration for your role."
+                    )
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -142,6 +152,19 @@ def login(
             detail="User does not belong to the selected agency"
         )
 
+     # Role-based agency status validation
+    if user.agency_id:
+        agency = db.query(models.Agency).filter(models.Agency.id == user.agency_id).first()
+        if agency:
+            # SUPER_ADMIN can login regardless of agency status
+            # Other roles (ADMIN, SUPERVISOR, IT_COMPANY, DRIVER) can only login if agency is active
+            if user.role not in [models.UserRole.SUPER_ADMIN]:
+                if agency.status != "Active":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Agency is {agency.status}. Only active agencies allow login for your role."
+                    )
+
     # IT company validation (only if provided)
     if login_data.it_company_id:
         if str(user.company_id) != login_data.it_company_id:
@@ -177,7 +200,16 @@ def login(
 
 @router.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(auth.get_current_active_user)):
-    return current_user
+    agency = current_user.agency  # ✅ relationship access
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "name": current_user.name,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+        "agency_status": agency.status if agency else None,
+    }
 
 @router.post("/test-register")
 def test_register(data: dict):

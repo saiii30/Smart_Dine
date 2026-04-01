@@ -1,14 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback,useRef } from 'react'
 import { X, Navigation } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import axios from 'axios'
+
 import API from '../api/axiosConfig'
 
-// // Fix default marker icon issue in Leaflet with Webpack/Vite
-// import icon from 'leaflet/dist/images/marker-icon.png'
-// import iconShadow from 'leaflet/dist/images/marker-shadow.png'
 
 let DefaultIcon = L.icon({
     iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -27,6 +24,13 @@ const startIcon = new L.Icon({
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
     shadowSize: [41, 41]
+})
+
+const pickedPassengerIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1828/1828640.png', // ✅ different icon (tick / completed)
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24],
 })
 
 const endIcon = new L.Icon({
@@ -66,57 +70,66 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
     const [startCoords, setStartCoords] = useState<[number, number] | null>(null)
     const [endCoords, setEndCoords] = useState<[number, number] | null>(null)
     const [routePath, setRoutePath] = useState<[number, number][]>([])
-    const [pickupPoints, setPickupPoints] = useState<{ id: number, coords: [number, number], name: string }[]>([])
+    const [pickupPoints, setPickupPoints] = useState<{ id: string, coords: [number, number], name: string, phone: string, pickup: string }[]>([])
     const [loading, setLoading] = useState(true)
+    const [pickedMap, setPickedMap] = useState<{ [id: string]: boolean }>({})
+    // const [pickupInfo
+    //     , setPickupInfo] = useState<{id : string, name: string, phone: string, pickup: boolean } | null>(null)
+    // const wsRef = useRef<WebSocket | null>(null);
+    // // Animation States
+    // // Animation States Removed
 
-    // Animation States
-    // Animation States Removed
+    const getDistance = (a: [number, number], b: [number, number]) => {
+    const dx = a[0] - b[0];
+    const dy = a[1] - b[1];
+    return Math.sqrt(dx * dx + dy * dy);
+};
+
+
+// 🔥 Re-sort pickups when driver moves
+useEffect(() => {
+            if (!driverLocation || pickupPoints.length === 0) return;
+
+            setPickupPoints(prev => {
+                const picked = prev.filter(p => pickedMap[p.id]);
+                const notPicked = prev.filter(p => !pickedMap[p.id]);
+
+                const sorted = notPicked.sort((a, b) => {
+                    const d1 = getDistance(driverLocation, a.coords);
+                    const d2 = getDistance(driverLocation, b.coords);
+                    return d1 - d2;
+                });
+
+                return [...sorted, ...picked]; // picked goes last
+            });
+
+}, [driverLocation, pickedMap]);
+
 
     // Fetch Data
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true)
 
-            // Geocoding Helper
+
             const fetchCoords = async (query: string) => {
-                if (!query) return null
-                const cleanQuery = query.trim().toLowerCase()
+    if (!query) return null
 
-                // Local Directory for Chennai Locations (Robust Fallback)
-                const locationMap: Record<string, [number, number]> = {
-                    "tambaram": [12.9229, 80.1275],
-                    "sholinganallur": [12.9010, 80.2279],
-                    "guindy": [13.0067, 80.2206],
-                    "velachery": [12.9815, 80.2180],
-                    "mylapore": [13.0368, 80.2676],
-                    "adyar": [13.0012, 80.2565],
-                    "t.nagar": [13.0418, 80.2341],
-                    "porur": [13.0382, 80.1565],
-                    "chromepet": [12.9516, 80.1462],
-                    "pallavaram": [12.9675, 80.1491],
-                    "thiruvanmiyur": [12.9830, 80.2594],
-                    "medavakkam": [12.9171, 80.1923],
-                    "navalur": [12.8439, 80.2304],
-                    "siruseri": [12.8256, 80.2223],
-                    "kelambakkam": [12.7876, 80.2206],
-                    "chennai": [13.0827, 80.2707]
-                }
+    try {
+        const res = await API.get(`http://127.0.0.1:8000/geocode?q=${encodeURIComponent(query)}`)
 
-                // Check for exact or partial match in local map
-                for (const [key, coords] of Object.entries(locationMap)) {
-                    if (cleanQuery.includes(key)) return coords
-                }
+        if (res.data && res.data.length > 0) {
+            return [
+                parseFloat(res.data[0].lat),
+                parseFloat(res.data[0].lon)
+            ] as [number, number]
+        }
+        } catch (e) {
+        console.warn("Geocoding failed", e)
+        }
 
-                try {
-                    let res = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanQuery)}`)
-                    if (res.data && res.data.length > 0) return [parseFloat(res.data[0].lat), parseFloat(res.data[0].lon)] as [number, number]
-
-                    res = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanQuery + ", Chennai")}`)
-                    if (res.data && res.data.length > 0) return [parseFloat(res.data[0].lat), parseFloat(res.data[0].lon)] as [number, number]
-
-                } catch (e) { console.warn("Geocoding failed", e) }
-                return null
-            }
+            return null
+        }
 
             const start = await fetchCoords(schedule.starting_point)
             const end = await fetchCoords(schedule.end_point)
@@ -125,10 +138,12 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
             let driver: [number, number] | null = null
             if (schedule.driver_id) {
                 try {
-                    const res = await API.get(`/locations/drivers/${schedule.driver_id}/current`)
+                    const res = await API.get(`mobile/locations/${schedule.driver_id}`)
                     if (res.data && res.data.latitude && res.data.longitude) {
                         driver = [res.data.latitude, res.data.longitude]
+                      
                     }
+
                 } catch (e) {
                     console.warn("Could not fetch initial driver location", e)
                 }
@@ -139,31 +154,35 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
             setDriverLocation(driver)
 
             // Generate Pickups
-            const points: { id: number, coords: [number, number], name: string }[] = []
+            const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
             if (schedule.route_points && Array.isArray(schedule.route_points) && schedule.route_points.length > 0) {
                 schedule.route_points.forEach((rp: any, i: number) => {
                     if (rp.starting_lat && rp.starting_lng) {
-                        points.push({
-                            id: i,
-                            coords: [rp.starting_lat, rp.starting_lng],
-                            name: rp.passenger_name || `Passenger ${i + 1}`
+                       points.push({
+                        id: String(rp.passenger_id),
+                        coords: [rp.starting_lat, rp.starting_lng],
+                        name: rp.passenger_name,
+                        phone: rp.passenger_phone,
+                        pickup: rp.starting_point
                         })
+
+                        console.log(points)
                     }
                 })
-            } else if (start) {
-                const count = schedule.passenger_count || 1
-                points.push({ id: 0, coords: start, name: "Pickup Point (Main)" })
-                for (let i = 1; i < count; i++) {
-                    const offsetLat = (Math.random() - 0.5) * 0.005
-                    const offsetLon = (Math.random() - 0.5) * 0.005
-                    points.push({
-                        id: i,
-                        coords: [start[0] + offsetLat, start[1] + offsetLon],
-                        name: `Passenger ${i + 1} (Area Point)`
-                    })
-                }
+            } 
+            let sortedPoints = points;
+
+            if (driver) {
+                sortedPoints = points.sort((a, b) => {
+                    const d1 = getDistance(driver, a.coords);
+                    const d2 = getDistance(driver, b.coords);
+                    return d1 - d2;
+                });
             }
-            setPickupPoints(points)
+
+            setPickupPoints(sortedPoints);
+
+           
 
             // Fetch Route & Start Animation with Robust Fallback
             if (start && end) {
@@ -187,6 +206,7 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
                     if (data && data.routes && data.routes.length > 0) {
                         const path = data.routes[0].geometry.coordinates.map((coord: any) => [coord[1], coord[0]])
                         setRoutePath(path)
+
                     } else {
                         throw new Error("No routes found")
                     }
@@ -202,58 +222,51 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
         fetchData()
     }, [schedule])
 
-    // Live Polling for Driver Location
-    useEffect(() => {
-        if (!schedule.driver_id) return
+    
 
-        let isPollingActive = true;
+useEffect(() => {
+    if (!schedule.driver_id) return;
 
-        console.log("-----------------------------------------");
-        console.log("🚩 FLAG STATUS: isPollingActive =", isPollingActive, "(Map currently OPEN)");
-        console.log("Map Opened: Started polling location for driver", schedule.driver_id);
-        console.log("-----------------------------------------");
+    const ws = new WebSocket(`ws://127.0.0.1:8000/api/mobile/ws/${schedule.driver_id}`);
 
-        const pollDriverLocation = async () => {
+    ws.onopen = () => {
+        console.log("✅ Connected");
+    };
 
-            if (!isPollingActive) {
-                console.log("Blocked! Map is closed, API will not be called.");
-                return;
+    ws.onmessage = (event) => {
+        console.log("🔥 data", event.data);
+
+        const data = JSON.parse(event.data);
+
+        console.log(data.route_points)
+
+        if (data.type === "location_update") {
+            // 🔥 THIS IS IMPORTANT
+            setDriverLocation([data.latitude, data.longitude]);
+
+
+        const routePoints = Array.isArray(data.route_points)
+            ? data.route_points
+            : data.route_points ? [data.route_points] : [];
+
+                if (routePoints.length > 0) {
+            routePoints.forEach((p: any) => {
+            console.log("🟢 WS Pickup:", p.passenger_id, p.pickup);
+
+            setPickedMap(prev => ({
+                ...prev,
+                [String(p.passenger_id).trim()]: p.pickup === true
+            }));
+            });
             }
+                       
 
-            console.log("Polling... fetching latest location from backend");
-            try {
-                const res = await API.get(`/locations/drivers/${schedule.driver_id}/current`)
-                if (res.data && res.data.latitude && res.data.longitude) {
-                    setDriverLocation([res.data.latitude, res.data.longitude])
-                }
-            } catch (e) {
-
-                console.log("Polling error:", e);
-            }
         }
+    };
 
-        // Poll every 2 seconds
-        const interval = setInterval(pollDriverLocation, 2000)
+    return () => ws.close();
 
-        // Idhudhaan Cleanup Function (Map Close aagumbodhu mattum idi call aagum)
-        return () => {
-
-            isPollingActive = false;
-
-            console.log("-----------------------------------------");
-            console.log("🚩 FLAG STATUS CHANGED! isPollingActive =", isPollingActive, "(Map is now CLOSED)");
-            console.log("Map Closed: clearInterval triggered! Polling stopped completely.");
-            console.log("-----------------------------------------");
-
-            clearInterval(interval);
-        }
-    }, [schedule.driver_id])
-
-    // Animation Loop
-    // Animation Loop Removed
-
-    // Replay Function
-    // Replay Function Removed
+}, [schedule.driver_id]);
 
     // Bounds Logic
     const [bounds, setBounds] = useState<L.LatLngBoundsExpression | null>(null)
@@ -453,21 +466,48 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
 
                             <BoundsUpdater bounds={bounds} />
 
-                            {pickupPoints.map(p => (
-                                <Marker key={p.id} position={p.coords} icon={passengerIcon}>
-                                    <Popup>{p.name}</Popup>
-                                </Marker>
-                            ))}
+                          {pickupPoints.map((p) => {
+
+  const isPicked = pickedMap[String(p.id)] === true
+  return (
+    <Marker
+      key={p.id}
+      position={p.coords}
+      icon={isPicked ? pickedPassengerIcon : passengerIcon}
+    >
+      <Popup>
+        <div className="text-sm space-y-1">
+          <div><strong>Name:</strong> {p.name}</div>
+          <div><strong>Phone:</strong> {p.phone}</div>
+          <div><strong>Pickup:</strong><br />{p.pickup}</div>
+          <div>
+            <strong>Status:</strong> {isPicked ? 'Picked ✅' : 'Pending ⏳'}
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  )
+})}
 
                             {startCoords && (
                                 <Marker position={startCoords} icon={startIcon}>
-                                    <Popup>Start</Popup>
+                                    <Popup>
+  <div className="text-sm">
+    <strong>Start Point:</strong><br />
+    {schedule.starting_point || 'No address'}
+  </div>
+</Popup>
                                 </Marker>
                             )}
 
                             {endCoords && (
                                 <Marker position={endCoords} icon={endIcon}>
-                                    <Popup>End</Popup>
+                                    <Popup>
+  <div className="text-sm">
+    <strong>End Point:</strong><br />
+    {schedule.end_point || 'No address'}
+  </div>
+</Popup>
                                 </Marker>
                             )}
 
