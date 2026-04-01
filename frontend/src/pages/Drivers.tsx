@@ -13,11 +13,11 @@ const Drivers = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-
+ 
   useEffect(() => {
     fetchDrivers()
   }, [])
-
+ 
   const fetchDrivers = async () => {
     try {
       const response = await axios.get('/api/drivers/')
@@ -33,16 +33,16 @@ const Drivers = () => {
     setEditingDriver(null)
     setIsModalOpen(true)
   }
-
+ 
   const handleEdit = (driver: Driver) => {
     setEditingDriver(driver)
     console.log('Editing driver:', driver)
     setIsModalOpen(true)
   }
-
+ 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this driver?')) return
-
+ 
     try {
       await axios.delete(`/api/drivers/${id}`)
       fetchDrivers()
@@ -70,17 +70,17 @@ const Drivers = () => {
       alert(errorMessage)
     }
   }
-
+ 
   const handleModalClose = () => {
     setIsModalOpen(false)
     setEditingDriver(null)
   }
-
+ 
   const handleModalSuccess = () => {
     fetchDrivers()
     handleModalClose()
   }
-
+ 
   // Filter drivers based on search query (driver name and phone number)
   const filteredDrivers = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -93,7 +93,7 @@ const Drivers = () => {
       return nameMatch || phoneMatch
     })
   }, [drivers, searchQuery])
-
+ 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -101,7 +101,7 @@ const Drivers = () => {
       </div>
     )
   }
-
+ 
   return (
     <div>
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
@@ -129,7 +129,7 @@ const Drivers = () => {
           )}
         </div>
       </div>
-
+ 
       {filteredDrivers.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <User className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
@@ -174,7 +174,7 @@ const Drivers = () => {
                   {driver.status || 'Active'}
                 </span>
               </div>
-
+ 
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Phone:</span>
@@ -249,7 +249,7 @@ const Drivers = () => {
           ))}
         </div>
       )}
-
+ 
       {isModalOpen && (
         <DriverModal
           driver={editingDriver}
@@ -260,6 +260,6 @@ const Drivers = () => {
     </div>
   )
 }
-
+ 
 export default Drivers
-
+ 
