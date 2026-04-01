@@ -177,7 +177,16 @@ def login(
 
 @router.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(auth.get_current_active_user)):
-    return current_user
+    agency = current_user.agency  # ✅ relationship access
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "name": current_user.name,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+        "agency_status": agency.status if agency else None,
+    }
 
 @router.post("/test-register")
 def test_register(data: dict):

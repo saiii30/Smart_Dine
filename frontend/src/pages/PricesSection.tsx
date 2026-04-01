@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
+import Swal from "sweetalert2";
 
 const plans = [
   {
@@ -36,6 +37,7 @@ export default function PriceSelection() {
   const [loading, setLoading] = useState(false);
   const { user, token } = useAuth();
   const parent_id = localStorage.getItem('selectedAgencyId');
+   const { logout } = useAuth();
 
 
   const handleSelectPlan = async (planId: string) => {
@@ -57,11 +59,21 @@ export default function PriceSelection() {
 );
 
 
-    console.log("Plan updated successfully");
-    alert(`You have selected the ${planId} plan.`);
+    Swal.fire({
+  icon: "success",
+  title: "Plan Activated!",
+  text: "Please login again to continue",
+  confirmButtonText: "Login Again"
+}).then(() => {
+  logout()
+})
   } catch (err) {
     console.error("Error updating plan", err);
-    alert("Failed to update plan. Please try again.");
+    Swal.fire({
+      icon: "error",
+      title: "Plan Update Failed",
+      text: "There was an error updating your plan. Please try again.",
+    });
   } finally {
     setLoading(false);
   }

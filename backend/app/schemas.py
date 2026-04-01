@@ -60,6 +60,7 @@ class UserResponse(BaseModel):
     contact_number: Optional[str] = None
     role: Optional[str] = None
     is_active: bool
+    agency_status: Optional[str] = None
     last_login: Optional[datetime] = None
     created_at: Optional[datetime] =None
     updated_at: Optional[datetime] = None

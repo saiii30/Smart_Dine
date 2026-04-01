@@ -5,6 +5,7 @@ export interface User {
   company_name?: string
   role: string
   is_active: boolean
+  agency_status?: string
   created_at: string
 }
 

@@ -120,43 +120,50 @@ const Layout = () => {
   const isSupervisor = user?.role === 'SUPERVISOR'
   const isDriver = user?.role === 'DRIVER'
   const isItCompany = user?.role === 'IT_COMPANY'
+  const isAgencyActive = user?.agency_status === "Active";
 
   // Show unauthorized screen for drivers
   if (isDriver) {
     return <DriverUnauthorizedScreen />
   }
 
-  const navigation = useMemo(() => [
+   const navigation = useMemo(() => {
+  // ❌ If SUPER_ADMIN and NOT ACTIVE → only show Price
+  if (isSuperAdmin && !isAgencyActive) {
+    return [
+      { name: "Prices", href: "/prices", icon: Wallet }
+    ];
+  }
+
+  // ✅ Otherwise normal menu
+  return [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
 
     ...(isAdmin || isSupervisor || isSuperAdmin
-      ? [{ name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
-    { name: 'Drivers', href: '/drivers', icon: Users },]
+      ? [
+          { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
+          { name: 'Drivers', href: '/drivers', icon: Users },
+        ]
       : []),
-    // { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
-    // { name: 'Drivers', href: '/drivers', icon: Users },
+
     { name: 'Trips', href: '/trips', icon: RouteIcon },
     { name: 'Live Tracking', href: '/live-tracking', icon: MapPin },
-    // Hide Notifications for IT Company users - they only see trip notifications on dashboard
-    ...(!isItCompany ? [{ name: 'Notifications', href: '/notifications', icon: Bell, badge: notificationCount }] : []),
-    // Hide Settings for IT Company users
-    ...(!isItCompany ? [{ name: 'Settings', href: '/settings', icon: Settings }] : []),
+    { name: 'Notifications', href: '/notifications', icon: Bell, badge: notificationCount },
+    { name: 'Settings', href: '/settings', icon: Settings },
 
-    
-
-
-    ...((isAdmin || isSuperAdmin || isSupervisor) ? [
-
-
-    { name : "It Companies", href: "/ITCompanyDashboard", icon: Building2 },
-
-      ] : []),
-    
+    ...(isAdmin || isSuperAdmin || isSupervisor
+      ? [{ name: "It Companies", href: "/ITCompanyDashboard", icon: Building2 }]
+      : []),
 
     ...(isSuperAdmin
-      ? [{ name: 'Users', href: '/users', icon: Users },{ name: "Prices", href: "/prices", icon: Wallet   }]
+      ? [
+          { name: 'Users', href: '/users', icon: Users },
+          { name: "Prices", href: "/prices", icon: Wallet }
+        ]
       : []),
-  ], [notificationCount, isSuperAdmin, isItCompany])
+  ];
+}, [notificationCount, isSuperAdmin, isAgencyActive]);
+
 
   const isActive = (path: string) => location.pathname === path
 
