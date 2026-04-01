@@ -5,6 +5,7 @@ export interface User {
   company_name?: string
   role: string
   is_active: boolean
+  agency_status?: string
   created_at: string
 }
 
@@ -161,9 +162,6 @@ export interface RoutePoint {
   start_point: string
   start_lat: number
   start_lng: number
-  end_point: string
-  end_lat: number
-  end_lng: number
 }
 
 export interface Trip {

@@ -6,7 +6,7 @@ import AuthLayout from "../components/AuthLayout";
 
 // Create an Axios instance with default config
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  baseURL: 'http://127.0.0.1:8000',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -45,14 +45,14 @@ const Login = () => {
   //   { id: 'it3', name: 'IT Company3' },
   // ];
 
-  const { login } = useAuth();
+  const { user, logout ,login} = useAuth()
   const navigate = useNavigate();
 
   // Fetch agencies on component mount
   useEffect(() => {
     const fetchAgencies = async () => {
       try {
-        const response = await api.get("/auth/agencies");
+        const response = await api.get("api/auth/agencies");
         setAgencies(response.data);
       } catch (err) {
         console.error("Error fetching agencies:", err);
@@ -68,7 +68,7 @@ const Login = () => {
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        const response = await api.get("/companies/api/companies/dropdown");
+        const response = await api.get("/api/companies/dropdown");
        setItCompanies(response.data);
       } catch (err) {
         console.error("Error fetching companies:", err);
@@ -92,27 +92,7 @@ const Login = () => {
     }
   };
 
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   setError("");
-  //   setLoading(true);
 
-  //   try {
-  //     // For IT login, use the chosen IT company id as agency_id payload so backend receives a reference
-  //     const agencyPayload = accountType === 'it' ? formData.itCompanyId : formData.agencyId;
-  //     await login({
-  //       username: formData.username,
-  //       password: formData.password,
-  //       agency_id: agencyPayload,
-  //     });
-  //     navigate("/dashboard");
-  //   } catch (err: any) {
-  //     console.error("Login error:", err);
-  //     setError(err.response?.data?.detail || "Failed to login. Please check your credentials.");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -134,9 +114,31 @@ const Login = () => {
 
     console.log("Payload:", payload);
 
-    await login(payload);
+    const loggedInUser: any = await login(payload)
 
-    navigate("/dashboard");
+console.log("USER DATA:", loggedInUser)
+console.log("AGENCY STATUS:", loggedInUser?.agency_status)
+
+const role = loggedInUser?.role
+const status = loggedInUser?.agency_status?.toLowerCase()
+
+console.log("ROLE:", role)
+console.log("STATUS:", status)
+
+// 🔥 ONLY for SUPER_ADMIN
+if (role === "SUPER_ADMIN") {
+  if (status === "inactive") {
+    navigate("/prices")
+  } else {
+    navigate("/dashboard")
+  }
+}
+
+// 🔥 For ADMIN / SUPERVISOR / others
+else {
+  navigate("/dashboard")
+}
+
 
   } catch (err: any) {
     console.error("Login error:", err);

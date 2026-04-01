@@ -6,9 +6,9 @@ import { useAuth } from '../contexts/AuthContext'
 
 export interface AppUser {
   id: string
-  full_name: string
+  name: string
   email: string
-  role: 'ADMIN' | 'SUPERVISOR' | 'DRIVER' | string
+  role: 'ADMIN' | 'SUPERVISOR' | 'DRIVER' | "IT_COMPANY" | string
   company_name: string
 }
 
@@ -47,16 +47,18 @@ const fetchUsers = async () => {
       `http://127.0.0.1:8000/users/${parentId}`
     )
 
-    setUsers(
-      res.data.filter(
-        (u: AppUser) => loggedInUser ? u.id !== loggedInUser.id.toString() : true
-      )
+    // Filter users: exclude logged-in user + only IT_COMPANY or DRIVER roles
+    const filteredUsers = res.data.filter((u: AppUser) => 
+      (loggedInUser ? u.id !== loggedInUser.id.toString() : true) &&
+      (u.role === "ADMIN" || u.role === "SUPERVISOR")
     )
+
+    setUsers(filteredUsers)
+    console.log("users", filteredUsers)
   } catch (err) {
     console.error("Failed to fetch users:", err)
   }
 }
-
 
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -77,20 +79,14 @@ const fetchUsers = async () => {
 
 
   const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) return users
-    const q = searchQuery.toLowerCase()
-    return users.filter(
-      u =>
-        u.full_name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q) ||
-        u.company_name.toLowerCase().includes(q)
-        
-    )
+  const q = searchQuery.toLowerCase().trim()
 
-  
-    
-  }, [users, searchQuery])
+  return users.filter(u =>
+    `${u.name} ${u.email} ${u.role} ${u.company_name}`
+      .toLowerCase()
+      .includes(q)
+  )
+}, [users, searchQuery])
 
   const handleDelete = async (id: string) => {
   if (!confirm('Are you sure?')) return
@@ -143,7 +139,7 @@ const fetchUsers = async () => {
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1 cursor-pointer" >
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{user.full_name}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{user.name}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
                   {/* ROLE SWITCH */}
 <div className="mt-3 flex items-center justify-between">
@@ -158,7 +154,6 @@ const fetchUsers = async () => {
   >
     <option value="ADMIN">ADMIN</option>
     <option value="SUPERVISOR">SUPERVISOR</option>
-    <option value="DRIVER">DRIVER</option>
   </select>
 </div>
 
