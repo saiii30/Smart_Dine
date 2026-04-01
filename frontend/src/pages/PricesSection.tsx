@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
 import Swal from "sweetalert2";
+import { useNavigate } from "react-router-dom"
 
 const plans = [
   {
@@ -37,47 +38,95 @@ export default function PriceSelection() {
   const [loading, setLoading] = useState(false);
   const { user, token } = useAuth();
   const parent_id = localStorage.getItem('selectedAgencyId');
-   const { logout } = useAuth();
+   const { logout,refreshUser  } = useAuth();
+   const navigate = useNavigate()
 
 
-  const handleSelectPlan = async (planId: string) => {
-  if (!user || !token) {
-    alert("User not logged in!");
-    return;
-  }
+   const handleSelectPlan = async (planId: string) => {
+  if (!user || !token) return;
 
-  setSelectedPlan(planId);
+  const confirm = await Swal.fire({
+    icon: "question",
+    title: "Confirm Plan",
+    text: "Do you want to subscribe this plan?",
+    showCancelButton: true,
+    confirmButtonText: "Yes",
+  });
+
+  if (!confirm.isConfirmed) return;
+
   setLoading(true);
 
   try {
-    await axios.put(
-  "http://127.0.0.1:8000/api/agency/plan",
-  {
-    plan_id: planId,
-    parent_id: parent_id,
-  }
-);
+    await axios.put("http://127.0.0.1:8000/api/agency/plan", {
+      plan_id: planId,
+      parent_id: parent_id,
+    });
+
+    await Swal.fire({
+      icon: "success",
+      title: "Subscribed!",
+      text: "Plan activated successfully",
+      confirmButtonText: "OK",
+    });
 
 
-    Swal.fire({
-  icon: "success",
-  title: "Plan Activated!",
-  text: "Please login again to continue",
-  confirmButtonText: "Login Again"
-}).then(() => {
-  logout()
-})
+    
+    // 🔥 IMPORTANT PART
+    await refreshUser();   // 👉 update user (agency_status = Active)
+
+    navigate("/dashboard"); // 👉 go to dashboard
+
   } catch (err) {
-    console.error("Error updating plan", err);
     Swal.fire({
       icon: "error",
-      title: "Plan Update Failed",
-      text: "There was an error updating your plan. Please try again.",
+      title: "Failed",
+      text: "Plan update failed",
     });
   } finally {
     setLoading(false);
   }
 };
+
+
+//   const handleSelectPlan = async (planId: string) => {
+//   if (!user || !token) {
+//     alert("User not logged in!");
+//     return;
+//   }
+
+//   setSelectedPlan(planId);
+//   setLoading(true);
+
+//   try {
+//     await axios.put(
+//   "http://127.0.0.1:8000/api/agency/plan",
+//   {
+//     plan_id: planId,
+//     parent_id: parent_id,
+//   }
+// );
+
+
+//     Swal.fire({
+//   icon: "success",
+//   title: "Plan Activated!",
+//   text: "Please login again to continue",
+//   confirmButtonText: "Login Again"
+// }).then(() => {
+//   logout()
+// })
+//   } catch (err) {
+//     console.error("Error updating plan", err);
+//     Swal.fire({
+//       icon: "error",
+//       title: "Plan Update Failed",
+//       text: "There was an error updating your plan. Please try again.",
+//     });
+//   } finally {
+//     setLoading(false);
+//   }
+// };
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:to-gray-950 py-20 px-6">

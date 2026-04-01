@@ -138,7 +138,7 @@ useEffect(() => {
             let driver: [number, number] | null = null
             if (schedule.driver_id) {
                 try {
-                    const res = await API.get(`/locations/drivers/${schedule.driver_id}/current`)
+                    const res = await API.get(`mobile/locations/${schedule.driver_id}`)
                     if (res.data && res.data.latitude && res.data.longitude) {
                         driver = [res.data.latitude, res.data.longitude]
                       

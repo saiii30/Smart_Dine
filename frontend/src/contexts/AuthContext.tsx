@@ -22,6 +22,7 @@ interface AuthContextType {
   ) => Promise<void>;
   logout: () => void;
   loading: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -126,6 +127,29 @@ const login = async (data: LoginPayload) => {
     }
   };
 
+//   const refreshUser = async () => {
+//   try {
+//     const res = await axios.get("/api/auth/me") // your API
+//     alert("User refreshed: " + JSON.stringify(res.data))
+//     setUser(res.data)
+//   } catch (err) {
+//     console.error("Failed to refresh user", err)
+//   }
+// }
+
+const refreshUser = async () => {
+  try {
+    const res = await axios.get("http://127.0.0.1:8000/api/auth/me")
+
+    console.log("REFRESH USER:", res.data) // debug
+
+    setUser({ ...res.data }) // force new object
+
+  } catch (err) {
+    console.error("Failed to refresh user", err)
+  }
+}
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -138,7 +162,7 @@ const login = async (data: LoginPayload) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, login, register, logout, loading }}
+      value={{ user, token, login, register, logout, loading, refreshUser }}
     >
       {children}
     </AuthContext.Provider>

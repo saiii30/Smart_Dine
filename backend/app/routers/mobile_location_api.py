@@ -7,6 +7,8 @@ import json
 import asyncio
 from app import models
 from app.database import get_db
+from datetime import datetime, timezone
+
  
 router = APIRouter(tags=["Mobile Location"])
  
@@ -22,13 +24,17 @@ def upsert_location_mobile(
     longitude: float = Form(...),
     accuracy: Optional[float] = Form(None),
     speed: Optional[float] = Form(None),
+    start_date: Optional[str] = Form(None),
+    end_date: Optional[str] = Form(None),
+    is_active: Optional[bool] = Form(True),
+    company_id: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
     Simple upsert location - store what frontend sends
     """
     try:
-        print(f"📍 Received location data:")
+        print(f" Received location data:")
         print(f"  driver_id: {driver_id}")
         print(f"  trip_id: {trip_id}")
         print(f"  agency_id: {agency_id}")
@@ -37,11 +43,24 @@ def upsert_location_mobile(
         print(f"  accuracy: {accuracy}")
         print(f"  speed: {speed}")
        
-        # Check if location exists for this driver/trip
+        # inside upsert_location_mobile
+        if start_date:
+            try:
+                start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            except ValueError:
+                start_date = None
+ 
+        if end_date:
+            try:
+               
+                end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            except ValueError:
+                end_date = None
+                # Check if location exists for this driver/trip
         existing_location = db.query(models.DriverLocation).filter(
-            models.DriverLocation.driver_id == driver_id,
-            models.DriverLocation.trip_id == trip_id
-        ).first()
+                    models.DriverLocation.driver_id == driver_id,
+                    models.DriverLocation.trip_id == trip_id
+                ).first()
        
         if existing_location:
             # Update existing record
@@ -49,8 +68,8 @@ def upsert_location_mobile(
             existing_location.longitude = longitude
             existing_location.accuracy = accuracy
             existing_location.speed = speed
-            existing_location.agency_id = agency_id  # ✅ Update agency_id
-            existing_location.timestamp = datetime.utcnow()
+            existing_location.agency_id = agency_id  # Update agency_id
+            existing_location.timestamp = datetime.now(timezone.utc)
             db.commit()
             message = "Location updated"
         else:
@@ -59,11 +78,15 @@ def upsert_location_mobile(
                 driver_id=driver_id,
                 trip_id=trip_id,
                 agency_id=agency_id,
+                company_id=company_id,
                 latitude=latitude,
                 longitude=longitude,
                 accuracy=accuracy,
                 speed=speed,
-                timestamp=datetime.utcnow()
+                start_date=start_date,
+                end_date=end_date,
+                is_active=True,
+                timestamp=datetime.now(timezone.utc)
             )
             db.add(new_location)
             db.commit()
@@ -74,7 +97,7 @@ def upsert_location_mobile(
             "message": message,
             "driver_id": driver_id,
             "trip_id": trip_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
        
     except Exception as e:
@@ -297,10 +320,50 @@ def get_locations_simple(
        
     except Exception as e:
         raise HTTPException(500, f"Error retrieving locations: {str(e)}")
+
+
  
 # =========================
-# WEBSOCKET - LIVE TRACKING
+# PUT - DEACTIVATE LOCATION TRACKING
 # =========================
+@router.put("/location/deactivate/{driver_id}")
+def deactivate_location_tracking(
+    driver_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Deactivate location tracking for a driver (sets is_active to false)
+    """
+    try:
+        # Find the most recent active location record for this driver
+        location = db.query(models.DriverLocation).filter(
+            models.DriverLocation.driver_id == driver_id,
+            models.DriverLocation.is_active == True
+        ).order_by(models.DriverLocation.timestamp.desc()).first()
+       
+        if not location:
+            raise HTTPException(404, f"No active location records found for driver: {driver_id}")
+       
+        # Update the record to inactive
+        location.is_active = False
+        location.end_date = datetime.now(timezone.utc)
+       
+        db.commit()
+       
+        return {
+            "status": "success",
+            "message": f"Deactivated location tracking for driver: {driver_id}",
+            "driver_id": driver_id,
+            "location_id": location.id,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+       
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Error deactivating location tracking: {str(e)}")
+ 
 @router.websocket("/ws/{driver_id}")
 async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
     """
@@ -366,41 +429,3 @@ async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
         db.close()
         print(" DB session closed")
  
-"""
-# =========================
-# WEBSOCKET - PASSENGER TRACKING
-# =========================
-@router.websocket("/ws/passenger/{trip_id}")
-async def websocket_passenger_tracking(websocket: WebSocket, trip_id: str):
-   
-    WebSocket endpoint for passengers to track driver location
-   
-    await websocket.accept()
-    print(f" Passenger WebSocket connected for trip: {trip_id}")
-   
-    try:
-        while True:
-            # In a real implementation, you would:
-            # 1. Subscribe to driver location updates for this trip
-            # 2. Send real-time updates when driver moves
-           
-            # For now, send periodic updates
-            await websocket.receive_text()  # Keep connection alive
-           
-            # Get latest driver location
-            # This would be replaced with real-time broadcasting
-            status_data = {
-                "type": "trip_status",
-                "trip_id": trip_id,
-                "message": "Driver location tracking active",
-                "timestamp": datetime.utcnow().isoformat()
-            }
-           
-            await websocket.send_text(json.dumps(status_data))
-           
-    except WebSocketDisconnect:
-        print(f" Passenger WebSocket disconnected for trip: {trip_id}")
-    except Exception as e:
-        print(f" Passenger WebSocket error for {trip_id}: {str(e)}")
-        await websocket.close()
-"""

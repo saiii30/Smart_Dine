@@ -100,7 +100,7 @@ const labelClass =
 
   const fetchCompanies = async () => {
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/api/companies/api/companies/trip/dropdown/?agency_id=${agencyId}`)
+      const res = await axios.get(`http://127.0.0.1:8000/api/companies/trip/dropdown/?agency_id=${agencyId}`)
       
       setCompanies(res.data) // [{id, company_name}]
     } catch (err) {

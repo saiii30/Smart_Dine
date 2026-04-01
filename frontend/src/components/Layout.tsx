@@ -126,16 +126,14 @@ const Layout = () => {
   if (isDriver) {
     return <DriverUnauthorizedScreen />
   }
+ const navigation = (() => {
 
-   const navigation = useMemo(() => {
-  // ❌ If SUPER_ADMIN and NOT ACTIVE → only show Price
   if (isSuperAdmin && !isAgencyActive) {
     return [
       { name: "Prices", href: "/prices", icon: Wallet }
     ];
   }
 
-  // ✅ Otherwise normal menu
   return [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
 
@@ -162,8 +160,8 @@ const Layout = () => {
         ]
       : []),
   ];
-}, [notificationCount, isSuperAdmin, isAgencyActive]);
 
+})(); // 🔥 THIS () IS IMPORTANT
 
   const isActive = (path: string) => location.pathname === path
 
