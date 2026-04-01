@@ -44,6 +44,11 @@ const Notifications = () => {
     
     // Emit notification update event when component mounts to refresh the badge count
     window.dispatchEvent(new CustomEvent('notificationUpdate'))
+    
+    // Set up periodic refresh every 10 seconds for shared acknowledgements
+    const interval = setInterval(fetchNotifications, 10000)
+    
+    return () => clearInterval(interval)
   }, [selectedType, selectedSeverity])
 
   const fetchNotifications = async () => {

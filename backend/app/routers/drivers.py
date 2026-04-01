@@ -36,15 +36,30 @@ def map_driver_response(driver, user):
         agency_id=driver.agency_id,
         date_of_birth=driver.date_of_birth,
         gender=driver.gender,
-        status=driver.status,
+        blood_group=driver.blood_group,
+        aadhar_number=driver.aadhar_number,
+        driving_license_number=driver.driving_license_number,
+        license_expiry_date=driver.license_expiry_date,
+        
+        # Documents
+        aadhar_document=driver.aadhar_document,
+        driver_photo=driver.driver_photo,
+        police_verification_certificate=driver.police_verification_certificate,
+        medical_fitness_certificate=driver.medical_fitness_certificate,
+        
         verification_status=driver.verification_status,
+        status=driver.status,
+        current_address=driver.current_address,
         city=driver.city,
         state=driver.state,
         pincode=driver.pincode,
         emergency_contact_name=driver.emergency_contact_name,
         emergency_contact_number=driver.emergency_contact_number,
-        driving_license_number=driver.driving_license_number,
-        license_expiry_date=driver.license_expiry_date,
+        previous_employer_experience=driver.previous_employer_experience,
+        languages_spoken=driver.languages_spoken,
+        shift_preference=driver.shift_preference,
+        assigned_vehicle_id=driver.assigned_vehicle_id,
+        notes=driver.notes,
         is_active=user.is_active,  # Set is_active from user model
         created_at=driver.created_at,
         updated_at=driver.updated_at

@@ -23,8 +23,8 @@ const Layout = () => {
   useEffect(() => {
     fetchNotifications()
     
-    // Set up periodic refresh every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000)
+    // Set up periodic refresh every 10 seconds (more frequent for shared acknowledgements)
+    const interval = setInterval(fetchNotifications, 10000)
     
     return () => clearInterval(interval)
   }, [expirySettings]) // Add expirySettings as dependency

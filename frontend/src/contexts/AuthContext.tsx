@@ -44,13 +44,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (storedToken) {
       setToken(storedToken);
       axios.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
-      fetchUser();
     } else {
       setLoading(false);
     }
   }, []);
 
-  const fetchUser = async () => {
+  useEffect(() => {
+    if (token) {
+      fetchUser();
+    }
+  }, [token]);
+
+  /* -------------------- LOGIN -------------------- */
+  const login = async (data: LoginPayload) => {
     try {
       const res = await axios.get("http://127.0.0.1:8000/api/auth/me");
       setUser(res.data);
