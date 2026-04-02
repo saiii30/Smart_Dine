@@ -122,6 +122,31 @@ class Vehicle(Base):
     # Relationships
     user = relationship("User", back_populates="vehicles")
     trip_schedules = relationship("TripSchedule", back_populates="vehicle", cascade="all, delete-orphan")
+   
+class DriverLocation(Base):
+    __tablename__ = "driver_locations"
+   
+    id = Column(Integer, primary_key=True, index=True)
+    driver_id = Column(String, ForeignKey("drivers.id"), nullable=False)
+    agency_id = Column(String, ForeignKey("agencies.id"), nullable=False)
+    trip_id = Column(String, ForeignKey("trip_schedules.id"), nullable=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    accuracy = Column(Float, nullable=True)  # GPS accuracy in meters
+    speed = Column(Float, nullable=True)  # Speed in km/h
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    route_point = Column(JSON, nullable=True)  # Store route point data as JSON for route type trips
+    company_id = Column(String, ForeignKey("companies.id"), nullable=True)  # New field - use this
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True)
+    
+   
+    # Relationships
+    driver = relationship("Driver", back_populates="location_updates")
+    trip_schedule = relationship("TripSchedule", back_populates="location_updates")
+    company = relationship("Company", back_populates="driver_locations")
+ 
 
 class Driver(Base):
     __tablename__ = "drivers"
@@ -173,34 +198,9 @@ class Driver(Base):
     
     # Relationships
     user = relationship("User", back_populates="driver", uselist=False) # uselist=False for 1-to-1
-    location_updates = relationship("DriverLocation", back_populates="driver")
+    # location_updates = relationship("DriverLocation", back_populates="driver")  # Temporarily commented out
     trip_schedules = relationship("TripSchedule", back_populates="driver")
-    
-class DriverLocation(Base):
-    __tablename__ = "driver_locations"
-   
-    id = Column(Integer, primary_key=True, index=True)
-    driver_id = Column(String, ForeignKey("drivers.id"), nullable=False)
-    agency_id = Column(String, ForeignKey("agencies.id"), nullable=False)
-    trip_id = Column(String, ForeignKey("trip_schedules.id"), nullable=True)
-    latitude = Column(Float, nullable=False)
-    longitude = Column(Float, nullable=False)
-    accuracy = Column(Float, nullable=True)  # GPS accuracy in meters
-    speed = Column(Float, nullable=True)  # Speed in km/h
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    route_point = Column(JSON, nullable=True)  # Store route point data as JSON for route type trips
-    company_id = Column(String, ForeignKey("companies.id"), nullable=True)  # New field - use this
-    start_date = Column(DateTime(timezone=True), nullable=True)
-    end_date = Column(DateTime(timezone=True), nullable=True)
-    is_active = Column(Boolean, default=True)
-    
-   
-    # Relationships
-    driver = relationship("Driver", back_populates="location_updates")
-    trip_schedule = relationship("TripSchedule", back_populates="location_updates")
-    company = relationship("Company", back_populates="driver_locations")
  
-
 
 class Company(Base):
     __tablename__ = "companies"
@@ -223,7 +223,7 @@ class Company(Base):
     users = relationship("User", back_populates="company", cascade="all, delete-orphan")
     trip_schedules = relationship("TripSchedule", back_populates="company", cascade="all, delete-orphan")
     agency = relationship("Agency", back_populates="companies")
-    driver_locations = relationship("DriverLocation", back_populates="company")
+    # driver_locations = relationship("DriverLocation", back_populates="company")  # Temporarily commented out
 
 class Agency(Base):
     __tablename__ = "agencies"
@@ -289,7 +289,7 @@ class TripSchedule(Base):
     vehicle = relationship("Vehicle", back_populates="trip_schedules")
     driver = relationship("Driver", back_populates="trip_schedules")
     agency = relationship("Agency", back_populates="trip_schedules")
-    location_updates = relationship("DriverLocation", back_populates="trip_schedule")
+    # location_updates = relationship("DriverLocation", back_populates="trip_schedule")  # Temporarily commented out
     
     def update_status_based_on_date(self):
         """Update the trip status based on current date and time"""

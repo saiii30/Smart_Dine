@@ -28,7 +28,7 @@ class UserBase(BaseModel):
     password_hash: Optional[str] = None  # Include to indicate if password exists (don't expose actual hash)
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserCreate(UserBase):
     password: str
@@ -386,7 +386,8 @@ class DriverResponse(BaseModel):
     updated_at: Optional[datetime] = None
    
     class Config:
-        orm_mode = True
+        from_attributes = True
+
 # Location Tracking Schemas
 class LocationUpdate(BaseModel):
     latitude: float
@@ -475,7 +476,7 @@ class CompanyResponse(BaseModel):
     updated_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class CompanyDropdown(BaseModel):
     id: str
@@ -801,7 +802,7 @@ class TripScheduleResponse(BaseModel):
         return v
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class TripCreate(TripScheduleBase):
     schedules: Optional[List[TripScheduleCreate]] = []

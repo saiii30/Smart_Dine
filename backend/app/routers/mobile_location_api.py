@@ -56,6 +56,8 @@ def upsert_location_mobile(
                 end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
             except ValueError:
                 end_date = None
+
+
                 # Check if location exists for this driver/trip
         existing_location = db.query(models.DriverLocation).filter(
                     models.DriverLocation.driver_id == driver_id,
