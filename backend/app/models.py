@@ -198,7 +198,7 @@ class Driver(Base):
     
     # Relationships
     user = relationship("User", back_populates="driver", uselist=False) # uselist=False for 1-to-1
-    # location_updates = relationship("DriverLocation", back_populates="driver")  # Temporarily commented out
+    location_updates = relationship("DriverLocation", back_populates="driver")
     trip_schedules = relationship("TripSchedule", back_populates="driver")
  
 
@@ -223,7 +223,7 @@ class Company(Base):
     users = relationship("User", back_populates="company", cascade="all, delete-orphan")
     trip_schedules = relationship("TripSchedule", back_populates="company", cascade="all, delete-orphan")
     agency = relationship("Agency", back_populates="companies")
-    # driver_locations = relationship("DriverLocation", back_populates="company")  # Temporarily commented out
+    driver_locations = relationship("DriverLocation", back_populates="company")
 
 class Agency(Base):
     __tablename__ = "agencies"
@@ -289,7 +289,7 @@ class TripSchedule(Base):
     vehicle = relationship("Vehicle", back_populates="trip_schedules")
     driver = relationship("Driver", back_populates="trip_schedules")
     agency = relationship("Agency", back_populates="trip_schedules")
-    # location_updates = relationship("DriverLocation", back_populates="trip_schedule")  # Temporarily commented out
+    location_updates = relationship("DriverLocation", back_populates="trip_schedule")
     
     def update_status_based_on_date(self):
         """Update the trip status based on current date and time"""
