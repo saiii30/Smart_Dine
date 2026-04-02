@@ -138,7 +138,8 @@ useEffect(() => {
             let driver: [number, number] | null = null
             if (schedule.driver_id) {
                 try {
-                    const res = await API.get(`mobile/locations/${schedule.driver_id}`)
+                    const res = await API.get(`mobile/locations?driver_id=${schedule.driver_id}`)
+                    // const res = await API.get(`/locations/drivers/${schedule.driver_id}/current`)
                     if (res.data && res.data.latitude && res.data.longitude) {
                         driver = [res.data.latitude, res.data.longitude]
                       
@@ -155,22 +156,74 @@ useEffect(() => {
 
             // Generate Pickups
             const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
-            if (schedule.route_points && Array.isArray(schedule.route_points) && schedule.route_points.length > 0) {
-                schedule.route_points.forEach((rp: any, i: number) => {
-                    if (rp.starting_lat && rp.starting_lng) {
-                       points.push({
-                        id: String(rp.passenger_id),
-                        coords: [rp.starting_lat, rp.starting_lng],
-                        name: rp.passenger_name,
-                        phone: rp.passenger_phone,
-                        pickup: rp.starting_point
-                        })
+            // if (schedule.route_points && Array.isArray(schedule.route_points) && schedule.route_points.length > 0) {
+            //     schedule.route_points.forEach((rp: any, i: number) => {
+            //         if (rp.pickup_lat && rp.pickup_lng) {
+            //            points.push({
+            //             id: String(rp.passenger_id),
+            //             coords: [rp.pickup_lat, rp.pickup_lng],
+            //             name: rp.passenger_name,
+            //             phone: rp.passenger_phone,
+            //             pickup: rp.pickup_point
+            //             })
 
-                        console.log(points)
-                    }
-                })
-            } 
-            let sortedPoints = points;
+            //             console.log(points)
+            //         }
+            //         else{
+            //             console.warn(`Skipping passenger ${rp.passenger_id} due to missing coordinates`)
+            //         }
+            //     })
+            // } 
+
+            // Generate Pickups
+// const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
+
+// ✅ ROUTE TRIP (has passenger coordinates)
+if (schedule.route_points && Array.isArray(schedule.route_points) && schedule.route_points.length > 0) {
+
+    schedule.route_points.forEach((rp: any) => {
+
+        if (rp.pickup_lat && rp.pickup_lng) {
+            points.push({
+                id: String(rp.passenger_id),
+                coords: [rp.pickup_lat, rp.pickup_lng],
+                name: rp.passenger_name,
+                phone: rp.passenger_phone,
+                pickup: rp.pickup_point
+            })
+        }
+
+    })
+
+} 
+// ✅ SHUTTLE TRIP (no passenger coords → use count)
+else if (start && schedule.passenger_count) {
+
+    const passengerCount = schedule.passenger_count
+
+    for (let i = 0; i < passengerCount; i++) {
+
+        const angle = (i / passengerCount) * 2 * Math.PI
+        const radius = 0.001
+
+        const lat = start[0] + radius * Math.cos(angle)
+        const lng = start[1] + radius * Math.sin(angle)
+
+        points.push({
+            id: `shuttle-${i}`,
+            coords: [lat, lng],
+            name: `Passenger ${i + 1}`,
+            phone: '',
+            pickup: schedule.starting_point
+        })
+    }
+}
+
+
+
+          let sortedPoints = null;
+          if(schedule.route_points.length > 0 ){
+             sortedPoints = points;
 
             if (driver) {
                 sortedPoints = points.sort((a, b) => {
@@ -179,6 +232,11 @@ useEffect(() => {
                     return d1 - d2;
                 });
             }
+          }
+          else{
+                sortedPoints = points;
+          }
+            
 
             setPickupPoints(sortedPoints);
 

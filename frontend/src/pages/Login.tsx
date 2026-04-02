@@ -67,7 +67,7 @@ const Login = () => {
       }
 
       try {
-        const response = await api.get(`/companies/api/companies/trip/dropdown?agency_id=${formData.agencyId}`);
+        const response = await api.get(`/api/companies/dropdown?agency_id=${formData.agencyId}`);
         setFilteredItCompanies(response.data);
       } catch (err) {
         console.error("Error fetching filtered companies:", err);

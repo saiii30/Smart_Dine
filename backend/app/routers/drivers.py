@@ -523,12 +523,12 @@ async def update_driver(
 def test_delete():
     return {"message": "Delete endpoint is working"}
 
-# Temporarily disable DriverLocation to avoid schema issues
-import sys
-if 'app.models' in sys.modules:
-    models_module = sys.modules['app.models']
-    if hasattr(models_module, 'DriverLocation'):
-        delattr(models_module, 'DriverLocation')
+# # Temporarily disable DriverLocation to avoid schema issues
+# import sys
+# if 'app.models' in sys.modules:
+#     models_module = sys.modules['app.models']
+#     if hasattr(models_module, 'DriverLocation'):
+#         delattr(models_module, 'DriverLocation')
 
 @router.delete("/{driver_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_driver(
