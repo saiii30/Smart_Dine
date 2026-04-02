@@ -198,7 +198,7 @@ class Driver(Base):
     
     # Relationships
     user = relationship("User", back_populates="driver", uselist=False) # uselist=False for 1-to-1
-    # location_updates = relationship("DriverLocation", back_populates="driver")  # Temporarily commented out
+    location_updates = relationship("DriverLocation", back_populates="driver")  # Temporarily commented out
     trip_schedules = relationship("TripSchedule", back_populates="driver")
  
 

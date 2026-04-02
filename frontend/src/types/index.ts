@@ -156,9 +156,11 @@ export interface TripSchedule {
 export interface RoutePoint {
   name: string
   phone: string
-  start_point: string
-  start_lat: number
-  start_lng: number
+  pickup_point: string
+  pickup_lat?: number
+  pickup_lng?: number
+  timestamp: string
+  ispresent: boolean
 }
 
 export interface Trip {
