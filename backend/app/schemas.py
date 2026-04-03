@@ -629,7 +629,7 @@ class TripScheduleBase(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     start_time: Optional[time] = None
-    end_time: Optional[time] = None
+    # end_time: Optional[time] = None  # Commented out in model
     starting_point: Optional[str] = None
     end_point: Optional[str] = None
     way: Optional[str] = None
@@ -650,6 +650,11 @@ class TripScheduleBase(BaseModel):
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
+    status: Optional[str] = 'scheduled'
+    one_way_start_time: Optional[time] = None
+    two_way_start_time: Optional[time] = None
+    one_way_is_active: bool = True
+    two_way_is_active: bool = False
 
 class TripScheduleCreate(TripScheduleBase):
     # Required fields for creation
@@ -658,9 +663,12 @@ class TripScheduleCreate(TripScheduleBase):
     start_date: date
     end_date: date
     start_time: time
-    end_time: time
+    # end_time: time  # Commented out in model
     passenger_count: int = 1
     trip_type: str
+    status: str = 'scheduled'
+    one_way_is_active: bool = True
+    two_way_is_active: bool = False
 
     # Validate trip type
     @field_validator('trip_type')
@@ -693,7 +701,7 @@ class TripScheduleUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     start_time: Optional[time] = None
-    end_time: Optional[time] = None
+    # end_time: Optional[time] = None  # Commented out in model
     starting_point: Optional[str] = None
     end_point: Optional[str] = None
     way: Optional[str] = None
@@ -714,6 +722,11 @@ class TripScheduleUpdate(BaseModel):
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
+    status: Optional[str] = None
+    one_way_start_time: Optional[time] = None
+    two_way_start_time: Optional[time] = None
+    one_way_is_active: Optional[bool] = None
+    two_way_is_active: Optional[bool] = None
 
       
     class Config:
@@ -733,7 +746,7 @@ class TripScheduleResponse(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     start_time: Optional[time] = None
-    end_time: Optional[time] = None
+    # end_time: Optional[time] = None  # Commented out in model
     starting_point: Optional[str] = None
     end_point: Optional[str] = None
     way: Optional[str] = None
@@ -756,6 +769,14 @@ class TripScheduleResponse(BaseModel):
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    driver_response: Optional[str] = None
+    driver_reason: Optional[str] = None
+    driver_response_at: Optional[datetime] = None
+    status_updated_at: Optional[datetime] = None
+    one_way_start_time: Optional[time] = None
+    two_way_start_time: Optional[time] = None
+    one_way_is_active: Optional[bool] = True
+    two_way_is_active: Optional[bool] = False
     
     # Relationships
     user: Optional[UserBase] = None
@@ -770,13 +791,6 @@ class TripScheduleResponse(BaseModel):
             return v.time()
         return v
         
-    @field_validator('end_time', mode='before')
-    @classmethod
-    def parse_end_time(cls, v):
-        if isinstance(v, datetime):
-            return v.time()
-        return v
-
     @field_validator('start_date', mode='before')
     @classmethod
     def parse_start_date(cls, v):
@@ -822,6 +836,13 @@ class TripUpdate(BaseModel):
 
 class TripDeclineRequest(BaseModel):
     reason: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+class DriverResponseUpdate(BaseModel):
+    driver_response: str = Field(..., pattern=r'^(accepted|declined)$')
+    driver_reason: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -930,7 +951,7 @@ class MobileLocationCreate(BaseModel):
     longitude: float
     accuracy: Optional[float] = None
     speed: Optional[float] = None
-    route_point: Optional[str] = None  # JSON string for route type trips
+    route_points: Optional[str] = None  # JSON string for route type trips
 
 class MobileLocationResponse(BaseModel):
     id: int
@@ -942,7 +963,7 @@ class MobileLocationResponse(BaseModel):
     accuracy: Optional[float] = None
     speed: Optional[float] = None
     timestamp: datetime
-    route_point: Optional[dict] = None  # Route point data as JSON for route type trips
+    route_points: Optional[dict] = None  # Route point data as JSON for route type trips
     
     class Config:
         from_attributes = True

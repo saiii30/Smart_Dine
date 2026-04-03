@@ -122,34 +122,34 @@ def transfer_route_points(trip_id: str, db: Session = Depends(get_db)):
             raise HTTPException(404, "Trip not found")
  
         print(f"Found trip: {trip.id}")
-        route_points = trip.route_points
-        print(f" Route points type: {type(route_points)}")
-        print(f"Route points value: {route_points}")
+        # Get route_points from TripSchedule
+        print(f" Route points type: {type(trip.route_points)}")
+        print(f"Route points value: {trip.route_points}")
  
         #  Handle empty
-        if not route_points:
+        if not trip.route_points:
             print("No route points found")
             return {"status": "success", "count": 0}
  
         # Convert safely
-        if isinstance(route_points, str):
+        if isinstance(trip.route_points, str):
             try:
-                route_points = json.loads(route_points)
-                print(f"JON parsed successfully")
+                route_points_data = json.loads(trip.route_points)
+                print(f"JSON parsed successfully")
             except json.JSONDecodeError:
                 raise HTTPException(400, "Invalid JSON in TripSchedule")
  
         #  Ensure list
-        if not isinstance(route_points, list):
-            print(f"Route points is not a list: {type(route_points)}")
+        if not isinstance(route_points_data, list):
+            print(f"Route points is not a list: {type(route_points_data)}")
             raise HTTPException(400, "route_points must be a list")
  
-        print(f" Processing {len(route_points)} route points")
+        print(f" Processing {len(route_points_data)} route points")
  
         # Convert safely to minimal
         minimal_points = []
  
-        for i, p in enumerate(route_points):
+        for i, p in enumerate(route_points_data):
             if not isinstance(p, dict):
                 print(f"Skipping non-dict item at index {i}: {p}")
                 continue  # skip bad data
@@ -164,18 +164,18 @@ def transfer_route_points(trip_id: str, db: Session = Depends(get_db)):
  
         print(f"Created {len(minimal_points)} minimal points")
  
-        # 🔧 Handle corrupted route_point data in DriverLocation
+        # 🔧 Handle corrupted route_points data in DriverLocation
         try:
             location = db.query(models.DriverLocation).filter(
                 models.DriverLocation.trip_id == trip_id
             ).first()
             print(f" DriverLocation found: {location is not None}")
         except json.JSONDecodeError:
-            print("Found corrupted route_point data, clearing it...")
+            print("Found corrupted route_points data, clearing it...")
             # Clear corrupted data and retry
             from sqlalchemy import text
             db.execute(
-                text("UPDATE driver_locations SET route_point = NULL WHERE trip_id = :trip_id"),
+                text("UPDATE driver_locations SET route_points = NULL WHERE trip_id = :trip_id"),
                 {"trip_id": trip_id}
             )
             db.commit()
@@ -192,13 +192,13 @@ def transfer_route_points(trip_id: str, db: Session = Depends(get_db)):
                 driver_id=trip.driver_id,
                 trip_id=trip_id,
                 agency_id=trip.agency_id,
-                route_point=minimal_points,
+                route_points=minimal_points,
                 timestamp=now
             )
             db.add(location)
         else:
             print(" Updating existing DriverLocation")
-            location.route_point = minimal_points
+            location.route_points = minimal_points
             location.timestamp = now
  
         print("Committing to database...")
@@ -231,7 +231,7 @@ def store_route_points_json(
     db: Session = Depends(get_db)
 ):
     """
-    Store route points JSON object exactly as frontend sends
+    Store route_points JSON data directly exactly as frontend sends
     """
     try:
         # Parse the JSON from frontend
@@ -244,8 +244,8 @@ def store_route_points_json(
         ).first()
        
         if existing_location:
-            # Update route points
-            existing_location.route_point = parsed_route_points
+            # Update route point
+            existing_location.route_points = parsed_route_points
             # Use frontend timestamp if available, otherwise use current time
             if parsed_route_points and len(parsed_route_points) > 0:
                 latest_timestamp = parsed_route_points[-1].get("timestamp")
@@ -269,7 +269,7 @@ def store_route_points_json(
             "message": message,
             "trip_id": trip_id,
             "driver_id": driver_id,
-            "route_points_count": len(parsed_route_points) if isinstance(parsed_route_points, list) else 1
+            "route_point_count": len(parsed_route_points) if isinstance(parsed_route_points, list) else 1
         }
        
     except json.JSONDecodeError:
@@ -314,7 +314,7 @@ def get_locations_simple(
                 "accuracy": location.accuracy,
                 "speed": location.speed,
                 "timestamp": location.timestamp.isoformat() if location.timestamp else None,
-                "route_point": location.route_point
+                "route_points": location.route_points
             }
             result.append(location_data)
        
@@ -395,16 +395,16 @@ async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
             if location:
                 lat = location.latitude
                 lng = location.longitude
-                route_point = location.route_point
+                route_points = location.route_points
                 current_timestamp = location.timestamp
 
-            if lat != last_lat or lng != last_lng or current_timestamp != last_timestamp or route_point != last_route_point:
+            if lat != last_lat or lng != last_lng or current_timestamp != last_timestamp or route_points != last_route_points:
                 data = {
                 "type": "location_update",
                 "driver_id": driver_id,
                 "latitude": lat,
                 "longitude": lng,
-                "route_points" : route_point,
+                "route_points" : route_points,
                 "timestamp": current_timestamp.isoformat() if current_timestamp else None
                 }
 
@@ -414,12 +414,12 @@ async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
                 last_lat = lat
                 last_lng = lng
                 last_timestamp = current_timestamp
-                last_rount_point = route_point
+                last_route_points = route_points
 
             db.close()   # 🔥 IMPORTANT
             await asyncio.sleep(2)
         print(f" WebSocket disconnected: {driver_id}")
- 
+
     except Exception as e:
         print(f"WebSocket error for {driver_id}: {str(e)}")
         try:
