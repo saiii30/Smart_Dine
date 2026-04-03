@@ -49,16 +49,35 @@ const isSupervisor = user?.role === "SUPERVISOR";
     )
   }
 
+  const canDeleteVehicle = (vehicleId: number): boolean => {
+    const vehicleTrips = getVehicleTrips(vehicleId)
+    return vehicleTrips.length === 0
+  }
+
   
   const handleCreate = () => {
     setEditingVehicle(null)
     setIsModalOpen(true)
+    // Clear any existing form data from localStorage to ensure clean form
+    try {
+      localStorage.removeItem('vehicle_modal_draft_v1')
+    } catch (e) {
+      // Ignore localStorage errors
+    }
   }
 
-  const handleEdit = (vehicle: Vehicle) => {
-    setEditingVehicle(vehicle)
-    console.log('Editing vehicle:', vehicle)
-    setIsModalOpen(true)
+  const handleEdit = async (vehicle: Vehicle) => {
+    try {
+      // Fetch complete vehicle details to ensure all fields are available
+      const response = await axios.get(`http://127.0.0.1:8000/api/vehicles/${vehicle.id}`)
+      setEditingVehicle(response.data)
+      setIsModalOpen(true)
+    } catch (error) {
+      console.error('Failed to fetch vehicle details:', error)
+      // Fallback to using the basic vehicle data if detailed fetch fails
+      setEditingVehicle(vehicle)
+      setIsModalOpen(true)
+    }
   }
 
   const handleDelete = async (id: number) => {
@@ -67,9 +86,18 @@ const isSupervisor = user?.role === "SUPERVISOR";
     try {
       await axios.delete(`http://127.0.0.1:8000/api/vehicles/${id}`)
       fetchVehicles()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete vehicle:', error)
-      alert('Failed to delete vehicle')
+      
+      // Extract detailed error message from backend response
+      let errorMessage = 'Failed to delete vehicle'
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
+      alert(errorMessage)
     }
   }
 
@@ -258,7 +286,13 @@ const isSupervisor = user?.role === "SUPERVISOR";
 
       <button
         onClick={() => handleDelete(vehicle.id)}
-        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+        disabled={!canDeleteVehicle(vehicle.id)}
+        className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+          canDeleteVehicle(vehicle.id)
+            ? 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
+            : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+        }`}
+        title={!canDeleteVehicle(vehicle.id) ? `Cannot delete: Vehicle has ${getVehicleTrips(vehicle.id).length} associated trip(s)` : ''}
       >
         <Trash2 className="mr-2 h-4 w-4" />
         Delete

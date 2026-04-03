@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "pytz": "^10.1.1",
     "xlsx": "^0.18.5"
   }
 }

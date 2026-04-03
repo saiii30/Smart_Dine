@@ -1,30 +1,26 @@
 import { useEffect, useState, useMemo } from 'react'
 import axios from 'axios'
 import { Plus, Edit, Trash2, User, Search } from 'lucide-react'
-import { Driver, Trip } from '../types'
+import { Driver } from '../types'
 import DriverModal from '../components/DriverModal'
 import { useAuth } from '../contexts/AuthContext'
 const Drivers = () => {
   const { user } = useAuth()
 
-const isSuperAdmin = user?.role === "SUPER_ADMIN";
-const isAdmin = user?.role === "ADMIN";
-const isSupervisor = user?.role === "SUPERVISOR";
+  const isSupervisor = user?.role === "SUPERVISOR";
   const [drivers, setDrivers] = useState<Driver[]>([])
-  const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-
+ 
   useEffect(() => {
     fetchDrivers()
-    fetchTrips()
   }, [])
-
+ 
   const fetchDrivers = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/drivers/')
+      const response = await axios.get('/api/drivers/')
       setDrivers(response.data)
     } catch (error) {
       console.error('Failed to fetch drivers:', error)
@@ -33,54 +29,58 @@ const isSupervisor = user?.role === "SUPERVISOR";
     }
   }
 
-  const fetchTrips = async () => {
-    try {
-      const response = await axios.get('http://127.0.0.1:8000/api/trips/')
-      setTrips(response.data)
-    } catch (error) {
-      console.error('Failed to fetch trips:', error)
-    }
-  }
-
-  const getDriverTrips = (driverId: string): Trip[] => {
-    return trips.filter(trip =>
-      trip.schedules.some(schedule => schedule.driver_id === driverId)
-    )
-  }
-
   const handleCreate = () => {
     setEditingDriver(null)
     setIsModalOpen(true)
   }
-
+ 
   const handleEdit = (driver: Driver) => {
     setEditingDriver(driver)
     console.log('Editing driver:', driver)
     setIsModalOpen(true)
   }
-
+ 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this driver?')) return
-
+ 
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/drivers/${id}`)
+      await axios.delete(`/api/drivers/${id}`)
       fetchDrivers()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete driver:', error)
-      alert('Failed to delete driver')
+      
+      let errorMessage = 'Failed to delete driver'
+      
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === 'string') {
+          errorMessage = error.response.data.detail
+        } else if (Array.isArray(error.response.data.detail)) {
+          errorMessage = error.response.data.detail.join(', ')
+        }
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error occurred. Please try again.'
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.'
+      } else if (error.response?.status === 403) {
+        errorMessage = 'You are not authorized to delete this driver.'
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Driver not found.'
+      }
+      
+      alert(errorMessage)
     }
   }
-
+ 
   const handleModalClose = () => {
     setIsModalOpen(false)
     setEditingDriver(null)
   }
-
+ 
   const handleModalSuccess = () => {
     fetchDrivers()
     handleModalClose()
   }
-
+ 
   // Filter drivers based on search query (driver name and phone number)
   const filteredDrivers = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -88,12 +88,12 @@ const isSupervisor = user?.role === "SUPERVISOR";
     }
     const query = searchQuery.toLowerCase().trim()
     return drivers.filter((driver) => {
-      const nameMatch = driver.full_name.toLowerCase().includes(query)
-      const phoneMatch = driver.phone_number.toLowerCase().includes(query)
+      const nameMatch = driver.user.name.toLowerCase().includes(query)
+      const phoneMatch = driver.user.contact_number?.toLowerCase().includes(query) || ''
       return nameMatch || phoneMatch
     })
   }, [drivers, searchQuery])
-
+ 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -101,7 +101,7 @@ const isSupervisor = user?.role === "SUPERVISOR";
       </div>
     )
   }
-
+ 
   return (
     <div>
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
@@ -119,17 +119,17 @@ const isSupervisor = user?.role === "SUPERVISOR";
             />
           </div>
           {!isSupervisor && (
-          <button
-            onClick={handleCreate}
-            className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
-          >
-            <Plus className="mr-2 h-5 w-5" />
-            Add Driver
-          </button>
+            <button
+              onClick={handleCreate}
+              className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              Add Driver
+            </button>
           )}
         </div>
       </div>
-
+ 
       {filteredDrivers.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <User className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
@@ -141,7 +141,7 @@ const isSupervisor = user?.role === "SUPERVISOR";
               ? 'Try adjusting your search criteria.'
               : 'Get started by adding your first driver.'}
           </p>
-         {!searchQuery.trim() && !isSupervisor && (
+          {!searchQuery.trim() && !isSupervisor && (
             <button
               onClick={handleCreate}
               className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
@@ -166,15 +166,15 @@ const isSupervisor = user?.role === "SUPERVISOR";
                   )}
                 </div>
                 <span
-                  className={`px-2 py-1 text-xs font-medium rounded ${driver.is_active
+                  className={`px-2 py-1 text-xs font-medium rounded ${driver.status === 'Active'
                     ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
                     : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                     }`}
                 >
-                  {driver.is_active ? 'Active' : 'Inactive'}
+                  {driver.status || 'Active'}
                 </span>
               </div>
-
+ 
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Phone:</span>
@@ -212,44 +212,44 @@ const isSupervisor = user?.role === "SUPERVISOR";
                 )} */}
               </div>
 
-             <div className="flex gap-2">
+              <div className="flex gap-2">
 
-  {/* Supervisor → Only View */}
-   {isSupervisor ? (
-    <button
-      onClick={() => handleEdit(driver)}
-      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-    >
-      <Search className="mr-2 h-4 w-4" />
-      View
-    </button>
-  ) : (
-    <>
-      <button
-        onClick={() => handleEdit(  driver)}
-        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-      >
-        <Edit className="mr-2 h-4 w-4" />
-        Edit
-      </button>
+                {/* Supervisor → Only View */}
+                {isSupervisor ? (
+                  <button
+                    onClick={() => handleEdit(driver)}
+                    className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                  >
+                    <Search className="mr-2 h-4 w-4" />
+                    View
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleEdit(driver)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit
+                    </button>
 
-      <button
-        onClick={() => handleDelete(driver.id)}
-        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-      >
-        <Trash2 className="mr-2 h-4 w-4" />
-        Delete
-      </button>
-    </>
-  )}
-  
+                    <button
+                      onClick={() => handleDelete(driver.id)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </button>
+                  </>
+                )}
 
-</div>
+
+              </div>
             </div>
           ))}
         </div>
       )}
-
+ 
       {isModalOpen && (
         <DriverModal
           driver={editingDriver}
@@ -260,6 +260,6 @@ const isSupervisor = user?.role === "SUPERVISOR";
     </div>
   )
 }
-
+ 
 export default Drivers
-
+ 

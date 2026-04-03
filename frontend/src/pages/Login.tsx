@@ -6,7 +6,7 @@ import AuthLayout from "../components/AuthLayout";
 
 // Create an Axios instance with default config
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  baseURL: 'http://127.0.0.1:8000',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -30,29 +30,22 @@ const Login = () => {
     itCompanyId: "",
   });
 
-  const[itCompanies, setItCompanies] = useState<any[]>([]);
   const [agencies, setAgencies] = useState<any[]>([]);
+  const [filteredItCompanies, setFilteredItCompanies] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isItCompaniesLoading, setIsItCompaniesLoading] = useState(true);
   const [isAgenciesLoading, setIsAgenciesLoading] = useState(true);
   // Account type switch: 'agency' or 'it'
   const [accountType, setAccountType] = useState<'agency' | 'it'>('agency');
-  // Hardcoded IT companies list for IT Login dropdown
-  // const itCompanies = [
-  //   { id: 'it1', name: 'IT Company1' },
-  //   { id: 'it2', name: 'IT Company2' },
-  //   { id: 'it3', name: 'IT Company3' },
-  // ];
 
-  const { login } = useAuth();
+  const { user, logout ,login} = useAuth()
   const navigate = useNavigate();
 
   // Fetch agencies on component mount
   useEffect(() => {
     const fetchAgencies = async () => {
       try {
-        const response = await api.get("/auth/agencies");
+        const response = await api.get("api/auth/agencies");
         setAgencies(response.data);
       } catch (err) {
         console.error("Error fetching agencies:", err);
@@ -65,21 +58,27 @@ const Login = () => {
     fetchAgencies();
   }, []);
 
+  // Fetch IT companies based on selected agency
   useEffect(() => {
-    const fetchCompanies = async () => {
+    const fetchFilteredCompanies = async () => {
+      if (!formData.agencyId) {
+        setFilteredItCompanies([]);
+        return;
+      }
+
       try {
-        const response = await api.get("/companies/api/companies/dropdown");
-       setItCompanies(response.data);
+        const response = await api.get(`/api/companies/dropdown?agency_id=${formData.agencyId}`);
+        setFilteredItCompanies(response.data);
       } catch (err) {
-        console.error("Error fetching companies:", err);
-        setError("Failed to load companies. Please try again later.");
-      } finally {
-        setIsItCompaniesLoading(false);
+        console.error("Error fetching filtered companies:", err);
+        setFilteredItCompanies([]);
       }
     };
 
-    fetchCompanies();
-  }, []);
+    if (accountType === 'it') {
+      fetchFilteredCompanies();
+    }
+  }, [formData.agencyId, accountType]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -89,30 +88,15 @@ const Login = () => {
     }));
     if(name === 'agencyId') {
       localStorage.setItem('selectedAgencyId', value);
+      // Clear IT company selection when agency changes
+      if (accountType === 'it') {
+        setFormData(prev => ({
+          ...prev,
+          itCompanyId: ""
+        }));
+      }
     }
   };
-
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   setError("");
-  //   setLoading(true);
-
-  //   try {
-  //     // For IT login, use the chosen IT company id as agency_id payload so backend receives a reference
-  //     const agencyPayload = accountType === 'it' ? formData.itCompanyId : formData.agencyId;
-  //     await login({
-  //       username: formData.username,
-  //       password: formData.password,
-  //       agency_id: agencyPayload,
-  //     });
-  //     navigate("/dashboard");
-  //   } catch (err: any) {
-  //     console.error("Login error:", err);
-  //     setError(err.response?.data?.detail || "Failed to login. Please check your credentials.");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -120,7 +104,6 @@ const Login = () => {
   setLoading(true);
 
   try {
-
     let payload: any = {
       username: formData.username,
       password: formData.password,
@@ -134,9 +117,31 @@ const Login = () => {
 
     console.log("Payload:", payload);
 
-    await login(payload);
+    const loggedInUser: any = await login(payload)
 
-    navigate("/dashboard");
+console.log("USER DATA:", loggedInUser)
+console.log("AGENCY STATUS:", loggedInUser?.agency_status)
+
+const role = loggedInUser?.role
+const status = loggedInUser?.agency_status?.toLowerCase()
+
+console.log("ROLE:", role)
+console.log("STATUS:", status)
+
+// 🔥 ONLY for SUPER_ADMIN
+if (role === "SUPER_ADMIN") {
+  if (status === "inactive") {
+    navigate("/prices")
+  } else {
+    navigate("/dashboard")
+  }
+}
+
+// 🔥 For ADMIN / SUPERVISOR / others
+else {
+  navigate("/dashboard")
+}
+
 
   } catch (err: any) {
     console.error("Login error:", err);
@@ -229,10 +234,11 @@ const Login = () => {
                   value={formData.itCompanyId}
                   onChange={handleChange}
                   required
+                  disabled={!formData.agencyId}
                   className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
-                  <option value="">Select IT Company</option>
-                  {itCompanies.map((c) => (
+                  <option value="">{!formData.agencyId ? "Select Agency first" : "Select IT Company"}</option>
+                  {filteredItCompanies.map((c) => (
                     <option key={c.id} value={c.id}>{c.company_name}</option>
                   ))}
                 </select>

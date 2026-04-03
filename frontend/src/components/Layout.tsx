@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useSettings } from '../contexts/SettingsContext.tsx'
 import { LogOut, CarTaxiFront, Users, LayoutDashboard, Menu, X, User as UserIcon, ChevronDown, Palette, RouteIcon, Bell, Settings, MapPin } from 'lucide-react'
 import SettingsModal from './SettingsModal'
+import DriverUnauthorizedScreen from './DriverUnauthorizedScreen'
 import { Wallet } from 'lucide-react'
 import { Building2} from "lucide-react";
 import axios from 'axios'
@@ -22,8 +23,8 @@ const Layout = () => {
   useEffect(() => {
     fetchNotifications()
     
-    // Set up periodic refresh every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000)
+    // Set up periodic refresh every 10 seconds (more frequent for shared acknowledgements)
+    const interval = setInterval(fetchNotifications, 10000)
     
     return () => clearInterval(interval)
   }, [expirySettings]) // Add expirySettings as dependency
@@ -117,37 +118,50 @@ const Layout = () => {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const isAdmin = user?.role === 'ADMIN'
   const isSupervisor = user?.role === 'SUPERVISOR'
-  const isITCompany = user?.role === 'IT_COMPANY'
+  const isDriver = user?.role === 'DRIVER'
+  const isItCompany = user?.role === 'IT_COMPANY'
+  const isAgencyActive = user?.agency_status === "Active";
 
-  const navigation = useMemo(() => [
+  // Show unauthorized screen for drivers
+  if (isDriver) {
+    return <DriverUnauthorizedScreen />
+  }
+ const navigation = (() => {
+
+  if (isSuperAdmin && !isAgencyActive) {
+    return [
+      { name: "Prices", href: "/prices", icon: Wallet }
+    ];
+  }
+
+  return [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
 
     ...(isAdmin || isSupervisor || isSuperAdmin
-      ? [{ name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
-    { name: 'Drivers', href: '/drivers', icon: Users },]
+      ? [
+          { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
+          { name: 'Drivers', href: '/drivers', icon: Users },
+        ]
       : []),
-    // { name: 'Vehicles', href: '/vehicles', icon: CarTaxiFront },
-    // { name: 'Drivers', href: '/drivers', icon: Users },
+
     { name: 'Trips', href: '/trips', icon: RouteIcon },
     { name: 'Live Tracking', href: '/live-tracking', icon: MapPin },
     { name: 'Notifications', href: '/notifications', icon: Bell, badge: notificationCount },
     { name: 'Settings', href: '/settings', icon: Settings },
 
-    
-
-
-    ...((isAdmin || isSuperAdmin || isSupervisor) ? [
-
-
-    { name : "It Companies", href: "/ITCompanyDashboard", icon: Building2 },
-
-      ] : []),
-    
+    ...(isAdmin || isSuperAdmin || isSupervisor
+      ? [{ name: "It Companies", href: "/ITCompanyDashboard", icon: Building2 }]
+      : []),
 
     ...(isSuperAdmin
-      ? [{ name: 'Users', href: '/users', icon: Users },{ name: "Prices", href: "/prices", icon: Wallet   }]
+      ? [
+          { name: 'Users', href: '/users', icon: Users },
+          { name: "Prices", href: "/prices", icon: Wallet }
+        ]
       : []),
-  ], [notificationCount, isSuperAdmin])
+  ];
+
+})(); // 🔥 THIS () IS IMPORTANT
 
   const isActive = (path: string) => location.pathname === path
 
@@ -248,14 +262,16 @@ const Layout = () => {
 
         {/* Right: Settings and User Info */}
         <div className="flex items-center space-x-3">
-          {/* Settings Button */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Settings"
-          >
-            <Palette className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-          </button>
+          {/* Settings Button - Hide for IT Company users */}
+          {!isItCompany && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Settings"
+            >
+              <Palette className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+            </button>
+          )}
 
           {/* User Info */}
           <div className="relative">

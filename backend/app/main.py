@@ -6,42 +6,44 @@ from fastapi import APIRouter
 from sqlalchemy.orm import Session
 from typing import List
 import json
-
+from fastapi import Query   
 from fastapi import FastAPI
 from .scheduler import start_scheduler, shutdown_scheduler
 import logging
-
+import requests
+ 
 # Import database and models
 from app.database import engine, Base, get_db
 from app import models, schemas
-
+ 
 # Import routers
 from app.routers import (
     auth,
     vehicles,
     drivers,
+    locations,
     mobile_location_api,
     company,
     agency,
     trip_schedules,
     notifications
 )
-
+ 
 # Create database tables
 Base.metadata.create_all(bind=engine)
-
+ 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+ 
 app = FastAPI(
     title="Travel Management System API",
     description="SAAS application for travel service providers",
     version="1.0.0"
 )
-
-
-
+ 
+ 
+ 
 # Add these event handlers
 @app.on_event("startup")
 async def startup_event():
@@ -56,7 +58,7 @@ async def startup_event():
 async def shutdown_event():
     shutdown_scheduler()
     logger.info("Application shutdown complete")
-    
+   
 # Custom exception handler for validation errors with debugging
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -77,42 +79,29 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 print("=" * 50)
     except Exception as e:
         print(f"Error reading body: {e}")
-    
+   
+    # Initialize error messages list
+    error_messages = []
+   
     # Format validation errors
-    errors = []
     for error in exc.errors():
-
         field = error.get("loc", [""])[-1]  # Get the field name
-
         msg = error.get("msg", "")
-
+       
         # Convert complex validation messages to simple ones
-
         if "password" in field.lower() and "least 8 characters" in msg:
-
             error_messages.append("Password must be at least 8 characters long")
-
         elif "email" in field.lower() and "valid" in msg.lower():
-
             error_messages.append("Invalid email format")
-
         elif "contact_number" in field.lower() and "valid" in msg.lower():
-
             error_messages.append("Invalid phone number format")
-
         else:
-
             # Use original message for other cases
-
             error_messages.append(msg)
    
-
     return JSONResponse(
-
         status_code=422,
-
         content={"detail": error_messages},
-
     )
 # CORS middleware configuration - simplified for development
 app.add_middleware(
@@ -132,26 +121,27 @@ app.include_router(trip_schedules.router, prefix="/api/trip-schedules", tags=["T
 app.include_router(company.router, prefix="/api/companies", tags=["Companies"])
 app.include_router(agency.router, prefix="/api/agency", tags=["Agency"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
-
+app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])
+ 
 # -------------------- Health --------------------
 @app.get("/")
 async def root():
     return {"message": "Travel Management System API"}
-
+ 
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy"}
-
+ 
 # -------------------- Users --------------------
 @app.get("/users/{parent_id}", response_model=List[schemas.User])
 def get_users_by_parent(parent_id: str, db: Session = Depends(get_db)):
     users = db.query(models.User).filter(models.User.agency_id == parent_id).all()
     return users
-
+ 
 @app.get("/users", response_model=list[schemas.User])
 def get_users(db: Session = Depends(get_db)):
     return db.query(models.User).all()
-
+ 
 @app.put("/users/{user_id}/role", response_model=schemas.UserRoleUpdate)
 def update_user_role(
     user_id: str,
@@ -161,12 +151,12 @@ def update_user_role(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
+ 
     user.role = data.role
     db.commit()
     db.refresh(user)
     return {"role": user.role}
-
+ 
 @app.delete("/users/{user_id}")
 def delete_user(user_id: str, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -176,3 +166,25 @@ def delete_user(user_id: str, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "User deleted permanently"}
 
+
+@app.get("/geocode")
+def geocode(q: str = Query(...)):
+    try:
+        url = "https://nominatim.openstreetmap.org/search"
+
+        params = {
+            "q": q,
+            "format": "json",
+            "limit": 1
+        }
+
+        headers = {
+            "User-Agent": "my-app"   # IMPORTANT (OSM requires this)
+        }
+
+        res = requests.get(url, params=params, headers=headers)
+
+        return res.json()
+
+    except Exception as e:
+        return {"error": str(e)}

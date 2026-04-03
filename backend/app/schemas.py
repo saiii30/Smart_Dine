@@ -5,6 +5,8 @@ from typing import Optional, List, Any, Dict, Union
 from app.models import UserRole, VehicleType  # Removed VehicleType as it's now a string
 from datetime import time, date, datetime, timezone
 import json
+import uuid
+from uuid import UUID
 
 # ADDED NEW LINES OF CODE 405 TO 443 FOR ITDASHBOARDCOMPANY
 # compatibility: prefer pydantic v2 `field_validator`, fall back to v1 `validator`
@@ -23,9 +25,10 @@ class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     contact_number: Optional[str] = None
     role: Optional[UserRole] = None
+    password_hash: Optional[str] = None  # Include to indicate if password exists (don't expose actual hash)
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserCreate(UserBase):
     password: str
@@ -58,6 +61,7 @@ class UserResponse(BaseModel):
     contact_number: Optional[str] = None
     role: Optional[str] = None
     is_active: bool
+    agency_status: Optional[str] = None
     last_login: Optional[datetime] = None
     created_at: Optional[datetime] =None
     updated_at: Optional[datetime] = None
@@ -227,9 +231,42 @@ class VehicleResponse(BaseModel):
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # Optional fields for detailed vehicle information
+    rc_number: Optional[str] = None
+    gps_device_id: Optional[str] = None
+    assigned_driver_id: Optional[str] = None
+    
+    # Insurance Information
+    insurance_number: Optional[str] = None
+    insurance_date: Optional[datetime] = None
+    insurance_expiry: Optional[datetime] = None
+    insurance_copy: Optional[str] = None
+    policy_certificate: Optional[str] = None
+    
+    # Registration Information
+    registration_date: Optional[datetime] = None
+    registration_expiry: Optional[datetime] = None
+    registration_certificate: Optional[str] = None
+    
+    # Safety Equipment
+    fire_extinguisher_available: bool = False
+    first_aid_kit_available: bool = False
+    
+    # Contact Information
+    emergency_support_number: Optional[str] = None
+    
+    # Additional Fields
+    notes: Optional[str] = None
+    service_expiry: Optional[datetime] = None
+    puc_expiry: Optional[datetime] = None
+    insurance_renewal_date: Optional[datetime] = None
+    category: Optional[str] = None
+    owner_name: Optional[str] = None
+    ownership_type: Optional[str] = None
+    pollution_certificate: Optional[str] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Driver Schemas
 class DriverBase(BaseModel):
@@ -324,6 +361,13 @@ class DriverResponse(BaseModel):
  
     driving_license_number: Optional[str] = None
     license_expiry_date: Optional[datetime] = None
+    
+    # Documents
+    aadhar_document: Optional[str] = None
+    driver_photo: Optional[str] = None
+    police_verification_certificate: Optional[str] = None
+    medical_fitness_certificate: Optional[str] = None
+    
     verification_status: Optional[str] = None
     status: Optional[str] = None
     current_address: Optional[str] = None
@@ -342,7 +386,8 @@ class DriverResponse(BaseModel):
     updated_at: Optional[datetime] = None
    
     class Config:
-        orm_mode = True
+        from_attributes = True
+
 # Location Tracking Schemas
 class LocationUpdate(BaseModel):
     latitude: float
@@ -366,18 +411,27 @@ class LocationResponse(BaseModel):
     trip_id: Optional[str] = None
     route_point: Optional[dict] = None  # Route point data as JSON for route type trips
     agency_id: Optional[str] = None  # Add agency_id field
+
+    company_id: Optional[str] = None  # Add company ID field
+    start_date: Optional[datetime] = None  # Add start date field
+    end_date: Optional[datetime] = None  # Add end date field
+    is_active: Optional[bool] = True  # Add is_active field
  
     class Config:
         from_attributes = True
  
 class DriverLocationStatus(BaseModel):
-    driver_id: int
+    driver_id: UUID
     latitude: float
     longitude: float
     speed: Optional[float] = None
     last_update: datetime
     trip_id: Optional[str] = None
     agency_id: Optional[str] = None  # Add agency_id field  
+    company_id: Optional[str] = None  # Add company ID field
+    start_date: Optional[datetime] = None  # Add start date field
+    end_date: Optional[datetime] = None  # Add end date field
+    is_active: Optional[bool] = True  # Add is_active field 
  
     class Config:
         from_attributes = True
@@ -422,13 +476,14 @@ class CompanyResponse(BaseModel):
     updated_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class CompanyDropdown(BaseModel):
     id: str
     company_name: str
     company_branch: Optional[str] = None
     agency_id: str
+    agency_name: Optional[str] = None  # Add agency name for display
 
     class Config:
         from_attributes = True
@@ -538,18 +593,19 @@ class RoutePoint(BaseModel):
     passenger_id: Optional[str] = None
     passenger_name: str = Field(..., min_length=2, max_length=100)
     passenger_phone: str = Field(..., min_length=10, max_length=15)
-    status: str = Field(..., pattern=r'^(pickup|dropped)$')  # Only "pickup" or "dropped"
-    timestamp: str = Field(..., description="ISO datetime string")
+    # status: str = Field(..., pattern=r'^(pickup|dropped)$')  # Only "pickup" or "dropped"
+    timestamp:Optional[str] = Field(None, description="ISO datetime string")
+    pickup :Optional[bool] = Field(None, description="True if pickup point, False if drop-off point")
     
     # Optional location coordinates for route tracking
-    starting_point: Optional[str] = Field(None, min_length=5, max_length=500)
-    end_point: Optional[str] = Field(None, min_length=5, max_length=500)
-    starting_lat: Optional[float] = Field(None, ge=-90, le=90)
-    starting_lng: Optional[float] = Field(None, ge=-180, le=180)
-    end_lat: Optional[float] = Field(None, ge=-90, le=90)
-    end_lng: Optional[float] = Field(None, ge=-180, le=180)
+    pickup_point: Optional[str] = Field(None, min_length=5, max_length=500)
+    pickup_lat: Optional[float] = Field(None, ge=-90, le=90)
+    pickup_lng: Optional[float] = Field(None, ge=-180, le=180)
+    ispresent: Optional[bool] = Field(None, description="True if passenger is present, False otherwise")
+    # end_lat: Optional[float] = Field(None, ge=-90, le=90)
+    # end_lng: Optional[float] = Field(None, ge=-180, le=180)
 
-    @field_validator('phonenumber')
+    @field_validator('passenger_phone')
     def validate_phone_number(cls, v):
         # Remove all non-digit characters
         digits = ''.join(filter(str.isdigit, v))
@@ -559,19 +615,7 @@ class RoutePoint(BaseModel):
 
     class Config:
         from_attributes = True
-        json_schema_extra = {
-            "example": {
-                
-                "passenger_name": "John Doe",
-                "phone_number": "+1234567890",
-                "starting_point": "123 Main St, City A",
-                "end_point": "456 Elm St, City B",
-                "starting_lat": 40.7128,
-                "starting_lng": -74.0060,
-                "end_lat": 40.7580,
-                "end_lng": -73.9855
-            }
-        }
+        
 
 class TripScheduleBase(BaseModel):
     # Agency and Company Information
@@ -758,7 +802,7 @@ class TripScheduleResponse(BaseModel):
         return v
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class TripCreate(TripScheduleBase):
     schedules: Optional[List[TripScheduleCreate]] = []
@@ -800,7 +844,7 @@ class TripResponse(BaseModel):
 
 class User(BaseModel):
     id: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
     name: str
     role: UserRole          # ⬅️ REQUIRED
     company_name: Optional[str] = None

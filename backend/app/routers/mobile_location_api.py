@@ -1,432 +1,433 @@
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Form, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
-from typing import Optional, List, Dict
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
 from datetime import datetime
-from app.database import get_db
-from app import models, schemas, auth
 import json
 import asyncio
+from app import models
+from app.database import get_db
+from datetime import datetime, timezone
 
+ 
 router = APIRouter(tags=["Mobile Location"])
-
-# Store active WebSocket connections
-active_connections: Dict[str, WebSocket] = {}
-# Store latest driver positions
-driver_positions: Dict[str, dict] = {}
-
-@router.post("/location", response_model=schemas.LocationResponse)
-def upsert_location(
-    driver_id: str,
-    trip_id: str,
-    agency_id: str,
-    trip_type: str,  # "shuttle" or "route"
-    latitude: float,
-    longitude: float,
-    accuracy: Optional[float] = None,
-    speed: Optional[float] = None,
-    route_point: Optional[str] = None,  # JSON string for route type trips
-    time_window_seconds: int = 30,  # Customizable time window for upsert
+ 
+# =========================
+# POST - SIMPLE UPSERT LOCATION
+# =========================
+@router.post("/location", response_model=dict)
+def upsert_location_mobile(
+    driver_id: str = Form(...),
+    trip_id: str = Form(...),
+    agency_id: str = Form(...),
+    latitude: float = Form(...),
+    longitude: float = Form(...),
+    accuracy: Optional[float] = Form(None),
+    speed: Optional[float] = Form(None),
+    start_date: Optional[str] = Form(None),
+    end_date: Optional[str] = Form(None),
+    is_active: Optional[bool] = Form(True),
+    company_id: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
-    UPSERT location record with customizable time window.
-    
-    - Updates if location exists within time_window_seconds for same driver AND same trip
-    - Creates new record if no recent location exists or different trip
-    - Default time window: 30 seconds
-    - Set time_window_seconds=0 to always create new records
-    - trip_type: "shuttle" or "route" (validated by frontend)
-    - route_point: JSON string with passenger data for route trips, null for shuttle trips
+    Simple upsert location - store what frontend sends
     """
-    
     try:
-        # Validate driver exists
-        driver = db.query(models.Driver).filter(models.Driver.id == driver_id).first()
-        if not driver:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Driver not found"
-            )
-        
-        # Validate trip exists
-        trip = db.query(models.TripSchedule).filter(models.TripSchedule.id == trip_id).first()
-        if not trip:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Trip not found"
-            )
-        
-        # Validate agency exists
-        agency = db.query(models.Agency).filter(models.Agency.id == agency_id).first()
-        if not agency:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Agency not found"
-            )
-        
-        # Parse route_point JSON for route trips
-        route_point_data = None
-        if trip_type == "route" and route_point and route_point.strip() and route_point.lower() != 'null':
+        print(f" Received location data:")
+        print(f"  driver_id: {driver_id}")
+        print(f"  trip_id: {trip_id}")
+        print(f"  agency_id: {agency_id}")
+        print(f"  latitude: {latitude}")
+        print(f"  longitude: {longitude}")
+        print(f"  accuracy: {accuracy}")
+        print(f"  speed: {speed}")
+       
+        # inside upsert_location_mobile
+        if start_date:
             try:
-                route_point_data = json.loads(route_point)
-                # Validate the new RoutePoint structure
-                required_fields = ['passenger_id', 'passenger_name', 'phonenumber', 'status', 'timestamp']
-                for field in required_fields:
-                    if field not in route_point_data:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Missing required field in route_point: {field}"
-                        )
-                
-                # Optional fields for route tracking
-                optional_fields = ['starting_point', 'end_point', 'starting_lat', 'starting_lng', 'end_lat', 'end_lng']
-                
-                print(f"✅ Parsed route_point_data with structure: {list(route_point_data.keys())}")
-            except json.JSONDecodeError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid route_point JSON format"
-                )
-        # For shuttle trips or when route_point is null/empty, keep route_point_data as None
-        
-        # UPSERT LOGIC with customizable time window - check for same driver AND same trip
-        from datetime import timedelta
-        recent_time = datetime.utcnow() - timedelta(seconds=time_window_seconds)
-        
-        recent_location = db.query(models.DriverLocation).filter(
-            models.DriverLocation.driver_id == driver_id,
-            models.DriverLocation.trip_id == trip_id,  # Also check for same trip
-            models.DriverLocation.timestamp >= recent_time
-        ).order_by(models.DriverLocation.timestamp.desc()).first()
-        
-        if recent_location and time_window_seconds > 0:
-            # UPDATE existing record for same trip
-            recent_location.latitude = latitude
-            recent_location.longitude = longitude
-            recent_location.accuracy = accuracy
-            recent_location.speed = speed
-            recent_location.route_point = route_point_data
-            # trip_id already matches, no need to update
-            
+                start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            except ValueError:
+                start_date = None
+ 
+        if end_date:
+            try:
+               
+                end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            except ValueError:
+                end_date = None
+
+
+                # Check if location exists for this driver/trip
+        existing_location = db.query(models.DriverLocation).filter(
+                    models.DriverLocation.driver_id == driver_id,
+                    models.DriverLocation.trip_id == trip_id
+                ).first()
+       
+        if existing_location:
+            # Update existing record
+            existing_location.latitude = latitude
+            existing_location.longitude = longitude
+            existing_location.accuracy = accuracy
+            existing_location.speed = speed
+            existing_location.agency_id = agency_id  # Update agency_id
+            existing_location.timestamp = datetime.now(timezone.utc)
             db.commit()
-            db.refresh(recent_location)
-            
-            location = recent_location
-            action = "updated"
-            print(f"🔄 Updated existing location for driver {driver_id} on trip {trip_id}")
+            message = "Location updated"
         else:
-            # CREATE new record (different trip or no recent location)
-            location = models.DriverLocation(
+            # Create new record
+            new_location = models.DriverLocation(
                 driver_id=driver_id,
                 trip_id=trip_id,
                 agency_id=agency_id,
+                company_id=company_id,
                 latitude=latitude,
                 longitude=longitude,
                 accuracy=accuracy,
                 speed=speed,
-                route_point=route_point_data
+                start_date=start_date,
+                end_date=end_date,
+                is_active=True,
+                timestamp=datetime.now(timezone.utc)
             )
-            
-            db.add(location)
+            db.add(new_location)
             db.commit()
-            db.refresh(location)
-            
-            action = "created"
-            print(f"✅ Created new location for driver {driver_id} on trip {trip_id}")
-        
-        # Expected route_point structure for route trips
-        expected_structure = {
-            "route_point_structure": {
-                "passenger_id": "string (UUID)",
-                "passenger_name": "string", 
-                "phonenumber": "string",
-                "status": "string (pickup/dropped)",
-                "timestamp": "string (ISO datetime)",
-                "starting_point": "string (optional)",
-                "end_point": "string (optional)",
-                "starting_lat": "float (optional)",
-                "starting_lng": "float (optional)",
-                "end_lat": "float (optional)",
-                "end_lng": "float (optional)"
-            }
-        }
-        
-        # Update cache for WebSocket
-        driver_positions[driver_id] = {
-            "latitude": latitude,
-            "longitude": longitude,
-            "speed": speed,
-            "timestamp": location.timestamp.isoformat(),
+            message = "Location created"
+       
+        return {
+            "status": "success",
+            "message": message,
+            "driver_id": driver_id,
             "trip_id": trip_id,
-            "agency_id": agency_id,
-            "route_point": route_point_data
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
-        
-        return schemas.LocationResponse(
-            id=location.id,
-            driver_id=location.driver_id,
-            agency_id=location.agency_id,
-            latitude=location.latitude,
-            longitude=location.longitude,
-            accuracy=location.accuracy,
-            speed=location.speed,
-            timestamp=location.timestamp,
-            trip_id=location.trip_id,
-            route_point=location.route_point
-        )
-        
-    except HTTPException:
-        raise
+       
     except Exception as e:
+        raise HTTPException(500, f"Database error: {str(e)}")
+ 
+# =========================
+# POST - GET FROM TRIPSCHEDULE AND POST TO DRIVERLOCATION
+# =========================
+@router.post("/route-points/transfer/{trip_id}")
+def transfer_route_points(trip_id: str, db: Session = Depends(get_db)):
+    try:
+        print(f" Starting transfer for trip: {trip_id}")
+        now = datetime.utcnow()
+ 
+        trip = db.query(models.TripSchedule).filter(
+            models.TripSchedule.id == trip_id
+        ).first()
+ 
+        if not trip:
+            raise HTTPException(404, "Trip not found")
+ 
+        print(f"Found trip: {trip.id}")
+        route_points = trip.route_points
+        print(f" Route points type: {type(route_points)}")
+        print(f"Route points value: {route_points}")
+ 
+        #  Handle empty
+        if not route_points:
+            print("No route points found")
+            return {"status": "success", "count": 0}
+ 
+        # Convert safely
+        if isinstance(route_points, str):
+            try:
+                route_points = json.loads(route_points)
+                print(f"JON parsed successfully")
+            except json.JSONDecodeError:
+                raise HTTPException(400, "Invalid JSON in TripSchedule")
+ 
+        #  Ensure list
+        if not isinstance(route_points, list):
+            print(f"Route points is not a list: {type(route_points)}")
+            raise HTTPException(400, "route_points must be a list")
+ 
+        print(f" Processing {len(route_points)} route points")
+ 
+        # Convert safely to minimal
+        minimal_points = []
+ 
+        for i, p in enumerate(route_points):
+            if not isinstance(p, dict):
+                print(f"Skipping non-dict item at index {i}: {p}")
+                continue  # skip bad data
+ 
+            minimal_points.append({
+                "passenger_id": p.get("passenger_id"),
+                "passenger_name": p.get("passenger_name"),
+                "passenger_phone": p.get("passenger_phone"),
+                "pickup": p.get("pickup", False),
+                "timestamp": p.get("timestamp")
+            })
+ 
+        print(f"Created {len(minimal_points)} minimal points")
+ 
+        # 🔧 Handle corrupted route_point data in DriverLocation
+        try:
+            location = db.query(models.DriverLocation).filter(
+                models.DriverLocation.trip_id == trip_id
+            ).first()
+            print(f" DriverLocation found: {location is not None}")
+        except json.JSONDecodeError:
+            print("Found corrupted route_point data, clearing it...")
+            # Clear corrupted data and retry
+            from sqlalchemy import text
+            db.execute(
+                text("UPDATE driver_locations SET route_point = NULL WHERE trip_id = :trip_id"),
+                {"trip_id": trip_id}
+            )
+            db.commit()
+           
+            # Retry query
+            location = db.query(models.DriverLocation).filter(
+                models.DriverLocation.trip_id == trip_id
+            ).first()
+            print(f"DriverLocation found after cleanup: {location is not None}")
+ 
+        if not location:
+            print("Creating new DriverLocation")
+            location = models.DriverLocation(
+                driver_id=trip.driver_id,
+                trip_id=trip_id,
+                agency_id=trip.agency_id,
+                route_point=minimal_points,
+                timestamp=now
+            )
+            db.add(location)
+        else:
+            print(" Updating existing DriverLocation")
+            location.route_point = minimal_points
+            location.timestamp = now
+ 
+        print("Committing to database...")
+        db.commit()
+        print(" Successfully committed!")
+ 
+        return {
+            "status": "success",
+            "trip_id": trip_id,
+            "count": len(minimal_points)
+        }
+ 
+    except Exception as e:
+        print(f"Error in transfer_route_points: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upsert location record: {str(e)}"
-        )
-
-@router.get("/locations", response_model=List[schemas.LocationResponse])
-def get_locations(
+        raise HTTPException(500, str(e))
+ 
+# =========================
+# POST - STORE ROUTE POINTS JSON
+# =========================
+@router.post("/route-points", response_model=dict)
+def store_route_points_json(
+    trip_id: str = Form(...),
+    driver_id: str = Form(...),
+    agency_id: str = Form(...),  # Add agency_id as required
+    route_points: str = Form(...),  # JSON object from frontend
+    db: Session = Depends(get_db)
+):
+    """
+    Store route points JSON object exactly as frontend sends
+    """
+    try:
+        # Parse the JSON from frontend
+        parsed_route_points = json.loads(route_points)
+       
+        # Find existing location record
+        existing_location = db.query(models.DriverLocation).filter(
+            models.DriverLocation.driver_id == driver_id,
+            models.DriverLocation.trip_id == trip_id
+        ).first()
+       
+        if existing_location:
+            # Update route points
+            existing_location.route_point = parsed_route_points
+            # Use frontend timestamp if available, otherwise use current time
+            if parsed_route_points and len(parsed_route_points) > 0:
+                latest_timestamp = parsed_route_points[-1].get("timestamp")
+                if latest_timestamp:
+                    try:
+                        existing_location.timestamp = datetime.fromisoformat(latest_timestamp.replace('Z', '+00:00'))
+                    except (ValueError, TypeError):
+                        existing_location.timestamp = datetime.utcnow()
+                else:
+                    existing_location.timestamp = datetime.utcnow()
+            else:
+                existing_location.timestamp = datetime.utcnow()
+            db.commit()
+            message = "Route points updated"
+        else:
+            # Throw error - location must exist first
+            raise HTTPException(404, "Location record not found. Please create location first using /api/mobile/location")
+       
+        return {
+            "status": "success",
+            "message": message,
+            "trip_id": trip_id,
+            "driver_id": driver_id,
+            "route_points_count": len(parsed_route_points) if isinstance(parsed_route_points, list) else 1
+        }
+       
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Invalid JSON in route_points")
+    except Exception as e:
+        raise HTTPException(500, f"Database error: {str(e)}")
+ 
+# =========================
+# GET - SIMPLE LOCATION RETRIEVAL
+# =========================
+@router.get("/locations", response_model=List[Dict[str, Any]])
+def get_locations_simple(
     driver_id: Optional[str] = None,
-    agency_id: Optional[str] = None,
     trip_id: Optional[str] = None,
+    agency_id: Optional[str] = None,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """
-    Get locations with flexible filtering by driver_id, agency_id, and/or trip_id.
-    
-    - All parameters are optional
-    - If no parameters provided, returns all locations (limited by limit)
-    - Can filter by one, two, or all three parameters
-    - Results ordered by timestamp (most recent first)
+    Simple location retrieval with optional filters
     """
-    
-    # Start with base query
-    query = db.query(models.DriverLocation)
-    
-    # Apply filters if provided
-    if driver_id:
-        query = query.filter(models.DriverLocation.driver_id == driver_id)
-    if agency_id:
-        query = query.filter(models.DriverLocation.agency_id == agency_id)
-    if trip_id:
-        query = query.filter(models.DriverLocation.trip_id == trip_id)
-    
-    # Order by timestamp (most recent first) and limit
-    locations = query.order_by(models.DriverLocation.timestamp.desc()).limit(limit).all()
-    
-    return locations
+    try:
+        query = db.query(models.DriverLocation)
+       
+        if driver_id:
+            query = query.filter(models.DriverLocation.driver_id == driver_id)
+        if trip_id:
+            query = query.filter(models.DriverLocation.trip_id == trip_id)
+        if agency_id:
+            query = query.filter(models.DriverLocation.agency_id == agency_id)
+       
+        locations = query.limit(limit).all()
+       
+        result = []
+        for location in locations:
+            location_data = {
+                "driver_id": location.driver_id,
+                "trip_id": location.trip_id,
+                "agency_id": location.agency_id,
+                "latitude": location.latitude,
+                "longitude": location.longitude,
+                "accuracy": location.accuracy,
+                "speed": location.speed,
+                "timestamp": location.timestamp.isoformat() if location.timestamp else None,
+                "route_point": location.route_point
+            }
+            result.append(location_data)
+       
+        return result
+       
+    except Exception as e:
+        raise HTTPException(500, f"Error retrieving locations: {str(e)}")
 
-@router.websocket("/ws/driver/{driver_id}")
-async def websocket_driver_location(websocket: WebSocket, driver_id: str):
-    """WebSocket for real-time driver location updates"""
+
+ 
+# =========================
+# PUT - DEACTIVATE LOCATION TRACKING
+# =========================
+@router.put("/location/deactivate/{driver_id}")
+def deactivate_location_tracking(
+    driver_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Deactivate location tracking for a driver (sets is_active to false)
+    """
+    try:
+        # Find the most recent active location record for this driver
+        location = db.query(models.DriverLocation).filter(
+            models.DriverLocation.driver_id == driver_id,
+            models.DriverLocation.is_active == True
+        ).order_by(models.DriverLocation.timestamp.desc()).first()
+       
+        if not location:
+            raise HTTPException(404, f"No active location records found for driver: {driver_id}")
+       
+        # Update the record to inactive
+        location.is_active = False
+        location.end_date = datetime.now(timezone.utc)
+       
+        db.commit()
+       
+        return {
+            "status": "success",
+            "message": f"Deactivated location tracking for driver: {driver_id}",
+            "driver_id": driver_id,
+            "location_id": location.id,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+       
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Error deactivating location tracking: {str(e)}")
+ 
+@router.websocket("/ws/{driver_id}")
+async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
+    """
+    WebSocket endpoint for live driver location tracking
+    Polls database for latest location and sends updates when changed
+    """
     await websocket.accept()
-    
-    # Store connection
-    active_connections[driver_id] = websocket
-    print(f" Driver {driver_id} connected via WebSocket")
-    
+    print(f"WebSocket connected: {driver_id}")
+ 
+    # Use dependency injection for proper database session management
+    db = next(get_db())
+   
+    # Track last sent location to avoid duplicate sends
+    last_lat = None
+    last_lng = None
+    last_timestamp = None
+    last_route_point = None
+ 
     try:
         while True:
-            # Receive location data from driver
-            data = await websocket.receive_json()
-            
-            # Validate required fields
-            if not all(key in data for key in ['latitude', 'longitude', 'trip_id', 'agency_id', 'trip_type']):
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "Missing required fields: latitude, longitude, trip_id, agency_id, trip_type"
-                })
-                continue
-            
-            # Parse route_point if provided
-            route_point_data = None
-            if data.get('trip_type') == 'route' and data.get('route_point'):
-                route_point_data = data['route_point']
-            elif data.get('trip_type') == 'shuttle':
-                route_point_data = None
-            
-            # Create location record in database
-            try:
-                db = next(get_db())
-                location = models.DriverLocation(
-                    driver_id=driver_id,
-                    trip_id=data['trip_id'],
-                    agency_id=data['agency_id'],
-                    latitude=data['latitude'],
-                    longitude=data['longitude'],
-                    accuracy=data.get('accuracy'),
-                    speed=data.get('speed'),
-                    route_point=route_point_data
-                )
-                db.add(location)
-                db.commit()
-                db.refresh(location)
-                
-                # Update driver position cache
-                driver_positions[driver_id] = {
-                    "latitude": data['latitude'],
-                    "longitude": data['longitude'],
-                    "speed": data.get('speed'),
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "trip_id": data['trip_id'],
-                    "agency_id": data['agency_id'],
-                    "route_point": route_point_data
+            db = next(get_db())   # 🔥 NEW session every time
+
+            location = db.query(models.DriverLocation).filter(
+            models.DriverLocation.driver_id == driver_id
+            ).order_by(models.DriverLocation.timestamp.desc()).first()
+
+            if location:
+                lat = location.latitude
+                lng = location.longitude
+                route_point = location.route_point
+                current_timestamp = location.timestamp
+
+            if lat != last_lat or lng != last_lng or current_timestamp != last_timestamp or route_point != last_route_point:
+                data = {
+                "type": "location_update",
+                "driver_id": driver_id,
+                "latitude": lat,
+                "longitude": lng,
+                "route_points" : route_point,
+                "timestamp": current_timestamp.isoformat() if current_timestamp else None
                 }
-                
-                # Broadcast to monitoring clients
-                await broadcast_location_update(driver_id, driver_positions[driver_id])
-                
-                # Send confirmation to driver
-                await websocket.send_json({
-                    "type": "success",
-                    "message": "Location updated",
-                    "location_id": location.id,
-                    "timestamp": driver_positions[driver_id]['timestamp']
-                })
-                
-                db.close()
-                
-            except Exception as e:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": f"Database error: {str(e)}"
-                })
-                if 'db' in locals():
-                    db.close()
-            
-    except WebSocketDisconnect:
-        # Clean up on disconnect
-        if driver_id in active_connections:
-            del active_connections[driver_id]
-        if driver_id in driver_positions:
-            del driver_positions[driver_id]
-        print(f"Driver {driver_id} disconnected")
+
+                await websocket.send_text(json.dumps(data))
+                print("📡 Sent NEW data:", lat, lng)
+
+                last_lat = lat
+                last_lng = lng
+                last_timestamp = current_timestamp
+                last_rount_point = route_point
+
+            db.close()   # 🔥 IMPORTANT
+            await asyncio.sleep(2)
+        print(f" WebSocket disconnected: {driver_id}")
+ 
     except Exception as e:
-        print(f"WebSocket error for driver {driver_id}: {e}")
-        if driver_id in active_connections:
-            del active_connections[driver_id]
-
-@router.websocket("/ws/monitor")
-async def websocket_monitor(websocket: WebSocket):
-    """WebSocket for monitoring all driver locations (for admin/dashboard)"""
-    await websocket.accept()
-    print("📊 Monitor client connected")
-    
-    try:
-        # Send initial driver positions
-        await websocket.send_json({
-            "type": "initial",
-            "drivers": driver_positions,
-            "count": len(driver_positions)
-        })
-        
-        while True:
-            # Keep connection alive and send updates
-            await asyncio.sleep(1)  # Check every second
-            
-            # Send heartbeat
-            await websocket.send_json({
-                "type": "heartbeat",
-                "timestamp": datetime.utcnow().isoformat(),
-                "active_drivers": len(active_connections)
-            })
-            
-    except WebSocketDisconnect:
-        print("📊 Monitor client disconnected")
-    except Exception as e:
-        print(f"⚠️ Monitor WebSocket error: {e}")
-
-async def broadcast_location_update(driver_id: str, position_data: dict):
-    """Broadcast location update to all monitoring clients"""
-    message = {
-        "type": "location_update",
-        "driver_id": driver_id,
-        "data": position_data,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    
-    # Send to all monitoring clients (you'd need to track monitor connections)
-    # For now, this is a placeholder for broadcasting logic
-    print(f"Broadcasting update for driver {driver_id}")
-
-@router.get("/drivers/active")
-def get_active_drivers():
-    """Get list of currently active drivers (with WebSocket connections)"""
-    return {
-        "active_drivers": list(active_connections.keys()),
-        "count": len(active_connections),
-        "positions": driver_positions
-    }
-
-@router.get("/debug/route-points")
-def debug_route_points(
-    limit: int = 10,
-    db: Session = Depends(get_db)
-):
-    """Debug endpoint to check route_point structure in database"""
-    locations = db.query(models.DriverLocation).filter(
-        models.DriverLocation.route_point.isnot(None)
-    ).limit(limit).all()
-    
-    result = []
-    for loc in locations:
-        route_point_keys = list(loc.route_point.keys()) if loc.route_point else []
-        
-        # Check for new structure fields
-        new_structure_fields = ['passenger_id', 'passenger_name', 'phonenumber', 'status', 'timestamp']
-        has_new_structure = all(field in route_point_keys for field in new_structure_fields)
-        
-        # Check for old structure fields  
-        old_structure_fields = ['passenger_name', 'passenger_phone', 'starting_point', 'end_point', 'starting_lat', 'starting_lng', 'end_lat', 'end_lng']
-        has_old_structure = any(field in route_point_keys for field in old_structure_fields)
-        
-        result.append({
-            "id": loc.id,
-            "driver_id": loc.driver_id,
-            "trip_id": loc.trip_id,
-            "route_point": loc.route_point,
-            "route_point_type": str(type(loc.route_point)),
-            "route_point_keys": route_point_keys,
-            "has_new_structure": has_new_structure,
-            "has_old_structure": has_old_structure,
-            "passenger_id": loc.route_point.get("passenger_id") if loc.route_point else None,
-            "passenger_name": loc.route_point.get("passenger_name") if loc.route_point else None,
-            "phonenumber": loc.route_point.get("phonenumber") if loc.route_point else None,
-            "status": loc.route_point.get("status") if loc.route_point else None,
-            "timestamp": loc.route_point.get("timestamp") if loc.route_point else None,
-            "old_passenger_phone": loc.route_point.get("passenger_phone") if loc.route_point else None,
-            "starting_point": loc.route_point.get("starting_point") if loc.route_point else None,
-            "end_point": loc.route_point.get("end_point") if loc.route_point else None,
-            "starting_lat": loc.route_point.get("starting_lat") if loc.route_point else None,
-            "starting_lng": loc.route_point.get("starting_lng") if loc.route_point else None,
-            "end_lat": loc.route_point.get("end_lat") if loc.route_point else None,
-            "end_lng": loc.route_point.get("end_lng") if loc.route_point else None
-        })
-    
-    return {"route_points": result, "count": len(result)}
-
-@router.delete("/location/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_location(
-    location_id: int,
-    current_user: models.User = Depends(auth.get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Delete location by ID"""
-    location = db.query(models.DriverLocation).filter(models.DriverLocation.id == location_id).first()
-    if not location:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Location not found"
-        )
-    
-    # Optional: Check if user belongs to the same agency
-    if str(location.agency_id) != str(current_user.agency_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to delete this location"
-        )
-    
-    db.delete(location)
-    db.commit()
-    return None
+        print(f"WebSocket error for {driver_id}: {str(e)}")
+        try:
+            await websocket.close()
+        except:
+            pass
+ 
+    finally:
+        db.close()
+        print(" DB session closed")
+ 

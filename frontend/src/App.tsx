@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import Dashboard from './pages/Dashboard'
+import ITDashboard from './pages/ITDashboard'
 import Vehicles from './pages/Vehicles'
 import Drivers from './pages/Drivers'
 import Trips from './pages/Trips'
@@ -17,6 +18,18 @@ import PricingSection from './pages/PricesSection'
 import ITCompanyDashboard from './pages/ITCompanyDashboard'
 import Settings from './pages/Settings.tsx'
 import LiveTracking from './pages/LiveTracking.tsx'
+import { useAuth } from './contexts/AuthContext'
+
+// Role-based dashboard component
+const RoleBasedDashboard = () => {
+  const { user } = useAuth()
+  
+  if (user?.role === 'IT_COMPANY') {
+    return <ITDashboard />
+  }
+  
+  return <Dashboard />
+}
 
 
 function App() {
@@ -39,7 +52,7 @@ function App() {
               }
             >
               <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="dashboard" element={<RoleBasedDashboard />} />
               <Route path="vehicles" element={<Vehicles />} />
               <Route path="drivers" element={<Drivers />} />
               <Route path="trips" element={<Trips />} />

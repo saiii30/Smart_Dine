@@ -1,17 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy.orm import Session, joinedload
+from typing import List,Optional
 from .. import models, schemas
 from ..database import get_db
 from passlib.context import CryptContext
 import secrets
 import string
-from ..auth import get_current_user
+from ..auth import get_current_user, get_current_active_user
 
 
 
 router = APIRouter(
-    prefix="/api/companies",
     tags=["Companies"]
 )
 
@@ -36,27 +35,46 @@ def get_company_dropdown(agency_id: str, db: Session = Depends(get_db)):
             detail="agency_id is required"
         )
     
-    companies = db.query(models.Company)\
-        .filter(models.Company.agency_id == agency_id)\
-        .all()
+    companies = db.query(models.Company).options(
+        joinedload(models.Company.agency)
+    ).filter(models.Company.agency_id == agency_id).all()
     
     return [{
         "id": company.id, 
         "company_name": company.company_name, 
         "company_branch": company.company_branch,
-        "agency_id": company.agency_id  # Include agency_id in the response
+        "agency_id": company.agency_id,
+        "agency_name": company.agency.agency_name if company.agency else None
     } for company in companies]
 
 
 # ------------------ Dropdown ------------------
 @router.get("/dropdown", response_model=List[schemas.CompanyDropdown])
-def get_company_dropdown(db: Session = Depends(get_db)):
-    companies = db.query(models.Company).all()
+def get_company_dropdown(agency_id: Optional[str] = None, db: Session = Depends(get_db)):
+    """
+    Companies dropdown for login page
+    - If agency_id provided: Returns companies from that specific agency
+    - If no agency_id: Returns all companies (for initial load)
+    Includes agency name for display
+    """
+    if agency_id:
+        # Filter by specific agency
+        companies = db.query(models.Company).options(
+            joinedload(models.Company.agency)
+        ).filter(models.Company.agency_id == agency_id).all()
+    else:
+        # Return all companies (for initial page load)
+        companies = db.query(models.Company).options(
+            joinedload(models.Company.agency)
+        ).all()
+
     return [
         {
             "id": company.id,
             "company_name": company.company_name,
             "company_address": company.company_address,
+            "agency_id": company.agency_id,
+            "agency_name": company.agency.agency_name if company.agency else None
         }
         for company in companies
     ]
@@ -86,14 +104,32 @@ def create_company(company: schemas.CompanyCreate, db: Session = Depends(get_db)
 
 # ------------------ Read All ------------------
 @router.get("/", response_model=List[schemas.CompanyResponse])
-def read_companies(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(models.Company).offset(skip).limit(limit).all()
+def read_companies(
+    current_user: models.User = Depends(get_current_active_user),
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    # Filter companies by user's agency
+    return db.query(models.Company).filter(
+        models.Company.agency_id == current_user.agency_id
+    ).offset(skip).limit(limit).all()
 
 
 # ------------------ Read By ID ------------------
 @router.get("/{company_id}", response_model=schemas.CompanyResponse)
-def read_company(company_id: str, db: Session = Depends(get_db)):
-    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+def read_company(
+    company_id: str,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Filter by both company ID and user's agency for security
+    company = db.query(models.Company).filter(
+        models.Company.id == company_id,
+        models.Company.agency_id == current_user.agency_id
+    ).first()
+
+    
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     return company

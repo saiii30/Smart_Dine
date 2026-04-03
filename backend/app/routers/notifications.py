@@ -29,7 +29,7 @@ def determine_severity(days_remaining: int) -> str:
     else:
         return None  # Don't notify if more than 90 days
 
-def get_driver_notifications(db: Session, agency_id: Optional[str] = None) -> List[dict]:
+def get_driver_notifications(db: Session, agency_id: Optional[str] = None, user_id: Optional[str] = None) -> List[dict]:
     """Get notifications for driver document expiries"""
     notifications = []
     
@@ -69,7 +69,7 @@ def get_driver_notifications(db: Session, agency_id: Optional[str] = None) -> Li
     
     return notifications
 
-def get_vehicle_notifications(db: Session, agency_id: Optional[str] = None) -> List[dict]:
+def get_vehicle_notifications(db: Session, agency_id: Optional[str] = None, user_id: Optional[str] = None) -> List[dict]:
     """Get notifications for vehicle document expiries"""
     notifications = []
     
@@ -178,18 +178,27 @@ def get_notifications(
     # Get agency_id from current user
     agency_id = current_user.agency_id
     
+    # Get acknowledged notification IDs for this agency (shared across all users)
+    acknowledged_query = db.query(models.NotificationAcknowledgement.notification_id).filter(
+        models.NotificationAcknowledgement.agency_id == agency_id
+    )
+    acknowledged_ids = [row[0] for row in acknowledged_query.all()]
+    
     # Get all notifications
     all_notifications = []
     
     # Only get notifications if type is not specified or is 'driver'
     if not type or type == 'driver':
-        driver_notifications = get_driver_notifications(db, agency_id)
+        driver_notifications = get_driver_notifications(db, agency_id, current_user.id)
         all_notifications.extend(driver_notifications)
     
     # Only get notifications if type is not specified or is 'vehicle'
     if not type or type == 'vehicle':
-        vehicle_notifications = get_vehicle_notifications(db, agency_id)
+        vehicle_notifications = get_vehicle_notifications(db, agency_id, current_user.id)
         all_notifications.extend(vehicle_notifications)
+    
+    # Filter out acknowledged notifications
+    all_notifications = [n for n in all_notifications if n['id'] not in acknowledged_ids]
     
     # Filter by severity if specified
     if severity:
@@ -216,10 +225,19 @@ def get_notification_summary(
     # Get agency_id from current user
     agency_id = current_user.agency_id
     
+    # Get acknowledged notification IDs for this agency (shared across all users)
+    acknowledged_query = db.query(models.NotificationAcknowledgement.notification_id).filter(
+        models.NotificationAcknowledgement.agency_id == agency_id
+    )
+    acknowledged_ids = [row[0] for row in acknowledged_query.all()]
+    
     # Get all notifications
-    driver_notifications = get_driver_notifications(db, agency_id)
-    vehicle_notifications = get_vehicle_notifications(db, agency_id)
+    driver_notifications = get_driver_notifications(db, agency_id, current_user.id)
+    vehicle_notifications = get_vehicle_notifications(db, agency_id, current_user.id)
     all_notifications = driver_notifications + vehicle_notifications
+    
+    # Filter out acknowledged notifications
+    all_notifications = [n for n in all_notifications if n['id'] not in acknowledged_ids]
     
     # Sort by days remaining
     all_notifications.sort(key=lambda x: x['days_remaining'])
@@ -253,10 +271,19 @@ def get_notification_count(
     # Get agency_id from current user
     agency_id = current_user.agency_id
     
+    # Get acknowledged notification IDs for this agency (shared across all users)
+    acknowledged_query = db.query(models.NotificationAcknowledgement.notification_id).filter(
+        models.NotificationAcknowledgement.agency_id == agency_id
+    )
+    acknowledged_ids = [row[0] for row in acknowledged_query.all()]
+    
     # Get all notifications
-    driver_notifications = get_driver_notifications(db, agency_id)
-    vehicle_notifications = get_vehicle_notifications(db, agency_id)
+    driver_notifications = get_driver_notifications(db, agency_id, current_user.id)
+    vehicle_notifications = get_vehicle_notifications(db, agency_id, current_user.id)
     all_notifications = driver_notifications + vehicle_notifications
+    
+    # Filter out acknowledged notifications
+    all_notifications = [n for n in all_notifications if n['id'] not in acknowledged_ids]
     
     return {
         "count": len(all_notifications),
@@ -272,18 +299,37 @@ def mark_notification_resolved(
     db: Session = Depends(get_db)
 ):
     """
-    Mark a notification as resolved.
-    Note: This is a placeholder implementation.
-    In a real system, you might want to store resolved notifications in a separate table
-    or add a 'resolved' field to track which notifications have been acknowledged.
+    Mark a notification as resolved by creating an acknowledgement record.
     """
-    # For now, we'll just return success
-    # In a future implementation, you could:
-    # 1. Add a 'resolved_at' field to a notifications table
-    # 2. Store the notification_id in a 'resolved_notifications' table
-    # 3. Add a flag to the driver/vehicle record indicating the notification was acknowledged
-    
-    return {"message": "Notification marked as resolved", "notification_id": notification_id}
+    try:
+        # Check if notification is already acknowledged by anyone in the agency
+        existing_acknowledgement = db.query(models.NotificationAcknowledgement).filter(
+            models.NotificationAcknowledgement.notification_id == notification_id,
+            models.NotificationAcknowledgement.agency_id == current_user.agency_id
+        ).first()
+        
+        if existing_acknowledgement:
+            return {"message": "Notification already acknowledged", "notification_id": notification_id}
+        
+        # Create new acknowledgement record (agency-wide, not user-specific)
+        acknowledgement = models.NotificationAcknowledgement(
+            notification_id=notification_id,
+            user_id=current_user.id,  # Keep track of who acknowledged it
+            agency_id=current_user.agency_id
+        )
+        
+        db.add(acknowledgement)
+        db.commit()
+        db.refresh(acknowledgement)
+        
+        return {"message": "Notification marked as resolved", "notification_id": notification_id}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to acknowledge notification: {str(e)}"
+        )
 
 @router.get("/stats/dashboard")
 def get_dashboard_stats(
@@ -296,10 +342,19 @@ def get_dashboard_stats(
     # Get agency_id from current user
     agency_id = current_user.agency_id
     
+    # Get acknowledged notification IDs for this agency (shared across all users)
+    acknowledged_query = db.query(models.NotificationAcknowledgement.notification_id).filter(
+        models.NotificationAcknowledgement.agency_id == agency_id
+    )
+    acknowledged_ids = [row[0] for row in acknowledged_query.all()]
+    
     # Get all notifications
-    driver_notifications = get_driver_notifications(db, agency_id)
-    vehicle_notifications = get_vehicle_notifications(db, agency_id)
+    driver_notifications = get_driver_notifications(db, agency_id, current_user.id)
+    vehicle_notifications = get_vehicle_notifications(db, agency_id, current_user.id)
     all_notifications = driver_notifications + vehicle_notifications
+    
+    # Filter out acknowledged notifications
+    all_notifications = [n for n in all_notifications if n['id'] not in acknowledged_ids]
     
     # Calculate statistics
     total_notifications = len(all_notifications)

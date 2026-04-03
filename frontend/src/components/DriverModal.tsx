@@ -13,8 +13,8 @@ interface DriverModalProps {
 const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
   const { user } = useAuth()
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
-const isAdmin = user?.role === 'ADMIN'
-const isSupervisor = user?.role === 'SUPERVISOR'
+  const isAdmin = user?.role === 'ADMIN'
+  const isSupervisor = user?.role === 'SUPERVISOR'
   const labelStyle = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5";
   const isReadOnly = isSupervisor
   const inputStyle = `
@@ -47,6 +47,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
     full_name: '',
     phone_number: '',
     password: '',
+    has_existing_password: false, // Track if driver has existing password
     date_of_birth: '',
     gender: '',
     aadhar_number: '',
@@ -109,51 +110,56 @@ const isSupervisor = user?.role === 'SUPERVISOR'
     if (callback) callback();
   };
 
-  // --- Effects ---
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) setDraft(prev => ({ ...prev, ...JSON.parse(saved) }));
-    } catch (e) { }
-  }, []);
+    // Only load draft if we're editing an existing driver
+    if (driver) {
+      try {
+        const saved = localStorage.getItem(DRAFT_KEY);
+        if (saved) setDraft(prev => ({ ...prev, ...JSON.parse(saved) }));
+      } catch (e) { }
+    } else {
+      // Clear draft when opening new driver form to ensure empty fields
+      clearDraft();
+    }
+  }, [driver]);
 
   useEffect(() => {
     if (!driver) return;
     const d: any = driver as any;
     const mapped: Record<string, any> = {
       full_name: d.full_name || d.user?.name || '',
-      phone_number: d.user?.contact_number || d.phone || '',
+      phone_number: d.phone_number || d.user?.contact_number || '',
       password: '', // Never load existing password for security
       date_of_birth: d.date_of_birth ? new Date(d.date_of_birth).toISOString().split('T')[0] : '',
       gender: d.gender || '',
       aadhar_number: d.aadhar_number || '',
       aadhar_document_name: d.aadhar_document || '',
-      driving_license_number: d.driving_license_number || d.license_number || '',
-      license_expiry_date: d.license_expiry_date ? new Date(d.license_expiry_date).toISOString().split('T')[0] : (d.license_expiry ? new Date(d.license_expiry).toISOString().split('T')[0] : ''),
+      driving_license_number: d.driving_license_number || '',
+      license_expiry_date: d.license_expiry_date ? new Date(d.license_expiry_date).toISOString().split('T')[0] : '',
       driver_photo_name: d.driver_photo || '',
       police_verification_certificate_name: d.police_verification_certificate || '',
       medical_fitness_certificate_name: d.medical_fitness_certificate || '',
       verification_status: d.verification_status || 'Pending',
-      current_address: d.current_address || d.address || '',
+      current_address: d.current_address || '',
       city: d.city || '',
       state: d.state || '',
       pincode: d.pincode || '',
       emergency_contact_name: d.emergency_contact_name || '',
-      emergency_contact_number: d.emergency_contact_number || d.emergency_contact_phone || '',
+      emergency_contact_number: d.emergency_contact_number || '',
       blood_group: d.blood_group || '',
       previous_employer_experience: d.previous_employer_experience || '',
       languages_spoken: d.languages_spoken || '',
       shift_preference: d.shift_preference || '',
-      status: d.status || (d.is_active ? 'Active' : 'Inactive') || 'Active',
+      status: d.status || 'Active',
       assigned_vehicle_id: d.assigned_vehicle_id || '',
       showPassword: false, // Reset password visibility when editing
     };
-    setDraft(prev => ({ ...prev, ...mapped }));
+    setDraft(prev => ({ ...prev, ...mapped, has_existing_password: !!(driver as any)?.user?.password_hash, showPassword: false }));
   }, [driver]);
 
   // Clear password when switching between different drivers
   useEffect(() => {
-    saveDraft({ password: '', showPassword: false });
+    saveDraft({ password: '', showPassword: false, has_existing_password: !!(driver as any)?.user?.password_hash });
   }, [driver?.id]);
     // --- Handlers ---
   
@@ -301,6 +307,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
       full_name: '',
       phone_number: '',
       password: '', // Clear password when resetting draft
+      has_existing_password: false,
       date_of_birth: '',
       gender: '',
       aadhar_number: '',
@@ -504,7 +511,10 @@ const isSupervisor = user?.role === 'SUPERVISOR'
   disabled={isReadOnly}
                           type={draft.showPassword ? 'text' : 'password'}
                           required={!isEditing}
-                          placeholder={isEditing ? 'Leave empty to keep current' : 'Password will be auto-generated'}
+                          placeholder={isEditing 
+                            ? (draft.has_existing_password ? 'Enter new password to change' : 'Set a password for this driver')
+                            : 'Password will be auto-generated'
+                          }
                           className={`${inputStyle} pr-20`}
                           value={draft.password || ''}
                           onChange={e => saveDraft({ password: e.target.value })}
@@ -518,6 +528,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
                             }}
                             className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 p-1"
                             title="Copy to clipboard"
+                            disabled={!draft.password}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -548,9 +559,12 @@ const isSupervisor = user?.role === 'SUPERVISOR'
                         This will be the driver's initial password
                       </p>
                     )}
-                    {isEditing && !draft.password && (
+                    {isEditing && (
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Leave empty to keep current password
+                        {draft.has_existing_password 
+                          ? 'Leave empty to keep current password, or enter new password to change it'
+                          : 'Set a password for this driver'
+                        }
                       </p>
                     )}
                   </div>
@@ -608,12 +622,12 @@ const isSupervisor = user?.role === 'SUPERVISOR'
               </div>
             )}
 
-            {activeTab === 'documents' && (
+             {activeTab === 'documents' && (
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 animate-in fade-in duration-300">
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Aadhar Number</FieldLabel>
-                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.aadhar_number} onChange={e => saveDraft({ aadhar_number: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" maxLength={12} placeholder="12-digit Aadhar number" className={inputStyle} value={draft.aadhar_number} onChange={e => saveDraft({ aadhar_number: e.target.value.replace(/\D/g, '') })} />
                   </div>
                   <div>
                     <FieldLabel required>Aadhar Document</FieldLabel>
@@ -668,7 +682,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
                   </div>
                   <div>
                     <FieldLabel required>Emergency Contact Number</FieldLabel>
-                    <input disabled={isReadOnly} type="tel" className={inputStyle} value={draft.emergency_contact_number} onChange={e => saveDraft({ emergency_contact_number: e.target.value })} />
+                    <input disabled={isReadOnly} type="tel" maxLength={10} placeholder="10-digit number" className={inputStyle} value={draft.emergency_contact_number} onChange={e => saveDraft({ emergency_contact_number: e.target.value.replace(/\D/g, '') })} />
                   </div>
                   <div>
                     <FieldLabel>Previous Employer Experience</FieldLabel>
@@ -690,7 +704,7 @@ const isSupervisor = user?.role === 'SUPERVISOR'
                   </div>
                   <div>
                     <FieldLabel required>Pincode</FieldLabel>
-                    <input disabled={isReadOnly}   type="text" className={inputStyle} value={draft.pincode} onChange={e => saveDraft({ pincode: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" maxLength={6} placeholder="6-digit pincode" className={inputStyle} value={draft.pincode} onChange={e => saveDraft({ pincode: e.target.value.replace(/\D/g, '') })} />
                   </div>
                 </div>
               </div>

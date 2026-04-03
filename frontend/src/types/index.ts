@@ -5,6 +5,7 @@ export interface User {
   company_name?: string
   role: string
   is_active: boolean
+  agency_status?: string
   created_at: string
 }
 
@@ -62,8 +63,11 @@ export interface Vehicle {
 export interface Driver {
   id: string
   user_id: string
-  full_name: string
-  phone_number: string
+  user: {
+    name: string
+    email?: string
+    contact_number?: string
+  }
   email?: string
 
   date_of_birth?: string
@@ -99,12 +103,6 @@ export interface Driver {
   notes?: string
   created_at: string
   updated_at?: string
-
-  user: {
-    name: string
-    email?: string
-    contact_number?: string
-  }
 }
 
 export interface Company {
@@ -158,12 +156,11 @@ export interface TripSchedule {
 export interface RoutePoint {
   name: string
   phone: string
-  start_point: string
-  start_lat: number
-  start_lng: number
-  end_point: string
-  end_lat: number
-  end_lng: number
+  pickup_point: string
+  pickup_lat?: number
+  pickup_lng?: number
+  timestamp: string
+  ispresent: boolean
 }
 
 export interface Trip {
