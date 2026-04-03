@@ -280,7 +280,7 @@ class TripSchedule(Base):
     driver_response = Column(String, nullable=True)
     driver_reason = Column(Text, nullable=True)
     driver_response_at = Column(DateTime(timezone=True), nullable=True)
-    route_point = Column(Text, nullable=True)
+    route_points = Column(Text, nullable=True)
     status = Column(String, nullable=True, default='scheduled')
     one_way_start_time = Column(Time, nullable=True)
     two_way_start_time = Column(Time, nullable=True)

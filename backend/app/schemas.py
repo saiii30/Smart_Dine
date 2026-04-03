@@ -646,7 +646,7 @@ class TripScheduleBase(BaseModel):
     driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
     driver_response_at: Optional[datetime] = None
-    route_point: Optional[List[RoutePoint]] = Field(
+    route_points: Optional[List[RoutePoint]] = Field(
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
@@ -677,8 +677,8 @@ class TripScheduleCreate(TripScheduleBase):
             raise ValueError("trip_type must be either 'shuttle' or 'route'")
         return v
         
-    @field_validator('route_point')
-    def validate_route_point(cls, v, info):
+    @field_validator('route_points')
+    def validate_route_points(cls, v, info):
         trip_type = info.data.get('trip_type')
         if trip_type == 'route' and (not v or len(v) == 0):
             raise ValueError("At least one route point is required for 'route' trip type")
@@ -718,7 +718,7 @@ class TripScheduleUpdate(BaseModel):
     driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
     driver_response_at: Optional[datetime] = None
-    route_point: Optional[List[RoutePoint]] = Field(
+    route_points: Optional[List[RoutePoint]] = Field(
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
@@ -752,7 +752,7 @@ class TripScheduleResponse(BaseModel):
     way: Optional[str] = None
     trip_type: Optional[str] = None
     vehicle_registration_number: Optional[str] = None
-    route_point: Optional[List[RoutePoint]] = Field(
+    route_points: Optional[List[RoutePoint]] = Field(
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
@@ -805,9 +805,9 @@ class TripScheduleResponse(BaseModel):
             return v.date()
         return v
 
-    @field_validator("route_point", mode="before")
+    @field_validator("route_points", mode="before")
     @classmethod
-    def parse_route_point(cls, v):
+    def parse_route_points(cls, v):
         if isinstance(v, str):
             try:
                 return json.loads(v)
@@ -951,7 +951,7 @@ class MobileLocationCreate(BaseModel):
     longitude: float
     accuracy: Optional[float] = None
     speed: Optional[float] = None
-    route_point: Optional[str] = None  # JSON string for route type trips
+    route_points: Optional[str] = None  # JSON string for route type trips
 
 class MobileLocationResponse(BaseModel):
     id: int
@@ -963,7 +963,7 @@ class MobileLocationResponse(BaseModel):
     accuracy: Optional[float] = None
     speed: Optional[float] = None
     timestamp: datetime
-    route_point: Optional[dict] = None  # Route point data as JSON for route type trips
+    route_points: Optional[dict] = None  # Route point data as JSON for route type trips
     
     class Config:
         from_attributes = True

@@ -293,7 +293,7 @@ def update_trip(
 
         for key, value in update_data.items():
 
-            if key == "route_point" and value is not None:
+            if key == "route_points" and value is not None:
                 setattr(trip, key, json.dumps(value))  # 🔥 IMPORTANT FIX
 
             else:
@@ -458,9 +458,9 @@ def update_trip_by_driver(
 
  
 
-    if update_data.get("route_point"):
+    if update_data.get("route_points"):
 
-        update_data["route_point"] = json.dumps(update_data["route_point"])
+        update_data["route_points"] = json.dumps(update_data["route_points"])
 
  
 
@@ -639,7 +639,7 @@ def update_driver_response(
         starting_lng=trip.starting_lng,
         end_lat=trip.end_lat,
         end_lng=trip.end_lng,
-        route_point=json.loads(trip.route_point) if trip.route_point else None,
+        route_points=json.loads(trip.route_points) if trip.route_points else None,
         status=trip.status,
         driver_response=trip.driver_response,
         driver_reason=trip.driver_reason,
