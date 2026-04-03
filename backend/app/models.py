@@ -260,7 +260,7 @@ class TripSchedule(Base):
     start_date = Column(DateTime(timezone=True), nullable=True)
     end_date = Column(DateTime(timezone=True), nullable=True)
     start_time = Column(Time, nullable=True)
-    end_time = Column(Time, nullable=True)
+    #end_time = Column(Time, nullable=True)
     starting_point = Column(String, nullable=True)
     end_point = Column(String, nullable=True)
     way = Column(String, nullable=True)
@@ -280,9 +280,13 @@ class TripSchedule(Base):
     driver_response = Column(String, nullable=True)
     driver_reason = Column(Text, nullable=True)
     driver_response_at = Column(DateTime(timezone=True), nullable=True)
-    route_points = Column(Text, nullable=True)
+    route_point = Column(Text, nullable=True)
     status = Column(String, nullable=True, default='scheduled')
-    
+    one_way_start_time = Column(Time, nullable=True)
+    two_way_start_time = Column(Time, nullable=True)
+    one_way_is_active = Column(Boolean, default=True)
+    two_way_is_active = Column(Boolean, default=False)
+
     # Relationships with proper cascade and back_populates
     user = relationship("User", back_populates="trip_schedules")
     company = relationship("Company", back_populates="trip_schedules")
@@ -298,7 +302,25 @@ class TripSchedule(Base):
             self.is_active = False
             self.status_updated_at = now
             self.status = 'completed'
+            # Reset both one-way and two-way active flags when trip ends
+            self.one_way_is_active = False
+            self.two_way_is_active = False
         return self.is_active
+
+    def set_trip_direction(self, is_two_way: bool = False):
+        """Set trip direction (one-way or two-way) and update active flags accordingly"""
+        if is_two_way:
+            # Two-way trip selected
+            self.one_way_is_active = False
+            self.two_way_is_active = True
+            if self.two_way_start_time:
+                self.start_time = self.two_way_start_time
+        else:
+            # One-way trip (default)
+            self.one_way_is_active = True
+            self.two_way_is_active = False
+            if self.one_way_start_time:
+                self.start_time = self.one_way_start_time
 
 
 class NotificationAcknowledgement(Base):
