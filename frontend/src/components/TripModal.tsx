@@ -70,9 +70,9 @@ const labelClass =
     name: string
     phone: string
     address: string
-    start_point: string
-    start_lat?: number
-    start_lng?: number
+    pickup_point: string
+    pickup_lat?: number
+    pickup_lng?: number
     timestamp?: string
     pickup?: boolean
     ispresent?: boolean
@@ -151,7 +151,7 @@ const validateForm = () => {
       for (let j = 0; j < s.passengers.length; j++) {
         const p = s.passengers[j]
 
-        if (!p.name || !p.phone || !p.start_point) {
+        if (!p.name || !p.phone || !p.pickup_point) {
           return `Passenger ${j + 1} in Schedule ${i + 1} is incomplete`
         }
 
@@ -236,9 +236,9 @@ useEffect(() => {
         name: p.passenger_name || '',
         phone: p.passenger_phone || '',
         address: p.passenger_address || '',
-        start_point: p.starting_point || '',
-        start_lat: p.starting_lat,
-        start_lng: p.starting_lng,
+        pickup_point: p.pickup_point || '',
+        pickup_lat: p.pickup_lat,
+        pickup_lng: p.pickup_lng,
         timestamp: p.timestamp,
         pickup: p.pickup,
         ispresent: p.ispresent,
@@ -403,9 +403,9 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
       name: s.passengers?.[i]?.name || '',
       phone: s.passengers?.[i]?.phone || '',
       address: s.passengers?.[i]?.address || '',
-      start_point: s.passengers?.[i]?.start_point || '',
-      start_lat: s.passengers?.[i]?.start_lat,   // ✅ KEEP
-      start_lng: s.passengers?.[i]?.start_lng,   // ✅ KEEP
+      pickup_point: s.passengers?.[i]?.pickup_point || '',
+      pickup_lat: s.passengers?.[i]?.pickup_lat,  
+      pickup_lng: s.passengers?.[i]?.pickup_lng, // ✅ KEEP
       pickup: s.passengers?.[i]?.pickup,       // ✅ KEEP
         ispresent: s.passengers?.[i]?.ispresent, // ✅ KEEP
       timestamp: s.passengers?.[i]?.timestamp, // ✅ KEEP
@@ -539,9 +539,9 @@ const handleSubmit = async (e: React.FormEvent) => {
           passenger_name: p.name,
           passenger_phone: p.phone,
           passenger_address: p.address,
-          starting_point: p.start_point,
-          starting_lat: p.start_lat,
-          starting_lng: p.start_lng,
+          pickup_point: p.pickup_point,
+          pickup_lat: p.pickup_lat,
+          pickup_lng: p.pickup_lng,
           pickup:false,
           timestamp:  new Date().toISOString(),
           ispresent: p.ispresent || true,
@@ -792,9 +792,10 @@ const selectClass =
         name: '',
         phone: '',
         address: '',
-        start_point: '',
-        start_lat: undefined,
-        start_lng: undefined,
+        pickup_point: '',
+        pickup_lat: undefined,
+        pickup_lng: undefined,
+        ispresent: true,
         pickup: false,
         timestamp: '',
       }))
@@ -919,8 +920,8 @@ const selectClass =
           // 🔥 ROUTE → PASSENGER
           if (s.trip_type === 'route' && activePassengerIndex !== null) {
             const p = s.passengers?.[activePassengerIndex]
-            return p?.start_lat && p?.start_lng
-              ? { lat: p.start_lat, lng: p.start_lng }
+            return p?.pickup_lat && p?.pickup_lng
+              ? { lat: p.pickup_lat, lng: p.pickup_lng }
               : undefined
           }
 
@@ -960,9 +961,9 @@ const selectClass =
       const p = s.passengers![activePassengerIndex]
 
       if (activeField === 'starting_point') {
-        p.start_point = address
-        p.start_lat = lat
-        p.start_lng = lng
+        p.pickup_point = address
+        p.pickup_lat = lat
+        p.pickup_lng = lng
       } 
     }
 
@@ -1278,7 +1279,7 @@ const selectClass =
                     <p className={labelClass}>Pickup Point</p>
                     <p className="text-xs text-gray-500 max-w-[220px] 
               break-words line-clamp-2">
-  {p.start_point || 'Select pickup location'}
+  {p.pickup_point || 'Select pickup location'}
 </p>
 
                   </div>
