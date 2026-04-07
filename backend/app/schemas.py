@@ -628,8 +628,9 @@ class TripScheduleBase(BaseModel):
     driver_id: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    start_time: Optional[time] = None
-    # end_time: Optional[time] = None  # Commented out in model
+    end_time: Optional[time] = None
+    one_way_start_time: Optional[time] = None
+    two_way_start_time: Optional[time] = None
     starting_point: Optional[str] = None
     end_point: Optional[str] = None
     way: Optional[str] = None
@@ -646,29 +647,29 @@ class TripScheduleBase(BaseModel):
     driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
     driver_response_at: Optional[datetime] = None
-    route_points: Optional[List[RoutePoint]] = Field(
+    route_point: Optional[List[RoutePoint]] = Field(
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
-    status: Optional[str] = 'scheduled'
-    one_way_start_time: Optional[time] = None
-    two_way_start_time: Optional[time] = None
-    one_way_is_active: bool = True
-    two_way_is_active: bool = False
+    status: Optional[str] = None
+    one_way_is_active: Optional[bool] = Field(None, alias='one_way_isActive')
+    two_way_is_active: Optional[bool] = Field(None, alias='two_way_isActive')
 
 class TripScheduleCreate(TripScheduleBase):
     # Required fields for creation
+    agency_id: Optional[str] = None  # Accept from frontend but will be overridden by current user's agency_id
     company_id: str
     company_name: str
     start_date: date
     end_date: date
-    start_time: time
-    # end_time: time  # Commented out in model
+    one_way_start_time: Optional[time] = None
+    two_way_start_time: Optional[time] = None
+    # end_time: time  # Calculated automatically
     passenger_count: int = 1
     trip_type: str
     status: str = 'scheduled'
-    one_way_is_active: bool = True
-    two_way_is_active: bool = False
+    one_way_is_active: Optional[bool] = Field(None, alias='one_way_isActive')
+    two_way_is_active: Optional[bool] = Field(None, alias='two_way_isActive')
 
     # Validate trip type
     @field_validator('trip_type')
@@ -677,8 +678,8 @@ class TripScheduleCreate(TripScheduleBase):
             raise ValueError("trip_type must be either 'shuttle' or 'route'")
         return v
         
-    @field_validator('route_points')
-    def validate_route_points(cls, v, info):
+    @field_validator('route_point')
+    def validate_route_point(cls, v, info):
         trip_type = info.data.get('trip_type')
         if trip_type == 'route' and (not v or len(v) == 0):
             raise ValueError("At least one route point is required for 'route' trip type")
@@ -700,8 +701,7 @@ class TripScheduleUpdate(BaseModel):
     driver_id: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    start_time: Optional[time] = None
-    # end_time: Optional[time] = None  # Commented out in model
+    end_time: Optional[time] = None
     starting_point: Optional[str] = None
     end_point: Optional[str] = None
     way: Optional[str] = None
@@ -718,15 +718,13 @@ class TripScheduleUpdate(BaseModel):
     driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
     driver_response_at: Optional[datetime] = None
-    route_points: Optional[List[RoutePoint]] = Field(
+    route_point: Optional[List[RoutePoint]] = Field(
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
     status: Optional[str] = None
-    one_way_start_time: Optional[time] = None
-    two_way_start_time: Optional[time] = None
-    one_way_is_active: Optional[bool] = None
-    two_way_is_active: Optional[bool] = None
+    one_way_is_active: Optional[bool] = Field(None, alias='one_way_isActive')
+    two_way_is_active: Optional[bool] = Field(None, alias='two_way_isActive')
 
       
     class Config:
@@ -745,14 +743,15 @@ class TripScheduleResponse(BaseModel):
     company_branch: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    start_time: Optional[time] = None
-    # end_time: Optional[time] = None  # Commented out in model
+    end_time: Optional[time] = None
+    one_way_start_time: Optional[time] = None
+    two_way_start_time: Optional[time] = None
     starting_point: Optional[str] = None
     end_point: Optional[str] = None
     way: Optional[str] = None
     trip_type: Optional[str] = None
     vehicle_registration_number: Optional[str] = None
-    route_points: Optional[List[RoutePoint]] = Field(
+    route_point: Optional[List[RoutePoint]] = Field(
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
     )
@@ -773,10 +772,8 @@ class TripScheduleResponse(BaseModel):
     driver_reason: Optional[str] = None
     driver_response_at: Optional[datetime] = None
     status_updated_at: Optional[datetime] = None
-    one_way_start_time: Optional[time] = None
-    two_way_start_time: Optional[time] = None
-    one_way_is_active: Optional[bool] = True
-    two_way_is_active: Optional[bool] = False
+    one_way_is_active: Optional[bool] = Field(None, alias='one_way_isActive')
+    two_way_is_active: Optional[bool] = Field(None, alias='two_way_isActive')
     
     # Relationships
     user: Optional[UserBase] = None
@@ -784,13 +781,6 @@ class TripScheduleResponse(BaseModel):
     vehicle: Optional[VehicleResponse] = None
     driver: Optional[DriverResponse] = None
     
-    @field_validator('start_time', mode='before')
-    @classmethod
-    def parse_start_time(cls, v):
-        if isinstance(v, datetime):
-            return v.time()
-        return v
-        
     @field_validator('start_date', mode='before')
     @classmethod
     def parse_start_date(cls, v):
@@ -805,9 +795,9 @@ class TripScheduleResponse(BaseModel):
             return v.date()
         return v
 
-    @field_validator("route_points", mode="before")
+    @field_validator("route_point", mode="before")
     @classmethod
-    def parse_route_points(cls, v):
+    def parse_route_point(cls, v):
         if isinstance(v, str):
             try:
                 return json.loads(v)
@@ -951,7 +941,8 @@ class MobileLocationCreate(BaseModel):
     longitude: float
     accuracy: Optional[float] = None
     speed: Optional[float] = None
-    route_points: Optional[str] = None  # JSON string for route type trips
+    route_point: Optional[str] = None  # JSON string for route type trips
+    location_id: Optional[int] = None  # For targeted updates
 
 class MobileLocationResponse(BaseModel):
     id: int
@@ -963,7 +954,24 @@ class MobileLocationResponse(BaseModel):
     accuracy: Optional[float] = None
     speed: Optional[float] = None
     timestamp: datetime
-    route_points: Optional[dict] = None  # Route point data as JSON for route type trips
+    route_point: Optional[dict] = None  # Route point data as JSON for route type trips
+    
+    class Config:
+        from_attributes = True
+
+class RoutePointsUpdate(BaseModel):
+    trip_id: str
+    driver_id: str
+    agency_id: str
+    location_id: int  # Required for targeted updates
+    route_point: str  # JSON object from frontend
+    
+    class Config:
+        from_attributes = True
+
+class LocationDeactivate(BaseModel):
+    driver_id: str
+    location_id: int  # Required for targeted deactivation
     
     class Config:
         from_attributes = True
