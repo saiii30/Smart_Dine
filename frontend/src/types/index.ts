@@ -165,6 +165,7 @@ export interface RoutePoint {
   pickup_lng?: number
   timestamp: string
   ispresent: boolean
+  isdropped: boolean
 }
 
 export interface Trip {

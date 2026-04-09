@@ -79,6 +79,7 @@ const labelClass =
     timestamp?: string
     pickup?: boolean
     ispresent?: boolean
+    isdropped?: boolean
   }[]
   passenger_count: number
   driver_id?: string
@@ -261,6 +262,7 @@ useEffect(() => {
         timestamp: p.timestamp,
         pickup: p.pickup,
         ispresent: p.ispresent,
+        isdropped: p.isdropped,
         })) : []
     })),
   })
@@ -430,6 +432,7 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
       pickup_lng: s.passengers?.[i]?.pickup_lng, // ✅ KEEP
       pickup: s.passengers?.[i]?.pickup,       // ✅ KEEP
         ispresent: s.passengers?.[i]?.ispresent, // ✅ KEEP
+        isdropped: s.passengers?.[i]?.isdropped, // ✅ KEEP
       timestamp: s.passengers?.[i]?.timestamp, // ✅ KEEP
     }))
   }
@@ -568,7 +571,8 @@ two_way_isActive: s.way === 'two_way',
           pickup_lng: p.pickup_lng,
           pickup:false,
           timestamp:  new Date().toISOString(),
-          ispresent: p.ispresent || true,
+          ispresent: p.ispresent || false,
+          isdropped: p.isdropped || false,
 
         })) || []
 
@@ -838,6 +842,7 @@ const selectClass =
         pickup_lat: undefined,
         pickup_lng: undefined,
         ispresent: true,
+        isdropped: false,
         pickup: false,
         timestamp: '',
       }))
