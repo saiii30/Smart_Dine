@@ -117,8 +117,12 @@ const MapPicker = ({ mode, startPoint, endPoint, onSelect }: Props) => {
     } else if (mode === 'end_point') {
       setEnd(latlng)
       if (start) {
-        onSelect(latlng.lat, latlng.lng, distanceInKm(start, latlng))
+        alert('Calculating route and distance...')
+        onSelect(latlng.lat, latlng.lng, distanceInKm(start, latlng), time || undefined)
+        alert(`Distance: ${distanceInKm(start, latlng).toFixed(2)} km`)
+        alert(`Estimated Time: ${Math.ceil((distanceInKm(start, latlng) / 50) * 60)} min (assuming 50 km/h)`)
       } else {
+        alert('Please select a starting point first.')
         onSelect(latlng.lat, latlng.lng)
       }
     }

@@ -14,6 +14,7 @@ from app.auth import get_password_hash
 from datetime import datetime, date, time
 import traceback
 
+from datetime import timedelta
 
 
 
@@ -626,13 +627,13 @@ def delete_driver(
 
 
 # list available drivers within a specific time range
-
 @router.get("/available/drivers", response_model=List[schemas.DriverResponse])
 def get_available_drivers(
     start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
-    start_time: time = Query(..., description="Start time (HH:MM:SS)"),
-    end_time: time = Query(..., description="End time (HH:MM:SS)"),
+    one_way_start_time: time = Query(None, description="One-way trip start time (HH:MM:SS)"),
+    two_way_start_time: time = Query(None, description="Two-way trip start time (HH:MM:SS)"),
+    duration_min: int = Query(..., description="Trip duration in minutes"),
     current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -647,10 +648,44 @@ def get_available_drivers(
  
     try:
  
-        # 1️ TIME OVERLAP CHECK
+        # Calculate proposed trip end time based on trip type and duration
+        proposed_start_time = None
+        proposed_end_time = None
+       
+        if one_way_start_time:
+            proposed_start_time = one_way_start_time
+            # Calculate end time with 20-minute buffer
+            start_datetime = datetime.combine(date.today(), proposed_start_time)
+            end_datetime = start_datetime + timedelta(minutes=duration_min) + timedelta(minutes=20)
+            proposed_end_time = end_datetime.time()
+        elif two_way_start_time:
+            proposed_start_time = two_way_start_time
+            # Calculate end time with 20-minute buffer
+            start_datetime = datetime.combine(date.today(), proposed_start_time)
+            end_datetime = start_datetime + timedelta(minutes=duration_min) + timedelta(minutes=20)
+            proposed_end_time = end_datetime.time()
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Either one_way_start_time or two_way_start_time must be provided"
+            )
+ 
+        # 1️ TIME OVERLAP CHECK - Check against existing trips
         time_overlap = and_(
-            models.TripSchedule.start_time < end_time,
-            models.TripSchedule.end_time > start_time
+            # Case 1: One-way trip active - check one_way_start_time
+            or_(
+                and_(
+                    models.TripSchedule.one_way_is_active == True,
+                    models.TripSchedule.one_way_start_time < proposed_end_time,
+                    models.TripSchedule.end_time > proposed_start_time
+                ),
+                # Case 2: Two-way trip active - check two_way_start_time
+                and_(
+                    models.TripSchedule.two_way_is_active == True,
+                    models.TripSchedule.two_way_start_time < proposed_end_time,
+                    models.TripSchedule.end_time > proposed_start_time
+                )
+            )
         )
  
         # 2️ DATE OVERLAP CHECK
@@ -698,4 +733,4 @@ def get_available_drivers(
             status_code=500,
             detail="Error fetching available drivers"
         )
-
+ 

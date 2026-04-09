@@ -7,14 +7,7 @@ import L from 'leaflet'
 import API from '../api/axiosConfig'
 
 
-let DefaultIcon = L.icon({
-    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-})
 
-L.Marker.prototype.options.icon = DefaultIcon
 
 // Custom icons
 const startIcon = new L.Icon({
@@ -52,14 +45,12 @@ const carIcon = L.divIcon({
 })
 
 const passengerIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/9131/9131529.png', // Small passenger icon as requested
-    iconSize: [24, 24],
-    iconAnchor: [12, 24],
-    popupAnchor: [0, -24],
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    shadowSize: [24, 24]
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/9131/9131529.png',
+  iconRetinaUrl: 'https://cdn-icons-png.flaticon.com/512/9131/9131529.png',
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
 })
-
 interface TripMapModalProps {
     schedule: any
     onClose: () => void
@@ -131,8 +122,16 @@ useEffect(() => {
             return null
         }
 
-            const start = await fetchCoords(schedule.starting_point)
-            const end = await fetchCoords(schedule.end_point)
+            let startLocation = schedule.starting_point
+let endLocation = schedule.end_point
+
+if (status === 'return') {
+    startLocation = schedule.end_point
+    endLocation = schedule.starting_point
+}
+
+const start = await fetchCoords(startLocation)
+const end = await fetchCoords(endLocation)
 
             // Initial Driver Fetch (Real)
             let driver: [number, number] | null = null
@@ -156,44 +155,27 @@ useEffect(() => {
 
             // Generate Pickups
             const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
-            // if (schedule.route_points && Array.isArray(schedule.route_points) && schedule.route_points.length > 0) {
-            //     schedule.route_points.forEach((rp: any, i: number) => {
-            //         if (rp.pickup_lat && rp.pickup_lng) {
-            //            points.push({
-            //             id: String(rp.passenger_id),
-            //             coords: [rp.pickup_lat, rp.pickup_lng],
-            //             name: rp.passenger_name,
-            //             phone: rp.passenger_phone,
-            //             pickup: rp.pickup_point
-            //             })
-
-            //             console.log(points)
-            //         }
-            //         else{
-            //             console.warn(`Skipping passenger ${rp.passenger_id} due to missing coordinates`)
-            //         }
-            //     })
-            // } 
-
-            // Generate Pickups
-// const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
-
+            
 // ✅ ROUTE TRIP (has passenger coordinates)
-if (schedule.route_points && Array.isArray(schedule.route_points) && schedule.route_points.length > 0) {
+if (schedule.route_point && Array.isArray(schedule.route_point) && schedule.route_point.length > 0) {
 
-    schedule.route_points.forEach((rp: any) => {
+    let routePoints = [...schedule.route_point]
 
-        if (rp.pickup_lat && rp.pickup_lng) {
-            points.push({
-                id: String(rp.passenger_id),
-                coords: [rp.pickup_lat, rp.pickup_lng],
-                name: rp.passenger_name,
-                phone: rp.passenger_phone,
-                pickup: rp.pickup_point
-            })
-        }
+if (status === 'return') {
+    routePoints = routePoints.reverse()
+}
 
-    })
+routePoints.forEach((rp: any) => {
+    if (rp.pickup_lat && rp.pickup_lng) {
+        points.push({
+            id: String(rp.passenger_id),
+            coords: [rp.pickup_lat, rp.pickup_lng],
+            name: rp.passenger_name,
+            phone: rp.passenger_phone,
+            pickup: rp.pickup_point
+        })
+    }
+})
 
 } 
 // ✅ SHUTTLE TRIP (no passenger coords → use count)
@@ -222,7 +204,7 @@ else if (start && schedule.passenger_count) {
 
 
           let sortedPoints = null;
-          if(schedule.route_points.length > 0 ){
+          if(schedule.route_point && schedule.route_point.length > 0 ){
              sortedPoints = points;
 
             if (driver) {
@@ -262,12 +244,27 @@ else if (start && schedule.passenger_count) {
                     }
 
                     if (data && data.routes && data.routes.length > 0) {
-                        const path = data.routes[0].geometry.coordinates.map((coord: any) => [coord[1], coord[0]])
-                        setRoutePath(path)
+  const path = data.routes[0].geometry.coordinates.map((coord: any) => [
+    coord[1],
+    coord[0]
+  ])
 
-                    } else {
-                        throw new Error("No routes found")
-                    }
+  const status = getTripStatus()
+
+  if (status === 'not_started') {
+    setRoutePath([])
+  } 
+  else if (status === 'going') {
+    setRoutePath(path)
+  } 
+  else if (status === 'return') {
+    const reversePath = [...path].reverse()
+    setRoutePath(reversePath)
+  } 
+  else {
+    setRoutePath(path)
+  }
+}
                 } catch (e: any) {
                     console.error("All route fetch attempts failed", e)
                     // Inform user nicely
@@ -279,6 +276,57 @@ else if (start && schedule.passenger_count) {
         }
         fetchData()
     }, [schedule])
+
+
+//     const getTripStatus = () => {
+//   const now = new Date()
+//   const today = new Date().toISOString().split('T')[0]
+
+//   const forwardTime = new Date(`${today}T${schedule.one_way_start_time}`)
+//   const returnTime = new Date(`${today}T${schedule.two_way_start_time}`)
+
+//   if (schedule.way !== 'two_way') {
+//     return 'one_way'
+//   }
+
+//   if (now < forwardTime) {
+//     return 'not_started'
+//   } else if (now < returnTime) {
+//     return 'going'
+//   } else {
+//     return 'return'
+//   }
+// }
+
+
+const getTripStatus = () => {
+  const now = new Date()
+  const today = new Date().toISOString().split('T')[0]
+
+  const returnTime = new Date(`${today}T${schedule.two_way_start_time}`)
+
+  // ✅ One-way trip only
+  if (schedule.way !== 'two_way') {
+    return 'one_way'
+  }
+
+  // ✅ Going trip active
+  if (schedule.one_way_active === true) {
+    return 'going'
+  }
+
+  // ✅ One-way completed
+  if (schedule.one_way_active === false) {
+    if (now < returnTime) {
+      return 'waiting'  // ⏳ waiting for return trip
+    } else {
+      return 'return'   // 🔵 return trip started
+    }
+  }
+
+  return 'not_started'
+}
+
 
     
 
@@ -296,16 +344,16 @@ useEffect(() => {
 
         const data = JSON.parse(event.data);
 
-        console.log(data.route_points)
+        console.log(data.route_point)
 
         if (data.type === "location_update") {
             // 🔥 THIS IS IMPORTANT
             setDriverLocation([data.latitude, data.longitude]);
 
 
-        const routePoints = Array.isArray(data.route_points)
-            ? data.route_points
-            : data.route_points ? [data.route_points] : [];
+        const routePoints = Array.isArray(data.route_point)
+            ? data.route_point
+            : data.route_point ? [data.route_point] : [];
 
                 if (routePoints.length > 0) {
             routePoints.forEach((p: any) => {
@@ -325,6 +373,16 @@ useEffect(() => {
     return () => ws.close();
 
 }, [schedule.driver_id]);
+
+const [, forceUpdate] = useState(0)
+
+useEffect(() => {
+  const interval = setInterval(() => {
+    forceUpdate(prev => prev + 1)
+  }, 30000)
+
+  return () => clearInterval(interval)
+}, [])
 
     // Bounds Logic
     const [bounds, setBounds] = useState<L.LatLngBoundsExpression | null>(null)
@@ -468,7 +526,14 @@ useEffect(() => {
     }
 
     const center: [number, number] = driverLocation || startCoords || endCoords || [13.0827, 80.2707]
-    const rawActiveLocation = driverLocation || startCoords
+    const status = getTripStatus()
+
+const rawActiveLocation =
+  status === 'return'
+    ? driverLocation || endCoords
+    : driverLocation || startCoords
+
+  
     const activeLocation = useAnimatedPosition(rawActiveLocation, routePath)
 
     return (
@@ -481,7 +546,14 @@ useEffect(() => {
                         <div className="flex flex-col gap-1">
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                                 {schedule.company_name || 'Trip Details'}
-                                <span className="flex h-3 w-3 relative">
+
+                                <p className="text-xs mt-1">
+  {status === 'not_started' && "⏳ Trip Not Started"}
+  {status === 'going' && "🟢 Going Trip"}
+  {status === 'waiting' && "🟡 Waiting for Return"}
+  {status === 'return' && "🔵 Return Trip"}
+</p>
+                         <span className="flex h-3 w-3 relative">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                                 </span>
@@ -577,7 +649,12 @@ useEffect(() => {
                             )}
 
                             {routePath.length > 0 ? (
-                                <Polyline positions={routePath} color="#3b82f6" weight={5} opacity={0.7} />
+                                <Polyline
+  positions={routePath}
+  color={getTripStatus() === 'return' ? "green" : "blue"}
+  weight={5}
+  opacity={0.7}
+/>
                             ) : (
                                 startCoords && endCoords && (
                                     <Polyline positions={[startCoords, endCoords]} color="gray" dashArray="5, 10" />

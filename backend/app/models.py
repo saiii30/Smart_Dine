@@ -144,7 +144,7 @@ class DriverLocation(Base):
    
     # Relationships
     driver = relationship("Driver", back_populates="location_updates")
-    trip_schedule = relationship("TripSchedule", back_populates="location_updates")
+    trip_schedules = relationship("TripSchedule", back_populates="location_updates")
     company = relationship("Company", back_populates="driver_locations")
  
 
@@ -259,8 +259,7 @@ class TripSchedule(Base):
     company_branch = Column(Text, nullable=True)
     start_date = Column(DateTime(timezone=True), nullable=True)
     end_date = Column(DateTime(timezone=True), nullable=True)
-    start_time = Column(Time, nullable=True)
-    #end_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
     starting_point = Column(String, nullable=True)
     end_point = Column(String, nullable=True)
     way = Column(String, nullable=True)
@@ -280,12 +279,12 @@ class TripSchedule(Base):
     driver_response = Column(String, nullable=True)
     driver_reason = Column(Text, nullable=True)
     driver_response_at = Column(DateTime(timezone=True), nullable=True)
-    route_points = Column(Text, nullable=True)
+    route_point = Column(Text, nullable=True)
     status = Column(String, nullable=True, default='scheduled')
     one_way_start_time = Column(Time, nullable=True)
     two_way_start_time = Column(Time, nullable=True)
-    one_way_is_active = Column(Boolean, default=True)
-    two_way_is_active = Column(Boolean, default=False)
+    one_way_is_active = Column(Boolean, nullable=True)
+    two_way_is_active = Column(Boolean, nullable=True)
 
     # Relationships with proper cascade and back_populates
     user = relationship("User", back_populates="trip_schedules")
@@ -293,7 +292,7 @@ class TripSchedule(Base):
     vehicle = relationship("Vehicle", back_populates="trip_schedules")
     driver = relationship("Driver", back_populates="trip_schedules")
     agency = relationship("Agency", back_populates="trip_schedules")
-    location_updates = relationship("DriverLocation", back_populates="trip_schedule")
+    location_updates = relationship("DriverLocation", back_populates="trip_schedules")
     
     def update_status_based_on_date(self):
         """Update the trip status based on current date and time"""
@@ -307,21 +306,7 @@ class TripSchedule(Base):
             self.two_way_is_active = False
         return self.is_active
 
-    def set_trip_direction(self, is_two_way: bool = False):
-        """Set trip direction (one-way or two-way) and update active flags accordingly"""
-        if is_two_way:
-            # Two-way trip selected
-            self.one_way_is_active = False
-            self.two_way_is_active = True
-            if self.two_way_start_time:
-                self.start_time = self.two_way_start_time
-        else:
-            # One-way trip (default)
-            self.one_way_is_active = True
-            self.two_way_is_active = False
-            if self.one_way_start_time:
-                self.start_time = self.one_way_start_time
-
+    
 
 class NotificationAcknowledgement(Base):
     __tablename__ = "notification_acknowledgements"

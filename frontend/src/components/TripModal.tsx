@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { X, Plus, Trash2, TowerControl } from 'lucide-react'
 import { Trip, Vehicle, Driver, TripSchedule } from '../types'
 import { useTheme } from '../contexts/ThemeContext'
 import MapPicker from '../components/MapPicker'
@@ -62,8 +62,11 @@ const labelClass =
   end_point: string
   end_lat?: number           // ADD
   end_lng?: number           // ADD
-  start_time: string
-  end_time: string
+
+  one_way_start_time?: string
+  two_way_start_time?: string
+  one_way_isActive?: boolean
+  two_way_isActive?: boolean
   way: 'one_way' | 'two_way'
   passengers?: {
     id : string
@@ -134,8 +137,9 @@ const validateForm = () => {
       !formData.company_id ||
       !s.start_date ||
       !s.end_date ||
-      !s.start_time ||
-      !s.end_time ||
+  
+      // !s.one_way_start_time ||
+      // !s.two_way_start_time ||
       !s.starting_point ||
       !s.end_point ||
       !s.trip_type ||
@@ -145,6 +149,19 @@ const validateForm = () => {
     ) {
       return `Please fill all required fields in Schedule ${i + 1}`
     }
+
+    // 🔥 WAY BASED VALIDATION
+if (s.way === 'one_way') {
+  if (!s.one_way_start_time) {
+    return `One Way Start Time required`
+  }
+}
+
+if (s.way === 'two_way') {
+  if (!s.one_way_start_time || !s.two_way_start_time) {
+    return `Both One Way & Two Way Start Time required`
+  }
+}
 
     // 🔴 Route passengers validation
     if (s.trip_type === 'route' && s.passengers) {
@@ -171,8 +188,8 @@ useEffect(() => {
     if (
       s.start_date &&
       s.end_date &&
-      s.start_time &&
-      s.end_time
+      (s.one_way_start_time || s.two_way_start_time) &&
+      s.duration_min
     ) {
       fetchDrivers(index)
       fetchVehicles(index)
@@ -184,7 +201,7 @@ useEffect(() => {
   formData.schedules
     .map(
       s =>
-        `${s.end_time}`
+        `${s.start_date}-${s.end_date}-${s.one_way_start_time}-${s.two_way_start_time}-${s.duration_min}`
     )
     .join('|')
 ])
@@ -219,8 +236,10 @@ useEffect(() => {
       end_point: s.end_point || '',
       end_lat: s.end_lat,
       end_lng: s.end_lng,
-      start_time: s.start_time || '',
-      end_time: s.end_time || '',
+      one_way_isActive: s.one_way_isActive,
+      two_way_isActive: s.two_way_isActive,
+      one_way_start_time: s.one_way_start_time,
+      two_way_start_time: s.two_way_start_time,
       passenger_count: s.passenger_count || 0,
       driver_id: s.driver_id ?? undefined,
       vehicle_id: s.vehicle_id ?? undefined,
@@ -231,7 +250,7 @@ useEffect(() => {
       way: (s.way || 'one_way') as 'one_way' | 'two_way',
       distance_km: s.distance_km,
       duration_min: s.duration_min,
-      passengers: s.route_points ? s.route_points.map((p: any) => ({
+      passengers: s.route_point ? s.route_point.map((p: any) => ({
         id : p.id,
         name: p.passenger_name || '',
         phone: p.passenger_phone || '',
@@ -254,9 +273,7 @@ const fetchVehicles = async (scheduleIndex: number) => {
 
   if (
     !s.start_date ||
-    !s.end_date ||
-    !s.start_time ||
-    !s.end_time
+    !s.end_date 
   ) {
     return
   }
@@ -271,8 +288,11 @@ const fetchVehicles = async (scheduleIndex: number) => {
         params: {
           start_date: s.start_date,
           end_date: s.end_date,
-          start_time: s.start_time,
-          end_time: s.end_time,
+           one_way_start_time: s.one_way_start_time,
+          two_way_start_time: s.two_way_start_time || null,
+          duration_min: s.duration_min,
+
+
         },
         headers: {
           Authorization: `Bearer ${token}`,
@@ -295,9 +315,7 @@ const fetchDrivers = async (scheduleIndex: number) => {
 
   if (
     !s.start_date ||
-    !s.end_date ||
-    !s.start_time ||
-    !s.end_time
+    !s.end_date 
   ) {
     return
   }
@@ -311,8 +329,10 @@ const fetchDrivers = async (scheduleIndex: number) => {
         params: {
           start_date: s.start_date,
           end_date: s.end_date,
-          start_time: s.start_time,
-          end_time: s.end_time,
+          one_way_start_time: s.one_way_start_time,
+          two_way_start_time: s.two_way_start_time || null,
+          duration_min: s.duration_min,
+      
         },
         headers: {
           Authorization: `Bearer ${token}`,
@@ -374,8 +394,10 @@ const fetchDrivers = async (scheduleIndex: number) => {
         end_point: '',
         end_lat: undefined,
         end_lng: undefined,
-        start_time: '',
-        end_time: '',
+        one_way_isActive: true,
+        two_way_isActive: false,
+        one_way_start_time: '',
+        two_way_start_time: '',
         way: 'one_way',
         passenger_count: 0,
         driver_id: undefined,
@@ -436,8 +458,8 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
 
  
   const getScheduleKey = (s: any) => {
-  if (!s.start_date || !s.start_time) return ''
-  return `${s.start_date} ${s.start_time}`
+  if (!s.start_date || !s.one_way_start_time) return ''
+  return `${s.start_date} ${s.one_way_start_time}`
 }
 
 const getAvailableVehicles = (scheduleIndex: number) => {
@@ -518,8 +540,10 @@ const handleSubmit = async (e: React.FormEvent) => {
         end_date: s.end_date || null,
         starting_point: s.starting_point || null,
         end_point: s.end_point || null,
-        start_time: s.start_time || null,
-        end_time: s.end_time || null,
+        one_way_start_time: s.one_way_start_time || null,
+        two_way_start_time: s.two_way_start_time || null,
+       one_way_isActive: true,
+two_way_isActive: s.way === 'two_way',
         way: s.way,
         trip_type: s.trip_type,
         passenger_count: s.passenger_count,
@@ -534,7 +558,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   distance_km: s.distance_km || null,
   duration_min: s.duration_min || null,
 
-        route_points: s.passengers?.map(p => ({
+        route_point: s.passengers?.map(p => ({
           passenger_id: uuidv4(),
           passenger_name: p.name,
           passenger_phone: p.phone,
@@ -739,9 +763,7 @@ const selectClass =
               {[
                 ['Start Date', 'date', 'start_date'],
                 ['End Date', 'date', 'end_date'],
-
-                ['Start Time', 'time', 'start_time'],
-                ['End Time', 'time', 'end_time'],
+              
               ].map(([label, type, field]) => (
                 <div key={field}>
                   <label className={labelClass}>
@@ -761,10 +783,30 @@ const selectClass =
 
               <div>
                 <label className={labelClass}>Trip Way <span className="text-red-500">*</span></label>
-                <select
-                disabled={isSupervisor}
-                  value={schedule.way}
-                  onChange={(e) => updateSchedule(index, 'way', e.target.value)}
+  <select
+  value={schedule.way}
+  onChange={(e) => {
+    const value = e.target.value as 'one_way' | 'two_way'
+
+    const updated = [...formData.schedules]
+    const s = updated[index]
+
+    s.way = value
+
+    if (value === 'one_way') {
+      s.two_way_start_time = ''
+      s.two_way_isActive = false
+      s.one_way_isActive = true
+    }
+
+    if (value === 'two_way') {
+      s.one_way_isActive = true
+      s.two_way_isActive = true
+      s.two_way_start_time = '' // user must fill
+    }
+
+    setFormData({ ...formData, schedules: updated })
+  }}
                   className={selectClass}
                 >
                   <option value="one_way">One Way</option>
@@ -815,7 +857,57 @@ const selectClass =
   </select>
 </div>
 
-             
+
+            {/* 🔵 One Way Start Time */}
+{/* 🟢 ONE WAY → only one field */}
+{schedule.way === 'one_way' && (
+  <div>
+    <label className={labelClass}>
+      One Way Start Time <span className="text-red-500">*</span>
+    </label>
+    <input
+      type="time"
+      value={schedule.one_way_start_time || ''}
+      onChange={(e) =>
+        updateSchedule(index, 'one_way_start_time', e.target.value)
+      }
+      className={INPUTClass}
+    />
+  </div>
+)}
+
+{/* 🔵 TWO WAY → two fields */}
+{schedule.way === 'two_way' && (
+  <>
+    <div>
+      <label className={labelClass}>
+        One Way Start Time <span className="text-red-500">*</span>
+      </label>
+      <input
+        type="time"
+        value={schedule.one_way_start_time || ''}
+        onChange={(e) =>
+          updateSchedule(index, 'one_way_start_time', e.target.value)
+        }
+        className={INPUTClass}
+      />
+    </div>
+
+    <div>
+      <label className={labelClass}>
+        Two Way Start Time <span className="text-red-500">*</span>
+      </label>
+      <input
+        type="time"
+        value={schedule.two_way_start_time || ''}
+        onChange={(e) =>
+          updateSchedule(index, 'two_way_start_time', e.target.value)
+        }
+        className={INPUTClass}
+      />
+    </div>
+  </>
+)}
 
              
 
@@ -981,11 +1073,23 @@ const selectClass =
     }
 
     // Distance only schedule-level
-    if (distanceKm) s.distance_km = distanceKm
-    if (durationMin) s.duration_min = durationMin
+    // ✅ Always set distance
+if (distanceKm !== undefined) {
+  s.distance_km = distanceKm
+}
+
+// ✅ Always set duration
+if (durationMin !== undefined) {
+  s.duration_min = Math.ceil(durationMin)
+}
+
+// 🔥 Fallback (if routing time not available)
+if (!durationMin && distanceKm) {
+  s.duration_min = Math.ceil((distanceKm / 40) * 60)
+}
+
 
     setFormData({ ...formData, schedules: updated })
-    setShowMap(false)
   }}
 />
 
@@ -1025,11 +1129,10 @@ const selectClass =
   
 
   {getAvailableDrivers(index).map((driver) => (
-   <option key={driver.id} value={driver.id}>
-  {driver.user.name}
-</option>
-
-  ))}
+  <option key={driver.id} value={driver.id}>
+    {driver?.user?.name || 'Unknown Driver'}
+  </option>
+))}
 </select>
 
               </div>
@@ -1094,46 +1197,28 @@ const selectClass =
 
               </div> */}
 
-              <div>
+            <div>
   <label className={labelClass}>
     Passengers <span className="text-red-500">*</span>
   </label>
 
   <input
-    disabled={isSupervisor || !schedule.vehicle_id}   // ✅ disable if no vehicle
+    disabled={isSupervisor}   // ✅ only supervisor check
     className={INPUTClass}
     type="number"
     min={1}
-    max={
-      vehicles.find(v => v.id === schedule.vehicle_id)?.seating_capacity || 0
-    }
     value={schedule.passenger_count}
     onChange={(e) => {
       const value = Number(e.target.value)
 
-      const selectedVehicle = vehicles.find(
-        v => v.id === schedule.vehicle_id
-      )
-
-      const maxCapacity = selectedVehicle?.seating_capacity || 0
-
-      if (value <= maxCapacity) {
+      if (value >= 1) {
         updatePassengerCount(index, value)
       }
     }}
   />
 
-  {/* ✅ Optional: show max capacity */}
-  {schedule.vehicle_id && (
-    <p className="text-xs text-gray-500 mt-1">
-      Max Capacity: {
-        vehicles.find(v => v.id === schedule.vehicle_id)?.seating_capacity
-      }
-    </p>
-  )}
+  {/* ❌ Removed max capacity display */}
 </div>
-
-
 
               
 
