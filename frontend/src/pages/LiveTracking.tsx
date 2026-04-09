@@ -12,54 +12,133 @@ const LiveTracking = () => {
 
     useEffect(() => {
         fetchSchedules()
+        alert('LiveTracking component mounted, fetching schedules...')
     }, [])
 
     const fetchSchedules = async () => {
-        try {
-            const response = await API.get('/trip-schedules/')
-            const allTrips = Array.isArray(response.data) ? response.data : []
+    try {
+       
 
-            // Flatten schedules from trips
-            const allSchedules: any[] = []
-            allTrips.forEach((trip: any) => {
-                // Handle flattened structure or nested structure depending on API response
-                // The previous Trips.tsx logic suggested the API returns a flat list that we grouped manually
-                // But let's look at the response structure again.
-                // Actually the API returns trip schedules directly.
+        // const [scheduleRes, driverLocRes] = await Promise.all([
+        //     API.get('/trip-schedules/'),
+        //     API.get('/mobile/locations/')
+        // ])
 
-                // Let's assume the API returns a list of schedule objects directly based on previous code
-                // Wait, in Trips.tsx we did manual grouping.
-                // Let's copy the logic from Trips.tsx but simplify for just listing active schedules.
+        const scheduleRes = await API.get('/trip-schedules/')
+        const driverLocRes = await API.get('/mobile/locations/all/')
 
-                const scheduleObj = {
-                    id: trip.id,
-                    trip_id: trip.id,
-                    company_name: trip.company_name,
-                    vehicle_registration_number: trip.vehicle_registration_number || (trip.vehicle && trip.vehicle.vehicle_registration_number) || 'Unassigned',
-                    driver_name: trip.driver_name || (trip.driver && trip.driver.user && trip.driver.user.name) || (trip.driver && trip.driver.full_name) || 'Unassigned',
-                    starting_point: trip.starting_point,
-                    end_point: trip.end_point,
-                    start_date: trip.start_date,
-                    start_time: trip.start_time,
-                    passenger_count: trip.passenger_count,
-                    trip_type: trip.trip_type,
-                    route_points: trip.route_points,
-                    status: trip.is_active ? 'Active' : 'Completed',
-                    driver_id: trip.driver_id,
-                    driver_phone: (trip.driver && trip.driver.user && trip.driver.user.contact_number) || trip.driver_phone || 'N/A'
-                }
-                if (trip.is_active) {
-                    allSchedules.push(scheduleObj)
-                }
-            })
+        const schedulesData = Array.isArray(scheduleRes.data) ? scheduleRes.data : []
+        const driverLocations = Array.isArray(driverLocRes.data) ? driverLocRes.data : []
 
-            setSchedules(allSchedules)
-        } catch (error) {
-            console.error('Failed to fetch schedules:', error)
-        } finally {
-            setLoading(false)
-        }
+        // ✅ Active driver மட்டும்
+        const activeDriverLocations = driverLocations.filter(
+            (d: any) => d.is_active === 1 || d.is_active === true
+        )
+
+        const allSchedules: any[] = []
+
+        schedulesData.forEach((trip: any) => {
+
+            // 🔥 matching active driver
+            const driverActive = activeDriverLocations.find(
+                (d: any) => String(d.trip_id) === String(trip.id)
+            )
+
+      
+            // ❌ driver active இல்லனா skip
+            if (!driverActive) return
+
+            const scheduleObj = {
+                id: trip.id,
+                trip_id: trip.id,
+                company_name: trip.company_name,
+
+                vehicle_registration_number:
+                    trip.vehicle_registration_number ||
+                    trip.vehicle?.vehicle_registration_number ||
+                    'Unassigned',
+
+                driver_name:
+                    trip.driver_name ||
+                    trip.driver?.user?.name ||
+                    trip.driver?.full_name ||
+                    'Unassigned',
+
+                starting_point: trip.starting_point,
+                end_point: trip.end_point,
+                start_date: trip.start_date,
+                start_time: trip.start_time,
+                passenger_count: trip.passenger_count,
+                trip_type: trip.trip_type,
+                route_point: trip.route_point,
+
+                status: 'Active',
+
+                driver_id: trip.driver_id,
+
+                driver_phone:
+                    trip.driver?.user?.contact_number ||
+                    trip.driver_phone ||
+                    'N/A'
+            }
+
+            allSchedules.push(scheduleObj)
+        })
+
+        setSchedules(allSchedules)
+
+    } catch (error) {
+        console.error('Failed to fetch schedules:', error)
+    } finally {
+        setLoading(false)
     }
+}
+    // const fetchSchedules = async () => {
+    //     try {
+    //         const response = await API.get('/trip-schedules/')
+    //         const allTrips = Array.isArray(response.data) ? response.data : []
+
+    //         // Flatten schedules from trips
+    //         const allSchedules: any[] = []
+    //         allTrips.forEach((trip: any) => {
+    //             // Handle flattened structure or nested structure depending on API response
+    //             // The previous Trips.tsx logic suggested the API returns a flat list that we grouped manually
+    //             // But let's look at the response structure again.
+    //             // Actually the API returns trip schedules directly.
+
+    //             // Let's assume the API returns a list of schedule objects directly based on previous code
+    //             // Wait, in Trips.tsx we did manual grouping.
+    //             // Let's copy the logic from Trips.tsx but simplify for just listing active schedules.
+
+    //             const scheduleObj = {
+    //                 id: trip.id,
+    //                 trip_id: trip.id,
+    //                 company_name: trip.company_name,
+    //                 vehicle_registration_number: trip.vehicle_registration_number || (trip.vehicle && trip.vehicle.vehicle_registration_number) || 'Unassigned',
+    //                 driver_name: trip.driver_name || (trip.driver && trip.driver.user && trip.driver.user.name) || (trip.driver && trip.driver.full_name) || 'Unassigned',
+    //                 starting_point: trip.starting_point,
+    //                 end_point: trip.end_point,
+    //                 start_date: trip.start_date,
+    //                 start_time: trip.start_time,
+    //                 passenger_count: trip.passenger_count,
+    //                 trip_type: trip.trip_type,
+    //                 route_point: trip.route_point,
+    //                 status: trip.is_active ? 'Active' : 'Completed',
+    //                 driver_id: trip.driver_id,
+    //                 driver_phone: (trip.driver && trip.driver.user && trip.driver.user.contact_number) || trip.driver_phone || 'N/A'
+    //             }
+    //             if (trip.is_active) {
+    //                 allSchedules.push(scheduleObj)
+    //             }
+    //         })
+
+    //         setSchedules(allSchedules)
+    //     } catch (error) {
+    //         console.error('Failed to fetch schedules:', error)
+    //     } finally {
+    //         setLoading(false)
+    //     }
+    // }
 
     const handleOpenMap = (schedule: any) => {
         setSelectedSchedule(schedule)
@@ -142,10 +221,7 @@ const LiveTracking = () => {
                                     <div className="w-24 text-gray-400">Vehicle</div>
                                     <div className="font-medium">{schedule.vehicle_registration_number || 'Unassigned'}</div>
                                 </div>
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                                    <div className="w-24 text-gray-400">Time</div>
-                                    <div className="font-medium">{schedule.start_time}</div>
-                                </div>
+                                
                             </div>
 
                             <button

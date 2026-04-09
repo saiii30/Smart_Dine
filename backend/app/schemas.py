@@ -702,6 +702,10 @@ class TripScheduleUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     end_time: Optional[time] = None
+    one_way_start_time: Optional[time] = None
+    two_way_start_time: Optional[time] = None
+    one_way_is_active: Optional[bool] = Field(None, alias='one_way_isActive')
+    two_way_is_active: Optional[bool] = Field(None, alias='two_way_isActive')
     starting_point: Optional[str] = None
     end_point: Optional[str] = None
     way: Optional[str] = None

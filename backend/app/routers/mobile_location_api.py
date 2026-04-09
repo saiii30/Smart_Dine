@@ -239,7 +239,7 @@ def transfer_route_point(trip_id: str, db: Session = Depends(get_db)):
 # =========================
 # POST - STORE ROUTE POINT JSON
 # =========================
-@router.post("/route-point", response_model=dict)
+@router.post("/route-points", response_model=dict)
 def store_route_point_json(
     trip_id: str = Form(...),
     location_id: int = Form(...),
@@ -333,7 +333,8 @@ def get_locations_simple(
                 "accuracy": location.accuracy,
                 "speed": location.speed,
                 "timestamp": location.timestamp.isoformat() if location.timestamp else None,
-                "route_point": location.route_point
+                "route_point": location.route_point,
+                "is_active": location.is_active
             }
             result.append(location_data)
        
@@ -409,9 +410,78 @@ def deactivate_location_tracking(
         db.rollback()
         raise HTTPException(500, f"Error deactivating location tracking: {str(e)}")
 
+from sqlalchemy import text
+
+@router.get("/locations/all", response_model=List[Dict[str, Any]])
+def get_all_locations(db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("""
+            SELECT id, trip_id, is_active
+            FROM driver_locations
+            ORDER BY timestamp DESC
+        """))
+
+        rows = result.fetchall()
+
+        data = []
+        for row in rows:
+            data.append({
+                "id": row.id,
+                "trip_id": row.trip_id,
+                "is_active": row.is_active
+            })
+
+        return data
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(500, str(e))
+
+        
 # =========================
-# WebSocket endpoint for live driver location tracking
+# PUT - DEACTIVATE LOCATION TRACKING
 # =========================
+@router.put("/location/deactivate/{driver_id}")
+def deactivate_location_tracking(
+    driver_id: str,
+    location_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Deactivate location tracking for a driver (sets is_active to false)
+    """
+    try:
+        # Find the most recent active location record for this driver
+        location = db.query(models.DriverLocation).filter(
+            models.DriverLocation.driver_id == driver_id,
+            models.DriverLocation.is_active == True,
+            models.DriverLocation.id == location_id
+        ).order_by(models.DriverLocation.timestamp.desc()).first()
+       
+        if not location:
+            raise HTTPException(404, f"No active location records found for driver: {driver_id}")
+       
+        # Update the record to inactive
+        location.is_active = False
+        location.end_date = datetime.now(timezone.utc)
+       
+        db.commit()
+       
+        return {
+            "status": "success",
+            "message": f"Deactivated location tracking for driver: {driver_id}",
+            "driver_id": driver_id,
+            "location_id": location.id,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+       
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Error deactivating location tracking: {str(e)}")
+ 
 @router.websocket("/ws/{driver_id}")
 async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
     """
@@ -476,4 +546,3 @@ async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
     finally:
         db.close()
         print(" DB session closed")
- 

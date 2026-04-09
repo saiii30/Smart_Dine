@@ -7,39 +7,54 @@ import L from 'leaflet'
 import API from '../api/axiosConfig'
 
 
-let DefaultIcon = L.icon({
-    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-})
 
-L.Marker.prototype.options.icon = DefaultIcon
 
 // Custom icons
-const startIcon = new L.Icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
+const startIcon = L.divIcon({
+  html: '<div style="font-size:30px;">🏠</div>',
+  className: '',
+  iconSize: [50, 30],
+  iconAnchor: [15, 30],   // 👈 bottom center (important)
+  popupAnchor: [0, -30],
 })
 
-const pickedPassengerIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1828/1828640.png', // ✅ different icon (tick / completed)
+const droppedIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1828/1828640.png',
+    iconRetinaUrl: 'https://cdn-icons-png.flaticon.com/512/1828/1828640.png', // ✅ add this
     iconSize: [24, 24],
     iconAnchor: [12, 24],
     popupAnchor: [0, -24],
 })
 
-const endIcon = new L.Icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
+const redPassengerIcon = L.divIcon({
+  html: `
+    <img 
+      src="https://cdn-icons-png.flaticon.com/512/9131/9131529.png"
+      style="
+        width:32px;
+        height:32px;
+        filter: hue-rotate(180deg) saturate(5) brightness(1);
+      "
+    />
+  `,
+  className: '',
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+})
+
+const pickedPassengerIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1828/1828640.png',
+    iconRetinaUrl: 'https://cdn-icons-png.flaticon.com/512/1828/1828640.png', // ✅ add this
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24],
+})
+const endIcon = L.divIcon({
+  html: '<div style="font-size:30px;">🏢</div>',
+  className: '',
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],   // 👈 important (bottom align)
+  popupAnchor: [0, -30],
 })
 
 // Car Emoji Icon
@@ -52,13 +67,15 @@ const carIcon = L.divIcon({
 })
 
 const passengerIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/9131/9131529.png', // Small passenger icon as requested
-    iconSize: [24, 24],
-    iconAnchor: [12, 24],
-    popupAnchor: [0, -24],
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    shadowSize: [24, 24]
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/9131/9131529.png',
+  iconRetinaUrl: 'https://cdn-icons-png.flaticon.com/512/9131/9131529.png',
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
 })
+
+
+
 
 interface TripMapModalProps {
     schedule: any
@@ -72,38 +89,11 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
     const [routePath, setRoutePath] = useState<[number, number][]>([])
     const [pickupPoints, setPickupPoints] = useState<{ id: string, coords: [number, number], name: string, phone: string, pickup: string }[]>([])
     const [loading, setLoading] = useState(true)
-    const [pickedMap, setPickedMap] = useState<{ [id: string]: boolean }>({})
-    // const [pickupInfo
-    //     , setPickupInfo] = useState<{id : string, name: string, phone: string, pickup: boolean } | null>(null)
-    // const wsRef = useRef<WebSocket | null>(null);
-    // // Animation States
-    // // Animation States Removed
+   const [pickedMap, setPickedMap] = useState<{
+  [id: string]: { pickup: boolean; ispresent: boolean; isdropped: boolean }
+}>({})
+    
 
-    const getDistance = (a: [number, number], b: [number, number]) => {
-    const dx = a[0] - b[0];
-    const dy = a[1] - b[1];
-    return Math.sqrt(dx * dx + dy * dy);
-};
-
-
-// 🔥 Re-sort pickups when driver moves
-useEffect(() => {
-            if (!driverLocation || pickupPoints.length === 0) return;
-
-            setPickupPoints(prev => {
-                const picked = prev.filter(p => pickedMap[p.id]);
-                const notPicked = prev.filter(p => !pickedMap[p.id]);
-
-                const sorted = notPicked.sort((a, b) => {
-                    const d1 = getDistance(driverLocation, a.coords);
-                    const d2 = getDistance(driverLocation, b.coords);
-                    return d1 - d2;
-                });
-
-                return [...sorted, ...picked]; // picked goes last
-            });
-
-}, [driverLocation, pickedMap]);
 
 
     // Fetch Data
@@ -131,8 +121,11 @@ useEffect(() => {
             return null
         }
 
-            const start = await fetchCoords(schedule.starting_point)
-            const end = await fetchCoords(schedule.end_point)
+            let startLocation = schedule.starting_point
+let endLocation = schedule.end_point
+
+const start = await fetchCoords(startLocation)
+const end = await fetchCoords(endLocation)
 
             // Initial Driver Fetch (Real)
             let driver: [number, number] | null = null
@@ -156,44 +149,24 @@ useEffect(() => {
 
             // Generate Pickups
             const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
-            // if (schedule.route_points && Array.isArray(schedule.route_points) && schedule.route_points.length > 0) {
-            //     schedule.route_points.forEach((rp: any, i: number) => {
-            //         if (rp.pickup_lat && rp.pickup_lng) {
-            //            points.push({
-            //             id: String(rp.passenger_id),
-            //             coords: [rp.pickup_lat, rp.pickup_lng],
-            //             name: rp.passenger_name,
-            //             phone: rp.passenger_phone,
-            //             pickup: rp.pickup_point
-            //             })
-
-            //             console.log(points)
-            //         }
-            //         else{
-            //             console.warn(`Skipping passenger ${rp.passenger_id} due to missing coordinates`)
-            //         }
-            //     })
-            // } 
-
-            // Generate Pickups
-// const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
-
+            
 // ✅ ROUTE TRIP (has passenger coordinates)
-if (schedule.route_points && Array.isArray(schedule.route_points) && schedule.route_points.length > 0) {
+if (schedule.route_point && Array.isArray(schedule.route_point) && schedule.route_point.length > 0) {
 
-    schedule.route_points.forEach((rp: any) => {
+    let routePoints = [...schedule.route_point]
 
-        if (rp.pickup_lat && rp.pickup_lng) {
-            points.push({
-                id: String(rp.passenger_id),
-                coords: [rp.pickup_lat, rp.pickup_lng],
-                name: rp.passenger_name,
-                phone: rp.passenger_phone,
-                pickup: rp.pickup_point
-            })
-        }
 
-    })
+routePoints.forEach((rp: any) => {
+    if (rp.pickup_lat && rp.pickup_lng) {
+        points.push({
+            id: String(rp.passenger_id),
+            coords: [rp.pickup_lat, rp.pickup_lng],
+            name: rp.passenger_name,
+            phone: rp.passenger_phone,
+            pickup: rp.pickup_point
+        })
+    }
+})
 
 } 
 // ✅ SHUTTLE TRIP (no passenger coords → use count)
@@ -221,26 +194,10 @@ else if (start && schedule.passenger_count) {
 
 
 
-          let sortedPoints = null;
-          if(schedule.route_points.length > 0 ){
-             sortedPoints = points;
-
-            if (driver) {
-                sortedPoints = points.sort((a, b) => {
-                    const d1 = getDistance(driver, a.coords);
-                    const d2 = getDistance(driver, b.coords);
-                    return d1 - d2;
-                });
-            }
+        
+          if(schedule.route_point && schedule.route_point.length > 0 ){
+            setPickupPoints(points)   
           }
-          else{
-                sortedPoints = points;
-          }
-            
-
-            setPickupPoints(sortedPoints);
-
-           
 
             // Fetch Route & Start Animation with Robust Fallback
             if (start && end) {
@@ -262,12 +219,15 @@ else if (start && schedule.passenger_count) {
                     }
 
                     if (data && data.routes && data.routes.length > 0) {
-                        const path = data.routes[0].geometry.coordinates.map((coord: any) => [coord[1], coord[0]])
-                        setRoutePath(path)
+  const path = data.routes[0].geometry.coordinates.map((coord: any) => [
+    coord[1],
+    coord[0]
+  ])
 
-                    } else {
-                        throw new Error("No routes found")
-                    }
+
+
+                        setRoutePath(path)
+}
                 } catch (e: any) {
                     console.error("All route fetch attempts failed", e)
                     // Inform user nicely
@@ -279,6 +239,8 @@ else if (start && schedule.passenger_count) {
         }
         fetchData()
     }, [schedule])
+
+
 
     
 
@@ -296,25 +258,29 @@ useEffect(() => {
 
         const data = JSON.parse(event.data);
 
-        console.log(data.route_points)
+        console.log(data.route_point)
 
         if (data.type === "location_update") {
             // 🔥 THIS IS IMPORTANT
             setDriverLocation([data.latitude, data.longitude]);
 
 
-        const routePoints = Array.isArray(data.route_points)
-            ? data.route_points
-            : data.route_points ? [data.route_points] : [];
+        const routePoints = Array.isArray(data.route_point)
+            ? data.route_point
+            : data.route_point ? [data.route_point] : [];
 
                 if (routePoints.length > 0) {
             routePoints.forEach((p: any) => {
             console.log("🟢 WS Pickup:", p.passenger_id, p.pickup);
 
             setPickedMap(prev => ({
-                ...prev,
-                [String(p.passenger_id).trim()]: p.pickup === true
-            }));
+        ...prev,
+        [String(p.passenger_id).trim()]: {
+            pickup: p.pickup === true,
+            ispresent: p.ispresent === true,
+             isdropped: p.isdropped === true  // ✅ Add this
+        }
+    }));
             });
             }
                        
@@ -468,7 +434,10 @@ useEffect(() => {
     }
 
     const center: [number, number] = driverLocation || startCoords || endCoords || [13.0827, 80.2707]
-    const rawActiveLocation = driverLocation || startCoords
+
+const rawActiveLocation = driverLocation || startCoords || endCoords || null
+
+  
     const activeLocation = useAnimatedPosition(rawActiveLocation, routePath)
 
     return (
@@ -481,7 +450,7 @@ useEffect(() => {
                         <div className="flex flex-col gap-1">
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                                 {schedule.company_name || 'Trip Details'}
-                                <span className="flex h-3 w-3 relative">
+                  <span className="flex h-3 w-3 relative">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                                 </span>
@@ -526,12 +495,35 @@ useEffect(() => {
 
                           {pickupPoints.map((p) => {
 
-  const isPicked = pickedMap[String(p.id)] === true
+const data = pickedMap[String(p.id)];
+
+let iconToUse: L.Icon | L.DivIcon = passengerIcon; // default
+
+if (data) {
+    if (data.isdropped) {
+        iconToUse = droppedIcon; // dropped state
+    } else if (data.pickup) {
+        iconToUse = pickedPassengerIcon; // picked
+    } else if (data.ispresent === false) {
+        iconToUse = redPassengerIcon; // not present
+    } else {
+        iconToUse = passengerIcon; // present
+    }
+}
+
+const statusText = data?.isdropped
+    ? "Dropped 🟣"
+    : data?.pickup
+    ? "Picked ✅"
+    : data?.ispresent === false
+    ? "Not Present ❌"
+    : "Present 👍";
+
   return (
     <Marker
       key={p.id}
       position={p.coords}
-      icon={isPicked ? pickedPassengerIcon : passengerIcon}
+      icon={iconToUse}
     >
       <Popup>
         <div className="text-sm space-y-1">
@@ -539,8 +531,8 @@ useEffect(() => {
           <div><strong>Phone:</strong> {p.phone}</div>
           <div><strong>Pickup:</strong><br />{p.pickup}</div>
           <div>
-            <strong>Status:</strong> {isPicked ? 'Picked ✅' : 'Pending ⏳'}
-          </div>
+  <strong>Status:</strong> {statusText}
+</div>
         </div>
       </Popup>
     </Marker>
@@ -577,7 +569,12 @@ useEffect(() => {
                             )}
 
                             {routePath.length > 0 ? (
-                                <Polyline positions={routePath} color="#3b82f6" weight={5} opacity={0.7} />
+                                <Polyline
+  positions={routePath}
+  color={"blue"}
+  weight={5}
+  opacity={0.7}
+/>
                             ) : (
                                 startCoords && endCoords && (
                                     <Polyline positions={[startCoords, endCoords]} color="gray" dashArray="5, 10" />
