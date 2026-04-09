@@ -342,7 +342,76 @@ def get_locations_simple(
     except Exception as e:
         raise HTTPException(500, f"Error retrieving locations: {str(e)}")
 
+# =========================
+# PUT - DEACTIVATE LOCATION TRACKING
+# =========================
+@router.put("/location/deactivate/{driver_id}")
+def deactivate_location_tracking(
+    driver_id: str,
+    location_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Deactivate location tracking for a driver (sets is_active to false)
+    """
+    try:
+        # Find the most recent active location record for this driver
+        location = db.query(models.DriverLocation).filter(
+            models.DriverLocation.driver_id == driver_id,
+            models.DriverLocation.is_active == True,
+            models.DriverLocation.id == location_id
+        ).order_by(models.DriverLocation.timestamp.desc()).first()
+       
+        if not location:
+            raise HTTPException(404, f"No active location records found for driver: {driver_id}")
+       
+        # Update record to inactive
+        location.is_active = False
+        location.end_date = datetime.now(timezone.utc)
+       
+        # Update TripSchedule fields based on trip type and completion
+        trip_schedule = db.query(models.TripSchedule).filter(
+            models.TripSchedule.id == location.trip_id,
+            models.TripSchedule.driver_id == driver_id,
+            models.TripSchedule.agency_id == location.agency_id
+        ).first()
+        
+        if trip_schedule:
+            if trip_schedule.trip_type == "one_way":
+                # One-way trip complete: update one_way_is_active
+                trip_schedule.one_way_is_active = False
+                trip_schedule.overall_is_active = False
+            elif trip_schedule.trip_type == "two_way":
+                # Two-way trip: check which leg is completing
+                if trip_schedule.one_way_is_active == True:
+                    # First leg (one-way) complete
+                    trip_schedule.one_way_is_active = False
+                elif trip_schedule.two_way_is_active == True:
+                    # Second leg (two-way) complete
+                    trip_schedule.two_way_is_active = False
+                    trip_schedule.overall_is_active = False  # Both legs complete
+            
+            trip_schedule.updated_at = datetime.now(timezone.utc)
+       
+        db.commit()
+       
+        return {
+            "status": "success",
+            "message": f"Deactivated location tracking for driver: {driver_id}",
+            "driver_id": driver_id,
+            "location_id": location.id,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+       
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Error deactivating location tracking: {str(e)}")
 
+# =========================
+# WebSocket endpoint for live driver location tracking
+# =========================
 @router.websocket("/ws/{driver_id}")
 async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
     """
