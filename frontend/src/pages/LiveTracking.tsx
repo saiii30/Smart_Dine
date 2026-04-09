@@ -43,7 +43,7 @@ const LiveTracking = () => {
                     start_time: trip.start_time,
                     passenger_count: trip.passenger_count,
                     trip_type: trip.trip_type,
-                    route_points: trip.route_points,
+                    route_point: trip.route_point,
                     status: trip.is_active ? 'Active' : 'Completed',
                     driver_id: trip.driver_id,
                     driver_phone: (trip.driver && trip.driver.user && trip.driver.user.contact_number) || trip.driver_phone || 'N/A'
@@ -142,10 +142,7 @@ const LiveTracking = () => {
                                     <div className="w-24 text-gray-400">Vehicle</div>
                                     <div className="font-medium">{schedule.vehicle_registration_number || 'Unassigned'}</div>
                                 </div>
-                                <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                                    <div className="w-24 text-gray-400">Time</div>
-                                    <div className="font-medium">{schedule.start_time}</div>
-                                </div>
+                                
                             </div>
 
                             <button
