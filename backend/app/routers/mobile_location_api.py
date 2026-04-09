@@ -333,7 +333,8 @@ def get_locations_simple(
                 "accuracy": location.accuracy,
                 "speed": location.speed,
                 "timestamp": location.timestamp.isoformat() if location.timestamp else None,
-                "route_point": location.route_point
+                "route_point": location.route_point,
+                "is_active": location.is_active
             }
             result.append(location_data)
        
@@ -343,7 +344,35 @@ def get_locations_simple(
         raise HTTPException(500, f"Error retrieving locations: {str(e)}")
 
 
- 
+from sqlalchemy import text
+
+@router.get("/locations/all", response_model=List[Dict[str, Any]])
+def get_all_locations(db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("""
+            SELECT id, trip_id, is_active
+            FROM driver_locations
+            ORDER BY timestamp DESC
+        """))
+
+        rows = result.fetchall()
+
+        data = []
+        for row in rows:
+            data.append({
+                "id": row.id,
+                "trip_id": row.trip_id,
+                "is_active": row.is_active
+            })
+
+        return data
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(500, str(e))
+
+        
 # =========================
 # PUT - DEACTIVATE LOCATION TRACKING
 # =========================
