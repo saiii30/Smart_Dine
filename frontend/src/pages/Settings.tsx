@@ -12,7 +12,7 @@ const Settings = () => {
     { id: 'service_due', name: 'Service Due', category: 'vehicle' },
   ]
 
-  const dayOptions = [1, 3, 5, 7, 10]
+  const dayOptions = [1, 5, 10, 20, 30]
 
   const handleDocumentDayChange = (documentId: string, days: number) => {
     const updatedDocumentExpiryDays = {

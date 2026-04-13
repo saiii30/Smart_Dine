@@ -162,7 +162,7 @@ class Driver(Base):
     blood_group = Column(String, nullable=True)
     
     # Identification
-    aadhar_number = Column(String, nullable=True)
+    aadhar_number = Column(String, unique=True, nullable=True)
     driving_license_number = Column(String, unique=True, nullable=False)
     license_expiry_date = Column(DateTime(timezone=True), nullable=False)
     

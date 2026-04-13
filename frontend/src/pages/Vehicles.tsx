@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Plus, Edit, Trash2, Car, Search } from 'lucide-react'
 import { Vehicle, Trip } from '../types'
 import VehicleModal from '../components/VehicleModal'
+import VehicleViewModal from '../components/VehicleViewModal'
 import { useAuth } from '../contexts/AuthContext'
 const Vehicles = () => {
  
@@ -15,7 +16,9 @@ const isSupervisor = user?.role === "SUPERVISOR";
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
+  const [viewingVehicle, setViewingVehicle] = useState<Vehicle | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -109,6 +112,16 @@ const isSupervisor = user?.role === "SUPERVISOR";
   const handleModalSuccess = () => {
     fetchVehicles()
     handleModalClose()
+  }
+
+  const handleView = (vehicle: Vehicle) => {
+    setViewingVehicle(vehicle)
+    setIsViewModalOpen(true)
+  }
+
+  const handleViewModalClose = () => {
+    setIsViewModalOpen(false)
+    setViewingVehicle(null)
   }
 
   const getVehicleTypeColor = (type: string) => {
@@ -268,7 +281,7 @@ const isSupervisor = user?.role === "SUPERVISOR";
 
                  {isSupervisor ? (
     <button
-      onClick={() => handleEdit(vehicle)}
+      onClick={() => handleView(vehicle)}
       className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
     >
       <Search className="mr-2 h-4 w-4" />
@@ -276,6 +289,15 @@ const isSupervisor = user?.role === "SUPERVISOR";
     </button>
   ) : (
     <>
+      {(isSuperAdmin || isAdmin) && (
+        <button
+          onClick={() => handleView(vehicle)}
+          className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+        >
+          <Search className="mr-2 h-4 w-4" />
+          View
+        </button>
+      )}
       <button
         onClick={() => handleEdit(vehicle)}
         className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
@@ -315,6 +337,13 @@ const isSupervisor = user?.role === "SUPERVISOR";
           vehicle={editingVehicle}
           onClose={handleModalClose}
           onSuccess={handleModalSuccess}
+        />
+      )}
+
+      {isViewModalOpen && (
+        <VehicleViewModal
+          vehicle={viewingVehicle}
+          onClose={handleViewModalClose}
         />
       )}
     </div>

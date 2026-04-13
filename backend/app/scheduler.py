@@ -1,6 +1,7 @@
 # backend/app/scheduler.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.utils.trip_scheduler import update_trip_schedule_status
+from cleanup_notifications import clear_all_acknowledgements
 import logging
 import atexit
 
@@ -19,18 +20,28 @@ def start_scheduler():
     scheduler = BackgroundScheduler()
     
     try:
-        # Run daily at 12:30 AM
+        # Run every 5 minutes
         scheduler.add_job(
             update_trip_schedule_status,
-            'cron',
-            hour=0,
-            minute=30,
+            'interval',
+            minutes=5,
             id='update_trip_status',
-            name='Update trip status based on end date - Daily 12:30 AM',
+            name='Update trip status based on end date',
             replace_existing=True
         )
         
-        logger.info("Starting trip status scheduler...")
+        # Daily notification cleanup at 12:30 AM - Clear ALL acknowledgements
+        scheduler.add_job(
+            clear_all_acknowledgements,
+            'cron',
+            hour=0,
+            minute=30,
+            id='clear_all_acknowledgements',
+            name='Clear all notification acknowledgements every night at 12:30 AM',
+            replace_existing=True
+        )
+        
+        logger.info("Starting scheduler with trip status updates and daily notification cleanup...")
         scheduler.start()
         
         # Properly shut down the scheduler when the app exits
@@ -45,4 +56,4 @@ def shutdown_scheduler():
     if scheduler:
         scheduler.shutdown()
         scheduler = None
-        logger.info("Trip status scheduler has been shut down")
+        logger.info("Scheduler has been shut down")
