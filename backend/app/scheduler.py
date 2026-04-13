@@ -19,13 +19,14 @@ def start_scheduler():
     scheduler = BackgroundScheduler()
     
     try:
-        # Run every 5 minutes
+        # Run daily at 12:30 AM
         scheduler.add_job(
             update_trip_schedule_status,
-            'interval',
-            minutes=5,
+            'cron',
+            hour=0,
+            minute=30,
             id='update_trip_status',
-            name='Update trip status based on end date',
+            name='Update trip status based on end date - Daily 12:30 AM',
             replace_existing=True
         )
         

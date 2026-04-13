@@ -138,8 +138,12 @@ export interface TripSchedule {
   end_point?: string
   end_lat ?: number
   end_lng ?: number
-  start_time?: string
-  end_time?: string
+
+  // end_time?: string
+  one_way_start_time?: string
+  two_way_start_time?: string
+  one_way_isActive?: boolean
+  two_way_isActive?: boolean
   way?: string
   trip_type?: string
   distance_km?: number
@@ -149,7 +153,7 @@ export interface TripSchedule {
 
   vehicle_registration_number?: string
   is_active: boolean
-  route_points?: RoutePoint[] 
+  route_point?: RoutePoint[] 
   
 }
 
@@ -161,6 +165,7 @@ export interface RoutePoint {
   pickup_lng?: number
   timestamp: string
   ispresent: boolean
+  isdropped: boolean
 }
 
 export interface Trip {

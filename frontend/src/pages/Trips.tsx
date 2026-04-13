@@ -14,8 +14,7 @@ const Trips = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const { user } = useAuth()
-     const isSuperAdmin = user?.role === 'SUPER_ADMIN'
-   const isAdmin = user?.role === 'ADMIN'
+  
    const isSupervisor = user?.role === 'SUPERVISOR'
   
   // Fetch trips and companies on mount
@@ -71,8 +70,11 @@ const Trips = () => {
         trip_id: sch.trip_id,
         start_date: sch.start_date,
         end_date: sch.end_date,
-        start_time: sch.start_time,
-        end_time: sch.end_time,
+
+        one_way_isActive: sch.one_way_isActive,
+        two_way_isActive: sch.two_way_isActive,
+        one_way_start_time: sch.one_way_start_time,
+        two_way_start_time: sch.two_way_start_time,
         starting_point: sch.starting_point,
         end_point: sch.end_point,
         way: sch.way,
@@ -87,7 +89,7 @@ const Trips = () => {
         end_lat: sch.end_lat,
         end_lng: sch.end_lng,
 
-        route_points: sch.route_points ,
+        route_point: sch.route_point ,
 
         
         

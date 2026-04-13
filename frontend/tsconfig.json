@@ -19,7 +19,7 @@
     /* Module resolution */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [".src/*"]
     },
 
     /* Linting */
