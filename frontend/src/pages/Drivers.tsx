@@ -3,15 +3,21 @@ import axios from 'axios'
 import { Plus, Edit, Trash2, User, Search } from 'lucide-react'
 import { Driver } from '../types'
 import DriverModal from '../components/DriverModal'
+import DriverViewModal from '../components/DriverViewModal'
 import { useAuth } from '../contexts/AuthContext'
+
 const Drivers = () => {
   const { user } = useAuth()
 
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const isAdmin = user?.role === "ADMIN";
   const isSupervisor = user?.role === "SUPERVISOR";
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null)
+  const [viewingDriver, setViewingDriver] = useState<Driver | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
  
   useEffect(() => {
@@ -80,6 +86,16 @@ const Drivers = () => {
     fetchDrivers()
     handleModalClose()
   }
+
+  const handleView = (driver: Driver) => {
+    setViewingDriver(driver)
+    setIsViewModalOpen(true)
+  }
+
+  const handleViewModalClose = () => {
+    setIsViewModalOpen(false)
+    setViewingDriver(null)
+  }
  
   // Filter drivers based on search query (driver name and phone number)
   const filteredDrivers = useMemo(() => {
@@ -141,7 +157,7 @@ const Drivers = () => {
               ? 'Try adjusting your search criteria.'
               : 'Get started by adding your first driver.'}
           </p>
-          {!searchQuery.trim() && !isSupervisor && (
+          {!searchQuery.trim() && !(isSupervisor) && (
             <button
               onClick={handleCreate}
               className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
@@ -214,10 +230,9 @@ const Drivers = () => {
 
               <div className="flex gap-2">
 
-                {/* Supervisor → Only View */}
                 {isSupervisor ? (
                   <button
-                    onClick={() => handleEdit(driver)}
+                    onClick={() => handleView(driver)}
                     className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                   >
                     <Search className="mr-2 h-4 w-4" />
@@ -225,6 +240,15 @@ const Drivers = () => {
                   </button>
                 ) : (
                   <>
+                    {(isSuperAdmin || isAdmin) && (
+                      <button
+                        onClick={() => handleView(driver)}
+                        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                      >
+                        <Search className="mr-2 h-4 w-4" />
+                        View
+                      </button>
+                    )}
                     <button
                       onClick={() => handleEdit(driver)}
                       className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
@@ -255,6 +279,13 @@ const Drivers = () => {
           driver={editingDriver}
           onClose={handleModalClose}
           onSuccess={handleModalSuccess}
+        />
+      )}
+
+      {isViewModalOpen && (
+        <DriverViewModal
+          driver={viewingDriver}
+          onClose={handleViewModalClose}
         />
       )}
     </div>

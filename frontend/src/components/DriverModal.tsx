@@ -12,8 +12,6 @@ interface DriverModalProps {
 
 const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
   const { user } = useAuth()
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
-  const isAdmin = user?.role === 'ADMIN'
   const isSupervisor = user?.role === 'SUPERVISOR'
   const labelStyle = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5";
   const isReadOnly = isSupervisor
@@ -48,6 +46,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     phone_number: '',
     password: '',
     has_existing_password: false, // Track if driver has existing password
+    password_modified: false, // Track if password was modified
     date_of_birth: '',
     gender: '',
     aadhar_number: '',
@@ -154,12 +153,12 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       assigned_vehicle_id: d.assigned_vehicle_id || '',
       showPassword: false, // Reset password visibility when editing
     };
-    setDraft(prev => ({ ...prev, ...mapped, has_existing_password: !!(driver as any)?.user?.password_hash, showPassword: false }));
+    setDraft(prev => ({ ...prev, ...mapped, has_existing_password: !!(driver as any)?.user?.password_hash, showPassword: false, password_modified: false }));
   }, [driver]);
 
   // Clear password when switching between different drivers
   useEffect(() => {
-    saveDraft({ password: '', showPassword: false, has_existing_password: !!(driver as any)?.user?.password_hash });
+    saveDraft({ password: '', showPassword: false, has_existing_password: !!(driver as any)?.user?.password_hash, password_modified: false });
   }, [driver?.id]);
     // --- Handlers ---
   
@@ -308,6 +307,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       phone_number: '',
       password: '', // Clear password when resetting draft
       has_existing_password: false,
+      password_modified: false, // Reset password modification flag
       date_of_birth: '',
       gender: '',
       aadhar_number: '',
@@ -390,8 +390,142 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
 
 
 
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    
+    // Validate mandatory fields (all fields except Aadhar Document, Driver Photo, Police Verification, Medical Fitness)
+    if (!draft.full_name?.trim()) {
+      errors.full_name = 'Full name is required';
+    }
+    
+    if (!draft.phone_number?.trim()) {
+      errors.phone_number = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(draft.phone_number.replace(/\D/g, ''))) {
+      errors.phone_number = 'Phone number must be 10 digits';
+    }
+    
+    if (!isEditing && !draft.password?.trim()) {
+      errors.password = 'Password is required for new drivers';
+    } else if (draft.password_modified && draft.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    }
+    
+    // Aadhar number is required but optional validation (only validate if provided)
+    if (draft.aadhar_number?.trim()) {
+      if (!/^\d{12}$/.test(draft.aadhar_number.replace(/\D/g, ''))) {
+        errors.aadhar_number = 'Aadhar number must be 12 digits';
+      }
+    }
+    
+    if (!draft.driving_license_number?.trim()) {
+      errors.driving_license_number = 'Driving license number is required';
+    }
+    
+    if (!draft.license_expiry_date) {
+      errors.license_expiry_date = 'License expiry date is required';
+    } else if (new Date(draft.license_expiry_date) <= new Date()) {
+      errors.license_expiry_date = 'License expiry date must be in the future';
+    }
+    
+    // Validate other mandatory fields
+    if (!draft.date_of_birth) {
+      errors.date_of_birth = 'Date of birth is required';
+    }
+    
+    if (!draft.gender) {
+      errors.gender = 'Gender is required';
+    }
+    
+    if (!draft.blood_group) {
+      errors.blood_group = 'Blood group is required';
+    }
+    
+    if (!draft.emergency_contact_name?.trim()) {
+      errors.emergency_contact_name = 'Emergency contact name is required';
+    }
+    
+    if (!draft.emergency_contact_number?.trim()) {
+      errors.emergency_contact_number = 'Emergency contact number is required';
+    } else if (!/^\d{10}$/.test(draft.emergency_contact_number.replace(/\D/g, ''))) {
+      errors.emergency_contact_number = 'Emergency contact number must be 10 digits';
+    }
+    
+    if (!draft.current_address?.trim()) {
+      errors.current_address = 'Current address is required';
+    }
+    
+    if (!draft.city?.trim()) {
+      errors.city = 'City is required';
+    }
+    
+    if (!draft.state?.trim()) {
+      errors.state = 'State is required';
+    }
+    
+    if (!draft.pincode?.trim()) {
+      errors.pincode = 'Pincode is required';
+    } else if (!/^\d{6}$/.test(draft.pincode.replace(/\D/g, ''))) {
+      errors.pincode = 'Pincode must be 6 digits';
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const checkUniqueConstraints = async () => {
+    const errors: Record<string, string> = {};
+    
+    try {
+      // Check phone number uniqueness
+      if (draft.phone_number?.trim()) {
+        const phoneResponse = await axios.get(`http://127.0.0.1:8000/api/drivers/check-phone/${draft.phone_number.replace(/\D/g, '')}`);
+        if (phoneResponse.data.exists && (!isEditing || phoneResponse.data.driver_id !== (driver as any)?.id)) {
+          errors.phone_number = 'Phone number already exists';
+        }
+      }
+      
+      // Check Aadhar number uniqueness (only if provided)
+      if (draft.aadhar_number?.trim()) {
+        const aadharResponse = await axios.get(`http://127.0.0.1:8000/api/drivers/check-aadhar/${draft.aadhar_number.replace(/\D/g, '')}`);
+        if (aadharResponse.data.exists && (!isEditing || aadharResponse.data.driver_id !== (driver as any)?.id)) {
+          errors.aadhar_number = 'Aadhar number already exists';
+        }
+      }
+      
+      // Check driving license uniqueness
+      if (draft.driving_license_number?.trim()) {
+        const licenseResponse = await axios.get(`http://127.0.0.1:8000/api/drivers/check-license/${draft.driving_license_number}`);
+        if (licenseResponse.data.exists && (!isEditing || licenseResponse.data.driver_id !== (driver as any)?.id)) {
+          errors.driving_license_number = 'Driving license number already exists';
+        }
+      }
+    } catch (error) {
+      console.error('Error checking unique constraints:', error);
+      // Don't block submission if unique check fails, let backend handle it
+    }
+    
+    return errors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form before submission
+    if (!validateForm()) {
+      showAlert('Validation Error', 'Please fill in all required fields correctly.', 'error');
+      return;
+    }
+    
+    // Check unique constraints
+    const uniqueErrors = await checkUniqueConstraints();
+    if (Object.keys(uniqueErrors).length > 0) {
+      setValidationErrors(prev => ({ ...prev, ...uniqueErrors }));
+      showAlert('Duplicate Entry', Object.values(uniqueErrors).join('\n'), 'error');
+      return;
+    }
+    
     try {
       const payload = new FormData();
 
@@ -400,16 +534,16 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       Object.entries(draftWithoutShowPassword).forEach(([k, v]) => {
         if (v !== undefined && v !== null) payload.append(k, String(v))
       });
-      // Add files to form data
+      // Add files to form data (only if provided)
       if (files.aadhar_document) payload.append('aadhar_document', files.aadhar_document);
       if (files.driver_photo) payload.append('driver_photo', files.driver_photo);
       if (files.police_verification_certificate) payload.append('police_verification_certificate', files.police_verification_certificate);
       if (files.medical_fitness_certificate) payload.append('medical_fitness_certificate', files.medical_fitness_certificate);
 
       if (isEditing) {
-        // For updates, only include password if it was changed
-        if (!draft.password) {
-          payload.delete('password'); // Don't update password if field is empty
+        // For updates, only include password if it was modified
+        if (!draft.password_modified) {
+          payload.delete('password'); // Don't update password if it wasn't modified
         }
         await axios.put(`http://127.0.0.1:8000/api/drivers/${(driver as any).id}`, payload);
       } else {
@@ -426,7 +560,86 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       onClose();
     } catch (error: any) {
       console.error('Failed to save driver:', error);
-      showAlert('Submission Failed', typeof error.response?.data === 'string' ? error.response.data : 'Failed to save driver', 'error');
+      
+      let errorMessage = 'Failed to save driver';
+      
+      if (error.response) {
+        // Server responded with error status - this is the key path we want
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        console.log('Error response:', { status, data }); // Debug log
+        
+        if (status === 400) {
+          // Validation errors and duplicate entries
+          if (typeof data === 'object' && data.detail) {
+            if (Array.isArray(data.detail)) {
+              // FastAPI validation errors come as array
+              errorMessage = data.detail.map((err: any) => {
+                if (typeof err === 'object' && err.msg && err.loc) {
+                  return `${err.loc.join('.')}: ${err.msg}`;
+                }
+                return err.msg || err;
+              }).join('\n');
+            } else if (typeof data.detail === 'string') {
+              // Direct string message - this is what we want for duplicate errors
+              errorMessage = data.detail;
+            }
+          } else if (typeof data === 'string') {
+            // Direct string response
+            errorMessage = data;
+          } else if (data && typeof data === 'object') {
+            // Handle other error formats
+            const errorMessages = [];
+            for (const [field, message] of Object.entries(data)) {
+              if (Array.isArray(message)) {
+                errorMessages.push(`${field}: ${message.join(', ')}`);
+              } else {
+                errorMessages.push(`${field}: ${message}`);
+              }
+            }
+            errorMessage = errorMessages.join('\n');
+          }
+        } else if (status === 409) {
+          // Conflict errors (duplicate entries)
+          errorMessage = 'Duplicate entry detected. This driver information already exists:\n';
+          if (typeof data === 'object' && data.detail) {
+            errorMessage += data.detail;
+          } else {
+            errorMessage += 'Aadhar number, driving license, or phone number may already be registered.';
+          }
+        } else if (status === 422) {
+          // Unprocessable entity (validation failed)
+          if (typeof data === 'object' && data.detail) {
+            if (Array.isArray(data.detail)) {
+              errorMessage = 'Validation errors:\n';
+              data.detail.forEach((err: any) => {
+                if (err.field && err.message) {
+                  errorMessage += `${err.field}: ${err.message}\n`;
+                } else if (err.msg && err.loc) {
+                  errorMessage += `${err.loc.join('.')}: ${err.msg}\n`;
+                }
+              });
+            } else {
+              errorMessage = data.detail;
+            }
+          }
+        } else if (status >= 500) {
+          errorMessage = 'Server error occurred. Please try again later.';
+        } else {
+          errorMessage = `Request failed (${status}): ${data?.detail || data?.message || 'Unknown error'}`;
+        }
+      } else if (error.request) {
+        // Network error - no response received
+        console.log('Network error detected'); // Debug log
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (error.message) {
+        // Other errors
+        errorMessage = error.message;
+      }
+      
+      console.log('Final error message:', errorMessage); // Debug log
+      showAlert('Submission Failed', errorMessage, 'error');
     }
   }
 
@@ -488,7 +701,19 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                   </div>
                   <div>
                     <FieldLabel required>Phone Number</FieldLabel>
-                    <input disabled={isReadOnly} required type="tel" maxLength={10} placeholder="10-digit number" className={inputStyle} value={draft.phone_number} onChange={e => saveDraft({ phone_number: e.target.value.replace(/\D/g, '') })} />
+                    <input 
+                      disabled={isReadOnly} 
+                      required 
+                      type="tel" 
+                      maxLength={10} 
+                      placeholder="10-digit number" 
+                      className={`${inputStyle} ${validationErrors.phone_number ? 'border-red-500 focus:ring-red-500' : ''}`}
+                      value={draft.phone_number} 
+                      onChange={e => saveDraft({ phone_number: e.target.value.replace(/\D/g, '') })} 
+                    />
+                    {validationErrors.phone_number && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.phone_number}</p>
+                    )}
                   </div>
                   <div>
                     <div className="space-y-2">
@@ -498,7 +723,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                           <div className="flex items-center space-x-2">
                             <button
                               type="button"
-                              onClick={() => saveDraft({ password: generatePassword() })}
+                              onClick={() => saveDraft({ password: generatePassword(), password_modified: true })}
                               className="px-3 py-1 text-xs bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
                             >
                               Generate
@@ -515,9 +740,9 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                             ? (draft.has_existing_password ? 'Enter new password to change' : 'Set a password for this driver')
                             : 'Password will be auto-generated'
                           }
-                          className={`${inputStyle} pr-20`}
+                          className={`${inputStyle} pr-20 ${validationErrors.password ? 'border-red-500 focus:ring-red-500' : ''}`}
                           value={draft.password || ''}
-                          onChange={e => saveDraft({ password: e.target.value })}
+                          onChange={e => saveDraft({ password: e.target.value, password_modified: true })}
                         />
                         <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
                           <button
@@ -555,38 +780,54 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                       </div>
                     </div>
                     {!isEditing && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        This will be the driver's initial password
-                      </p>
+                      <>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          This will be the driver's initial password
+                        </p>
+                        {validationErrors.password && (
+                          <p className="text-red-500 text-xs mt-1">{validationErrors.password}</p>
+                        )}
+                      </>
                     )}
                     {isEditing && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {draft.has_existing_password 
-                          ? 'Leave empty to keep current password, or enter new password to change it'
-                          : 'Set a password for this driver'
-                        }
-                      </p>
+                      <>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {draft.has_existing_password 
+                            ? 'Leave empty to keep current password, or enter new password to change it'
+                            : 'Set a password for this driver'
+                          }
+                        </p>
+                        {validationErrors.password && (
+                          <p className="text-red-500 text-xs mt-1">{validationErrors.password}</p>
+                        )}
+                      </>
                     )}
                   </div>
                   <div>
                     <FieldLabel required>Date of Birth</FieldLabel>
                     <input
-  disabled={isReadOnly} type="date" className={inputStyle} value={draft.date_of_birth} onChange={e => saveDraft({ date_of_birth: e.target.value })} />
+  disabled={isReadOnly} type="date" className={`${inputStyle} ${validationErrors.date_of_birth ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.date_of_birth} onChange={e => saveDraft({ date_of_birth: e.target.value })} />
+                    {validationErrors.date_of_birth && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.date_of_birth}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>Gender</FieldLabel>
-                    <select className={inputStyle} value={draft.gender} onChange={e => saveDraft({ gender: e.target.value })}>
+                    <select className={`${inputStyle} ${validationErrors.gender ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.gender} onChange={e => saveDraft({ gender: e.target.value })}>
                       <option value="">Select</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
                       <option value="other">Other</option>
                     </select>
+                    {validationErrors.gender && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.gender}</p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Blood Group</FieldLabel>
-                    <select className={inputStyle} value={draft.blood_group} onChange={e => saveDraft({ blood_group: e.target.value })}>
+                    <select className={`${inputStyle} ${validationErrors.blood_group ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.blood_group} onChange={e => saveDraft({ blood_group: e.target.value })}>
                       <option value="">Select</option>
                       <option value="A+">A+</option>
                       <option value="A-">A-</option>
@@ -596,6 +837,9 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                       <option value="O+">O+</option>
                       <option value="O-">O-</option>
                     </select>
+                    {validationErrors.blood_group && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.blood_group}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel >Languages Spoken</FieldLabel>
@@ -626,37 +870,66 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 animate-in fade-in duration-300">
                 <div className="space-y-4">
                   <div>
-                    <FieldLabel required>Aadhar Number</FieldLabel>
-                    <input disabled={isReadOnly} type="text" maxLength={12} placeholder="12-digit Aadhar number" className={inputStyle} value={draft.aadhar_number} onChange={e => saveDraft({ aadhar_number: e.target.value.replace(/\D/g, '') })} />
+                    <FieldLabel optional>Aadhar Number</FieldLabel>
+                    <input 
+                      disabled={isReadOnly} 
+                      type="text" 
+                      maxLength={12} 
+                      placeholder="12-digit Aadhar number" 
+                      className={`${inputStyle} ${validationErrors.aadhar_number ? 'border-red-500 focus:ring-red-500' : ''}`}
+                      value={draft.aadhar_number} 
+                      onChange={e => saveDraft({ aadhar_number: e.target.value.replace(/\D/g, '') })} 
+                    />
+                    {validationErrors.aadhar_number && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.aadhar_number}</p>
+                    )}
                   </div>
                   <div>
-                    <FieldLabel required>Aadhar Document</FieldLabel>
+                    <FieldLabel optional>Aadhar Document</FieldLabel>
                     <input
   disabled={isReadOnly} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'aadhar_document', 'aadhar_document_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
                     {draft.aadhar_document_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.aadhar_document_name}</p>}
                   </div>
                   <div>
                     <FieldLabel required>Driving License Number</FieldLabel>
-                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.driving_license_number} onChange={e => saveDraft({ driving_license_number: e.target.value })} />
+                    <input 
+                      disabled={isReadOnly} 
+                      type="text" 
+                      className={`${inputStyle} ${validationErrors.driving_license_number ? 'border-red-500 focus:ring-red-500' : ''}`}
+                      value={draft.driving_license_number} 
+                      onChange={e => saveDraft({ driving_license_number: e.target.value })} 
+                    />
+                    {validationErrors.driving_license_number && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.driving_license_number}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>License Expiry Date</FieldLabel>
-                    <input disabled={isReadOnly} type="date" className={inputStyle} value={draft.license_expiry_date} onChange={e => saveDraft({ license_expiry_date: e.target.value })} />
+                    <input 
+                      disabled={isReadOnly} 
+                      type="date" 
+                      className={`${inputStyle} ${validationErrors.license_expiry_date ? 'border-red-500 focus:ring-red-500' : ''}`}
+                      value={draft.license_expiry_date} 
+                      onChange={e => saveDraft({ license_expiry_date: e.target.value })} 
+                    />
+                    {validationErrors.license_expiry_date && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.license_expiry_date}</p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <FieldLabel required>Driver Photo</FieldLabel>
+                    <FieldLabel optional>Driver Photo</FieldLabel>
                     <input disabled={isReadOnly} type="file" accept="image/*" onChange={e => handleFile(e, 'driver_photo', 'driver_photo_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
                     {draft.driver_photo_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.driver_photo_name}</p>}
                   </div>
                   <div>
-                    <FieldLabel required>Police Verification Certificate</FieldLabel>
+                    <FieldLabel optional>Police Verification Certificate</FieldLabel>
                     <input disabled={isReadOnly}   type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'police_verification_certificate', 'police_verification_certificate_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
                     {draft.police_verification_certificate_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.police_verification_certificate_name}</p>}
                   </div>
                   <div>
-                    <FieldLabel required>Medical Fitness Certificate</FieldLabel>
+                    <FieldLabel optional>Medical Fitness Certificate</FieldLabel>
                     <input disabled={isReadOnly} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'medical_fitness_certificate', 'medical_fitness_certificate_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
                     {draft.medical_fitness_certificate_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.medical_fitness_certificate_name}</p>}
                   </div>
@@ -678,11 +951,17 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
 
                   <div>
                     <FieldLabel required>Emergency Contact Name</FieldLabel>
-                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.emergency_contact_name} onChange={e => saveDraft({ emergency_contact_name: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" className={`${inputStyle} ${validationErrors.emergency_contact_name ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.emergency_contact_name} onChange={e => saveDraft({ emergency_contact_name: e.target.value })} />
+                    {validationErrors.emergency_contact_name && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.emergency_contact_name}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>Emergency Contact Number</FieldLabel>
-                    <input disabled={isReadOnly} type="tel" maxLength={10} placeholder="10-digit number" className={inputStyle} value={draft.emergency_contact_number} onChange={e => saveDraft({ emergency_contact_number: e.target.value.replace(/\D/g, '') })} />
+                    <input disabled={isReadOnly} type="tel" maxLength={10} placeholder="10-digit number" className={`${inputStyle} ${validationErrors.emergency_contact_number ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.emergency_contact_number} onChange={e => saveDraft({ emergency_contact_number: e.target.value.replace(/\D/g, '') })} />
+                    {validationErrors.emergency_contact_number && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.emergency_contact_number}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel>Previous Employer Experience</FieldLabel>
@@ -692,19 +971,31 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Current Address</FieldLabel>
-                    <textarea disabled={isReadOnly} rows={2} className={inputStyle} value={draft.current_address} onChange={e => saveDraft({ current_address: e.target.value })} />
+                    <textarea disabled={isReadOnly} rows={2} className={`${inputStyle} ${validationErrors.current_address ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.current_address} onChange={e => saveDraft({ current_address: e.target.value })} />
+                    {validationErrors.current_address && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.current_address}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>City</FieldLabel>
-                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.city} onChange={e => saveDraft({ city: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" className={`${inputStyle} ${validationErrors.city ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.city} onChange={e => saveDraft({ city: e.target.value })} />
+                    {validationErrors.city && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.city}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>State</FieldLabel>
-                    <input disabled={isReadOnly} type="text" className={inputStyle} value={draft.state} onChange={e => saveDraft({ state: e.target.value })} />
+                    <input disabled={isReadOnly} type="text" className={`${inputStyle} ${validationErrors.state ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.state} onChange={e => saveDraft({ state: e.target.value })} />
+                    {validationErrors.state && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.state}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>Pincode</FieldLabel>
-                    <input disabled={isReadOnly} type="text" maxLength={6} placeholder="6-digit pincode" className={inputStyle} value={draft.pincode} onChange={e => saveDraft({ pincode: e.target.value.replace(/\D/g, '') })} />
+                    <input disabled={isReadOnly} type="text" maxLength={6} placeholder="6-digit pincode" className={`${inputStyle} ${validationErrors.pincode ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.pincode} onChange={e => saveDraft({ pincode: e.target.value.replace(/\D/g, '') })} />
+                    {validationErrors.pincode && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.pincode}</p>
+                    )}
                   </div>
                 </div>
               </div>

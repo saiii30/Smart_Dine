@@ -46,7 +46,7 @@ const Notifications = () => {
     window.dispatchEvent(new CustomEvent('notificationUpdate'))
     
     // Set up periodic refresh every 10 seconds for shared acknowledgements
-    const interval = setInterval(fetchNotifications, 10000)
+    const interval = setInterval(fetchNotifications, 1800000)
     
     return () => clearInterval(interval)
   }, [selectedType, selectedSeverity])
@@ -145,9 +145,9 @@ const Notifications = () => {
       case 'critical':
         return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'
       case 'warning':
-        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800'
+        return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-800'
       case 'info':
-        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800'
       default:
         return 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-800'
     }
@@ -158,9 +158,9 @@ const Notifications = () => {
       case 'critical':
         return <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
       case 'warning':
-        return <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+        return <Clock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
       case 'info':
-        return <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        return <Calendar className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
       default:
         return <Bell className="h-5 w-5 text-gray-600 dark:text-gray-400" />
     }
@@ -173,8 +173,9 @@ const Notifications = () => {
   }
 
   const getDaysRemainingColor = (days: number) => {
-    if (days <= 15) return 'text-red-600 dark:text-red-400 font-semibold'
-    if (days <= 30) return 'text-yellow-600 dark:text-yellow-400 font-medium'
+    if (days <= 10) return 'text-red-600 dark:text-red-400 font-semibold'
+    if (days <= 20) return 'text-orange-600 dark:text-orange-400 font-medium'
+    if (days <= 30) return 'text-yellow-600 dark:text-yellow-400'
     return 'text-blue-600 dark:text-blue-400'
   }
 
