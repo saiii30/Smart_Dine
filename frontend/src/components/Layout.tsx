@@ -24,7 +24,7 @@ const Layout = () => {
     fetchNotifications()
     
     // Set up periodic refresh every 10 seconds (more frequent for shared acknowledgements)
-    const interval = setInterval(fetchNotifications, 10000)
+    const interval = setInterval(fetchNotifications, 1800000)
     
     return () => clearInterval(interval)
   }, [expirySettings]) // Add expirySettings as dependency

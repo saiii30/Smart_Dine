@@ -86,6 +86,8 @@ const isSupervisor = user?.role === 'SUPERVISOR';
     onClose?: () => void;
   }>({ isOpen: false, type: 'alert', title: '', message: '' });
 
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
   const showAlert = (title: string, message: string, type: 'alert' | 'success' | 'error' = 'alert', onCloseCallback?: () => void) => {
     setAlertState({ isOpen: true, type, title, message, onConfirm: undefined, onClose: onCloseCallback });
   };
@@ -286,8 +288,118 @@ const isSupervisor = user?.role === 'SUPERVISOR';
     }
   };
 
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    
+    // Validate mandatory fields (all fields except Insurance Copy, Registration Certificate, Pollution Certificate)
+    if (!draft.vehicle_registration_number?.trim()) {
+      errors.vehicle_registration_number = 'Vehicle registration number is required';
+    }
+    
+    if (!draft.vehicle_type?.trim()) {
+      errors.vehicle_type = 'Vehicle type is required';
+    }
+    
+    if (!draft.vehicle_brand?.trim()) {
+      errors.vehicle_brand = 'Vehicle brand is required';
+    }
+    
+    if (!draft.vehicle_model?.trim()) {
+      errors.vehicle_model = 'Vehicle model is required';
+    }
+    
+    if (!draft.rc_number?.trim()) {
+      errors.rc_number = 'RC number is required';
+    }
+    
+    if (!draft.registration_expiry) {
+      errors.registration_expiry = 'Registration expiry date is required';
+    } else if (new Date(draft.registration_expiry) <= new Date()) {
+      errors.registration_expiry = 'Registration expiry date must be in the future';
+    }
+    
+    if (!draft.service_expiry) {
+      errors.service_expiry = 'Next service date is required';
+    } else if (new Date(draft.service_expiry) <= new Date()) {
+      errors.service_expiry = 'Service date must be in the future';
+    }
+    
+    if (!draft.insurance_expiry) {
+      errors.insurance_expiry = 'Insurance expiry date is required';
+    } else if (new Date(draft.insurance_expiry) <= new Date()) {
+      errors.insurance_expiry = 'Insurance expiry date must be in the future';
+    }
+    
+    if (!draft.puc_expiry) {
+      errors.puc_expiry = 'PUC expiry date is required';
+    } else if (new Date(draft.puc_expiry) <= new Date()) {
+      errors.puc_expiry = 'PUC expiry date must be in the future';
+    }
+    
+    if (!draft.fuel_type?.trim()) {
+      errors.fuel_type = 'Fuel type is required';
+    }
+    
+    // Validate newly mandatory fields
+    if (!draft.registration_date) {
+      errors.registration_date = 'Registration date is required';
+    }
+    
+    if (!draft.insurance_number?.trim()) {
+      errors.insurance_number = 'Insurance number is required';
+    }
+    
+    if (!draft.insurance_date) {
+      errors.insurance_date = 'Insurance date is required';
+    }
+    
+    return errors;
+  };
+
+  const checkUniqueConstraints = async () => {
+    const errors: Record<string, string> = {};
+    
+    try {
+      // Check vehicle registration number uniqueness
+      if (draft.vehicle_registration_number?.trim()) {
+        const regResponse = await axios.get(`http://127.0.0.1:8000/api/vehicles/check-registration/${draft.vehicle_registration_number}`);
+        if (regResponse.data.exists && (!vehicle || regResponse.data.vehicle_id !== vehicle.id)) {
+          errors.vehicle_registration_number = 'Vehicle registration number already exists';
+        }
+      }
+      
+      // Check RC number uniqueness
+      if (draft.rc_number?.trim()) {
+        const rcResponse = await axios.get(`http://127.0.0.1:8000/api/vehicles/check-rc/${draft.rc_number}`);
+        if (rcResponse.data.exists && (!vehicle || rcResponse.data.vehicle_id !== vehicle.id)) {
+          errors.rc_number = 'RC number already exists';
+        }
+      }
+    } catch (error) {
+      console.error('Error checking unique constraints:', error);
+      // Don't block submission if unique check fails, let backend handle it
+    }
+    
+    return errors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form before submission
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      showAlert('Validation Error', Object.values(validationErrors).join('\n'), 'error');
+      return;
+    }
+    
+    // Check unique constraints
+    const uniqueErrors = await checkUniqueConstraints();
+    if (Object.keys(uniqueErrors).length > 0) {
+      showAlert('Duplicate Entry', Object.values(uniqueErrors).join('\n'), 'error');
+      return;
+    }
+    
     try {
       // Build FormData to match backend Form/File expectations
       const formData = new FormData();
@@ -454,29 +566,44 @@ const isSupervisor = user?.role === 'SUPERVISOR';
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Vehicle Registration Number</FieldLabel>
-                    <input required type="text" placeholder="TN60AB4654" className={inputStyle} value={draft.vehicle_registration_number} onChange={e => saveDraft({ vehicle_registration_number: e.target.value })} />
+                    <input required type="text" placeholder="TN60AB4654" className={`${inputStyle} ${validationErrors.vehicle_registration_number ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.vehicle_registration_number} onChange={e => saveDraft({ vehicle_registration_number: e.target.value })} />
+                    {validationErrors.vehicle_registration_number && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_registration_number}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>Vehicle Brand</FieldLabel>
-                    <input required type="text" placeholder="e.g. Suzuki" className={inputStyle} value={draft.vehicle_brand} onChange={e => saveDraft({ vehicle_brand: e.target.value })} />
+                    <input required type="text" placeholder="e.g. Suzuki" className={`${inputStyle} ${validationErrors.vehicle_brand ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.vehicle_brand} onChange={e => saveDraft({ vehicle_brand: e.target.value })} />
+                    {validationErrors.vehicle_brand && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_brand}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>Vehicle Model</FieldLabel>
-                    <input required type="text" placeholder="Dezire" className={inputStyle} value={draft.vehicle_model} onChange={e => saveDraft({ vehicle_model: e.target.value })} />
+                    <input required type="text" placeholder="Dezire" className={`${inputStyle} ${validationErrors.vehicle_model ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.vehicle_model} onChange={e => saveDraft({ vehicle_model: e.target.value })} />
+                    {validationErrors.vehicle_model && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_model}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>RC Number</FieldLabel>
-                    <input required type="text" placeholder="RC12345" className={inputStyle} value={draft.rc_number} onChange={e => saveDraft({ rc_number: e.target.value })} />
+                    <input required type="text" placeholder="RC12345" className={`${inputStyle} ${validationErrors.rc_number ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.rc_number} onChange={e => saveDraft({ rc_number: e.target.value })} />
+                    {validationErrors.rc_number && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.rc_number}</p>
+                    )}
                   </div>
                   <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30">
                     <FieldLabel required><span className="text-red-600">Registration Expiry</span></FieldLabel>
-                    <input required type="date" className={inputStyle} value={draft.registration_expiry} onChange={e => saveDraft({ registration_expiry: e.target.value })} />
+                    <input required type="date" className={`${inputStyle} ${validationErrors.registration_expiry ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.registration_expiry} onChange={e => saveDraft({ registration_expiry: e.target.value })} />
+                    {validationErrors.registration_expiry && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.registration_expiry}</p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
                     <FieldLabel required>Vehicle Type</FieldLabel>
-                    <select required className={inputStyle} value={draft.vehicle_type} onChange={e => saveDraft({ vehicle_type: e.target.value })}>
+                    <select required className={`${inputStyle} ${validationErrors.vehicle_type ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.vehicle_type} onChange={e => saveDraft({ vehicle_type: e.target.value })}>
                       <option>Mini Bus</option>
                       <option>Commercial Load Vehicle</option>
                       <option>Passenger Van</option>
@@ -486,6 +613,9 @@ const isSupervisor = user?.role === 'SUPERVISOR';
                       <option>Hatch back</option>
                       <option>Truck</option>
                     </select>
+                    {validationErrors.vehicle_type && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_type}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel required>Vehicle Status</FieldLabel>
@@ -501,12 +631,15 @@ const isSupervisor = user?.role === 'SUPERVISOR';
                   </div>
                   <div>
                     <FieldLabel required>Fuel Type</FieldLabel>
-                    <select required className={inputStyle} value={draft.fuel_type} onChange={e => saveDraft({ fuel_type: e.target.value })}>
+                    <select required className={`${inputStyle} ${validationErrors.fuel_type ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.fuel_type} onChange={e => saveDraft({ fuel_type: e.target.value })}>
                       <option>Diesel</option>
                       <option>Petrol</option>
                       <option>Electric</option>
                       <option>CNG</option>
                     </select>
+                    {validationErrors.fuel_type && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.fuel_type}</p>
+                    )}
                   </div>
                   <div>
                     <FieldLabel optional>Seating Capacity</FieldLabel>
@@ -526,7 +659,10 @@ const isSupervisor = user?.role === 'SUPERVISOR';
                   </div>
                   <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30">
                     <FieldLabel required><span className="text-red-600">Next Service Date</span></FieldLabel>
-                    <input required type="date" className={inputStyle} value={draft.service_expiry} onChange={e => saveDraft({ service_expiry: e.target.value })} />
+                    <input required type="date" className={`${inputStyle} ${validationErrors.service_expiry ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.service_expiry} onChange={e => saveDraft({ service_expiry: e.target.value })} />
+                    {validationErrors.service_expiry && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.service_expiry}</p>
+                    )}
                   </div>
 
                 </div>
@@ -556,21 +692,33 @@ const isSupervisor = user?.role === 'SUPERVISOR';
                 <div className="space-y-4">
 
                   <div>
-                    <FieldLabel optional>Registration Date</FieldLabel>
-                    <input type="date" className={inputStyle} value={draft.registration_date} onChange={e => saveDraft({ registration_date: e.target.value })} />
+                    <FieldLabel required>Registration Date</FieldLabel>
+                    <input required type="date" className={`${inputStyle} ${validationErrors.registration_date ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.registration_date} onChange={e => saveDraft({ registration_date: e.target.value })} />
+                    {validationErrors.registration_date && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.registration_date}</p>
+                    )}
                   </div>
 
                   <div>
-                    <FieldLabel optional>Insurance Number</FieldLabel>
-                    <input type="text" placeholder="INS-2025-334" className={inputStyle} value={draft.insurance_number} onChange={e => saveDraft({ insurance_number: e.target.value })} />
+                    <FieldLabel required>Insurance Number</FieldLabel>
+                    <input required type="text" placeholder="INS-2025-334" className={`${inputStyle} ${validationErrors.insurance_number ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.insurance_number} onChange={e => saveDraft({ insurance_number: e.target.value })} />
+                    {validationErrors.insurance_number && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.insurance_number}</p>
+                    )}
                   </div>
                   <div>
-                    <FieldLabel optional>Insurance Date</FieldLabel>
-                    <input type="date" className={inputStyle} value={draft.insurance_date} onChange={e => saveDraft({ insurance_date: e.target.value })} />
+                    <FieldLabel required>Insurance Date</FieldLabel>
+                    <input required type="date" className={`${inputStyle} ${validationErrors.insurance_date ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.insurance_date} onChange={e => saveDraft({ insurance_date: e.target.value })} />
+                    {validationErrors.insurance_date && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.insurance_date}</p>
+                    )}
                   </div>
                   <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30">
                     <FieldLabel required><span className="text-red-600">Insurance Expiry</span></FieldLabel>
-                    <input required type="date" className={inputStyle} value={draft.insurance_expiry} onChange={e => saveDraft({ insurance_expiry: e.target.value })} />
+                    <input required type="date" className={`${inputStyle} ${validationErrors.insurance_expiry ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.insurance_expiry} onChange={e => saveDraft({ insurance_expiry: e.target.value })} />
+                    {validationErrors.insurance_expiry && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.insurance_expiry}</p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -591,7 +739,10 @@ const isSupervisor = user?.role === 'SUPERVISOR';
                   </div>
                   <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30">
                     <FieldLabel required><span className="text-red-600">PUC Expiry</span></FieldLabel>
-                    <input required type="date" className={inputStyle} value={draft.puc_expiry} onChange={e => saveDraft({ puc_expiry: e.target.value })} />
+                    <input required type="date" className={`${inputStyle} ${validationErrors.puc_expiry ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.puc_expiry} onChange={e => saveDraft({ puc_expiry: e.target.value })} />
+                    {validationErrors.puc_expiry && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.puc_expiry}</p>
+                    )}
                   </div>
                 </div>
               </div>

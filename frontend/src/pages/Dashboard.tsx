@@ -134,33 +134,33 @@ const Dashboard = () => {
         }
 
         // Get emergency notifications (static data for now)
-        const emergencyData: EmergencyNotification[] = [
-          {
-            id: '1',
-            title: 'Fire Extinguisher Certificate',
-            description: 'Fire safety certification expiring soon',
-            entity_name: 'B 1234 CD',
-            days_remaining: 3,
-            severity: 'critical'
-          },
-          {
-            id: '2',
-            title: 'First Aid Kit Inspection',
-            description: 'First aid kit needs inspection',
-            entity_name: 'B 5678 EF',
-            days_remaining: 5,
-            severity: 'warning'
-          },
-          {
-            id: '3',
-            title: 'Emergency Exit Compliance',
-            description: 'Emergency exit inspection required',
-            entity_name: 'B 9012 GH',
-            days_remaining: 8,
-            severity: 'warning'
-          }
-        ]
-        setEmergencyNotifications(emergencyData)
+        // const emergencyData: EmergencyNotification[] = [
+        //   {
+        //     id: '1',
+        //     title: 'Fire Extinguisher Certificate',
+        //     description: 'Fire safety certification expiring soon',
+        //     entity_name: 'B 1234 CD',
+        //     days_remaining: 3,
+        //     severity: 'critical'
+        //   },
+        //   {
+        //     id: '2',
+        //     title: 'First Aid Kit Inspection',
+        //     description: 'First aid kit needs inspection',
+        //     entity_name: 'B 5678 EF',
+        //     days_remaining: 5,
+        //     severity: 'warning'
+        //   },
+        //   {
+        //     id: '3',
+        //     title: 'Emergency Exit Compliance',
+        //     description: 'Emergency exit inspection required',
+        //     entity_name: 'B 9012 GH',
+        //     days_remaining: 8,
+        //     severity: 'warning'
+        //   }
+        // ]
+        // setEmergencyNotifications(emergencyData)
 
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)

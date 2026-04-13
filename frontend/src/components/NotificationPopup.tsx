@@ -52,9 +52,9 @@ const NotificationPopup = ({ isOpen, onClose, notifications, totalCount }: Notif
       case 'critical':
         return 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
       case 'warning':
-        return 'border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20'
+        return 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20'
       case 'info':
-        return 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20'
+        return 'border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20'
       default:
         return 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/20'
     }
@@ -65,17 +65,18 @@ const NotificationPopup = ({ isOpen, onClose, notifications, totalCount }: Notif
       case 'critical':
         return <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
       case 'warning':
-        return <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+        return <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
       case 'info':
-        return <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        return <Calendar className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
       default:
         return <Bell className="h-4 w-4 text-gray-600 dark:text-gray-400" />
     }
   }
 
   const getDaysRemainingColor = (days: number) => {
-    if (days <= 15) return 'text-red-600 dark:text-red-400 font-semibold'
-    if (days <= 30) return 'text-yellow-600 dark:text-yellow-400 font-medium'
+    if (days <= 10) return 'text-red-600 dark:text-red-400 font-semibold'
+    if (days <= 20) return 'text-orange-600 dark:text-orange-400 font-medium'
+    if (days <= 30) return 'text-yellow-600 dark:text-yellow-400'
     return 'text-blue-600 dark:text-blue-400'
   }
 
