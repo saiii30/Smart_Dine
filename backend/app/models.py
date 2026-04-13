@@ -231,7 +231,7 @@ class Agency(Base):
     agency_name = Column(String, nullable=False)
     agency_phone = Column(String, nullable=True)
     agency_address = Column(Text, nullable=True)
-    agency_EmailId = Column(String, nullable=True)
+    agency_emailid = Column(String, nullable=True)
     description = Column(Text, nullable=True)
     plan = Column(String, nullable=True)
     subscription = Column(String, nullable=True)
