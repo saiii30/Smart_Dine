@@ -71,15 +71,15 @@ class Vehicle(Base):
     manufacturing_year = Column(Integer, nullable=False)
     color = Column(String, nullable=True)  # Ensure this is present
     vehicle_registration_number = Column(String, unique=True, nullable=False)
-    rc_number = Column(String, unique=True, nullable=True)
+    rc_number = Column(String, unique=True, nullable=False)
     
     # Capacity and Specifications
     seating_capacity = Column(Integer, nullable=False)
-    fuel_type = Column(String, nullable=False, default="Diesel")
+    fuel_type = Column(String, nullable=True, default="Diesel")
     gps_device_id = Column(String, nullable=True)
     
     # Status and Assignment
-    vehicle_status = Column(String, nullable=False, default="Active")
+    vehicle_status = Column(String, nullable=True, default="Active")
     is_active = Column(Boolean, default=True)
     assigned_driver_id = Column(String, nullable=True)
     
