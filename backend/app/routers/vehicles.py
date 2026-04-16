@@ -130,7 +130,7 @@ async def create_vehicle(
         data = process_vehicle_data(dict(form_data))
         
         # Check for required fields
-        required_fields = ['vehicle_brand', 'vehicle_model', 'manufacturing_year', 'vehicle_registration_number', 'vehicle_type', 'seating_capacity']
+        required_fields = ['vehicle_brand', 'vehicle_model', 'manufacturing_year', 'vehicle_registration_number', 'rc_number', 'vehicle_type', 'seating_capacity']
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             raise HTTPException(
@@ -186,7 +186,7 @@ async def create_vehicle(
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error processing file uploads: {str(file_error)}"
+                detail="Error processing file uploads"
             )
             
     except HTTPException:
@@ -195,7 +195,7 @@ async def create_vehicle(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating vehicle: {str(e)}"
+            detail="Error creating vehicle"
         )
 
 @router.get(
