@@ -197,7 +197,7 @@ useEffect(() => {
     }
   })
 }, [
-  formData.schedules.map(s => `${s.start_date}-${s.end_date}-${s.one_way_start_time}-${s.two_way_start_time}`).join('|')
+  formData.schedules.map(s => `${s.start_date}-${s.end_date}-${s.one_way_start_time}-${s.two_way_start_time}-${s.duration_min}`).join('|')
 ])
 
 const getAddressFromLatLng = async (lat: number, lng: number) => {
@@ -584,7 +584,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         one_way_start_time: s.one_way_start_time || null,
         two_way_start_time: s.two_way_start_time || null,
        one_way_isActive: true,
-two_way_isActive: s.way === 'two_way',
+       two_way_isActive: s.way === 'two_way',
         way: s.way,
         trip_type: s.trip_type,
         passenger_count: s.passenger_count,
