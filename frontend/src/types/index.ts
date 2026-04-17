@@ -116,6 +116,7 @@ export interface Company {
   notes?: string
   created_at: string
   updated_at?: string
+  company_name?: string
 }
 
 export interface TripSchedule {
@@ -155,6 +156,35 @@ export interface TripSchedule {
   is_active: boolean
   route_point?: RoutePoint[] 
   
+}
+
+export interface Schedule {
+    id: string | number
+    trip_id: string | number
+
+    company_name: string
+
+    vehicle_registration_number: string
+
+    driver_name: string
+
+    starting_point: string
+    end_point: string
+
+    start_date: string
+    start_time: string
+
+    passenger_count: number
+
+    trip_type: string
+
+    route_point: any[]  // (can refine later if backend shape is known)
+
+    status: 'Active' | 'Inactive'
+
+    driver_id: string | number
+
+    driver_phone: string
 }
 
 export interface RoutePoint {

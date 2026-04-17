@@ -602,6 +602,7 @@ class RoutePoint(BaseModel):
     pickup_lat: Optional[float] = Field(None, ge=-90, le=90)
     pickup_lng: Optional[float] = Field(None, ge=-180, le=180)
     ispresent: Optional[bool] = Field(None, description="True if passenger is present, False otherwise")
+    isdropped: Optional[bool] = Field(None, description="True if passenger has been dropped, False otherwise")
     # end_lat: Optional[float] = Field(None, ge=-90, le=90)
     # end_lng: Optional[float] = Field(None, ge=-180, le=180)
 

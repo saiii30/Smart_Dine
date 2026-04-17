@@ -2,37 +2,45 @@ import { useEffect, useState } from 'react'
 import API from '../api/axiosConfig'
 import { MapPin, Search, Navigation } from 'lucide-react'
 import TripMapModal from '../components/TripMapModal'
+import { useMemo } from 'react'
+import { Schedule } from '../types'
 
 const LiveTracking = () => {
-    const [schedules, setSchedules] = useState<any[]>([])
+    const [schedules, setSchedules] = useState<Schedule[]>([])
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
-    const [selectedSchedule, setSelectedSchedule] = useState<any>(null)
+    const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
     const [isMapModalOpen, setIsMapModalOpen] = useState(false)
 
     useEffect(() => {
         fetchSchedules()
-        alert('LiveTracking component mounted, fetching schedules...')
     }, [])
+
+    useEffect(() => {
+    const interval = setInterval(() => {
+        fetchSchedules()
+    }, 5000)
+
+    return () => clearInterval(interval)
+}, [])
 
     const fetchSchedules = async () => {
     try {
        
 
-        // const [scheduleRes, driverLocRes] = await Promise.all([
-        //     API.get('/trip-schedules/'),
-        //     API.get('/mobile/locations/')
-        // ])
+       
 
-        const scheduleRes = await API.get('/trip-schedules/')
-        const driverLocRes = await API.get('/mobile/locations/all/')
+        const [scheduleRes, driverLocRes] = await Promise.all([
+    API.get('/trip-schedules/'),
+    API.get('/mobile/locations/all/')
+])
 
         const schedulesData = Array.isArray(scheduleRes.data) ? scheduleRes.data : []
         const driverLocations = Array.isArray(driverLocRes.data) ? driverLocRes.data : []
 
         // ✅ Active driver மட்டும்
         const activeDriverLocations = driverLocations.filter(
-            (d: any) => d.is_active === 1 || d.is_active === true
+            (d: any) => Boolean(Number(d.is_active))
         )
 
         const allSchedules: any[] = []
@@ -72,14 +80,13 @@ const LiveTracking = () => {
                 trip_type: trip.trip_type,
                 route_point: trip.route_point,
 
-                status: 'Active',
+                status: trip.is_active ? 'Active' : 'Inactive',
 
                 driver_id: trip.driver_id,
 
                 driver_phone:
                     trip.driver?.user?.contact_number ||
-                    trip.driver_phone ||
-                    'N/A'
+                    trip.driver_phone 
             }
 
             allSchedules.push(scheduleObj)
@@ -93,63 +100,20 @@ const LiveTracking = () => {
         setLoading(false)
     }
 }
-    // const fetchSchedules = async () => {
-    //     try {
-    //         const response = await API.get('/trip-schedules/')
-    //         const allTrips = Array.isArray(response.data) ? response.data : []
-
-    //         // Flatten schedules from trips
-    //         const allSchedules: any[] = []
-    //         allTrips.forEach((trip: any) => {
-    //             // Handle flattened structure or nested structure depending on API response
-    //             // The previous Trips.tsx logic suggested the API returns a flat list that we grouped manually
-    //             // But let's look at the response structure again.
-    //             // Actually the API returns trip schedules directly.
-
-    //             // Let's assume the API returns a list of schedule objects directly based on previous code
-    //             // Wait, in Trips.tsx we did manual grouping.
-    //             // Let's copy the logic from Trips.tsx but simplify for just listing active schedules.
-
-    //             const scheduleObj = {
-    //                 id: trip.id,
-    //                 trip_id: trip.id,
-    //                 company_name: trip.company_name,
-    //                 vehicle_registration_number: trip.vehicle_registration_number || (trip.vehicle && trip.vehicle.vehicle_registration_number) || 'Unassigned',
-    //                 driver_name: trip.driver_name || (trip.driver && trip.driver.user && trip.driver.user.name) || (trip.driver && trip.driver.full_name) || 'Unassigned',
-    //                 starting_point: trip.starting_point,
-    //                 end_point: trip.end_point,
-    //                 start_date: trip.start_date,
-    //                 start_time: trip.start_time,
-    //                 passenger_count: trip.passenger_count,
-    //                 trip_type: trip.trip_type,
-    //                 route_point: trip.route_point,
-    //                 status: trip.is_active ? 'Active' : 'Completed',
-    //                 driver_id: trip.driver_id,
-    //                 driver_phone: (trip.driver && trip.driver.user && trip.driver.user.contact_number) || trip.driver_phone || 'N/A'
-    //             }
-    //             if (trip.is_active) {
-    //                 allSchedules.push(scheduleObj)
-    //             }
-    //         })
-
-    //         setSchedules(allSchedules)
-    //     } catch (error) {
-    //         console.error('Failed to fetch schedules:', error)
-    //     } finally {
-    //         setLoading(false)
-    //     }
-    // }
+   
 
     const handleOpenMap = (schedule: any) => {
         setSelectedSchedule(schedule)
         setIsMapModalOpen(true)
     }
 
-    const filteredSchedules = schedules.filter(s =>
+    const filteredSchedules = useMemo(() => {
+    return schedules.filter(s =>
         s.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.vehicle_registration_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.driver_name?.toLowerCase().includes(searchQuery.toLowerCase())
     )
+}, [schedules, searchQuery])
 
     if (loading) {
         return (

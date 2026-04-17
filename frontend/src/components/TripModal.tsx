@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { X, Plus, Trash2, TowerControl } from 'lucide-react'
-import { Trip, Vehicle, Driver, TripSchedule } from '../types'
+
+import { X, Plus, Trash2 } from 'lucide-react'
+import { Trip, Vehicle, Driver } from '../types'
 import { useTheme } from '../contexts/ThemeContext'
 import MapPicker from '../components/MapPicker'
 import { MapPin } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
+import api from '../api/axiosConfig'
 
 import { useAuth } from '../contexts/AuthContext'
 
@@ -104,8 +105,7 @@ const labelClass =
 
   const fetchCompanies = async () => {
     try {
-      const res = await axios.get(`http://127.0.0.1:8000/api/companies/trip/dropdown/?agency_id=${agencyId}`)
-      
+      const res = await api.get(`/companies/trip/dropdown/?agency_id=${agencyId}`)
       setCompanies(res.data) // [{id, company_name}]
     } catch (err) {
       
@@ -196,17 +196,9 @@ useEffect(() => {
       fetchVehicles(index)
     }
   })
-
- 
 }, [
-  formData.schedules
-    .map(
-      s =>
-        `${s.start_date}-${s.end_date}-${s.one_way_start_time}-${s.two_way_start_time}-${s.duration_min}`
-    )
-    .join('|')
+  formData.schedules.map(s => `${s.start_date}-${s.end_date}-${s.one_way_start_time}-${s.two_way_start_time}-${s.duration_min}`).join('|')
 ])
-
 
 const getAddressFromLatLng = async (lat: number, lng: number) => {
   try {
@@ -273,36 +265,39 @@ useEffect(() => {
 const fetchVehicles = async (scheduleIndex: number) => {
   const s = formData.schedules[scheduleIndex]
 
-  if (
-    !s.start_date ||
-    !s.end_date 
-  ) {
-    return
-  }
+  if (!s.start_date || !s.end_date) return
 
   const token = localStorage.getItem('token') || ''
 
   try {
-    const res = await axios.get(
-                            
-      'http://127.0.0.1:8000/api/vehicles/available/vehicles/',
-      {
-        params: {
-          start_date: s.start_date,
-          end_date: s.end_date,
-           one_way_start_time: s.one_way_start_time,
-          two_way_start_time: s.two_way_start_time || null,
-          duration_min: s.duration_min,
+    const res = await api.get('/vehicles/available/vehicles/', {
+      params: {
+        start_date: s.start_date,
+        end_date: s.end_date,
+        one_way_start_time: s.one_way_start_time,
+        two_way_start_time: s.two_way_start_time || null,
+        duration_min: s.duration_min,
+      },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
+    console.log(JSON.stringify(res.data))
+    // 🔥 OVERLAP FILTER
+    const filteredVehicles = res.data.filter((vehicle: any) => {
+  return !formData.schedules.some((other, i) => {
+    if (i === scheduleIndex) return false
 
-        },
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    )
+    if (other.vehicle_id && other.vehicle_id === vehicle.id) {
+      return overlapsWithOther(other, s)
+    }
 
-    setVehicles(res.data)
+    return false
+  })
+})
+
+    setVehicles(filteredVehicles)
   } catch (err) {
     console.error('Vehicle fetch failed', err)
   }
@@ -310,45 +305,107 @@ const fetchVehicles = async (scheduleIndex: number) => {
 
 
 
-  
 
+// 🔥 FULL FETCH DRIVERS FUNCTION
 const fetchDrivers = async (scheduleIndex: number) => {
   const s = formData.schedules[scheduleIndex]
 
-  if (
-    !s.start_date ||
-    !s.end_date 
-  ) {
-    return
-  }
+  if (!s.start_date || !s.end_date) return
 
   const token = localStorage.getItem('token') || ''
 
   try {
-    const res = await axios.get(
-      'http://127.0.0.1:8000/api/drivers/available/drivers/',
-      {
-        params: {
-          start_date: s.start_date,
-          end_date: s.end_date,
-          one_way_start_time: s.one_way_start_time,
-          two_way_start_time: s.two_way_start_time || null,
-          duration_min: s.duration_min,
-      
-        },
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    )
+    const res = await api.get('/drivers/available/drivers/', {
+      params: {
+        start_date: s.start_date,
+        end_date: s.end_date,
+        one_way_start_time: s.one_way_start_time,
+        two_way_start_time: s.two_way_start_time || null,
+        duration_min: s.duration_min,
+      },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-    setDrivers(res.data)
+  console.log(JSON.stringify(res.data))
+
+    // 🔥 OVERLAP FILTER
+    const filteredDrivers = res.data.filter((driver: any) => {
+  return !formData.schedules.some((other, i) => {
+    if (i === scheduleIndex) return false
+
+    // 🔥 check if SAME driver selected already
+    if (other.driver_id && other.driver_id === driver.id) {
+      return overlapsWithOther(other, s)
+    }
+
+    return false
+  })
+})
+
+    setDrivers(filteredDrivers)
   } catch (err) {
     console.error('Driver fetch failed', err)
   }
 }
 
 
+
+const getTimes = (s: any) => {
+  const times = []
+
+  if (s.one_way_start_time) {
+    times.push({
+      time: s.one_way_start_time,
+      duration: s.duration_min
+    })
+  }
+
+  if (s.two_way_start_time) {
+    times.push({
+      time: s.two_way_start_time,
+      duration: s.duration_min
+    })
+  }
+
+  return times
+}
+
+
+
+const overlapsWithOther = (other: any, current: any) => {
+  // ✅ DATE CHECK
+  const startA = new Date(other.start_date)
+  const endA = new Date(other.end_date)
+  const startB = new Date(current.start_date)
+  const endB = new Date(current.end_date)
+
+  if (!(startA <= endB && endA >= startB)) return false
+
+  const otherTimes = getTimes(other)
+  const currentTimes = getTimes(current)
+
+  const BUFFER = 20
+
+  // 🔥 MAIN LOGIC (ALL vs ALL)
+  for (let ot of otherTimes) {
+    for (let ct of currentTimes) {
+
+      const aStart = new Date(`1970-01-01T${ot.time}`).getTime()
+      const bStart = new Date(`1970-01-01T${ct.time}`).getTime()
+
+      const aEnd = aStart + (ot.duration + BUFFER) * 60000
+      const bEnd = bStart + (ct.duration + BUFFER) * 60000
+
+      if (aStart < bEnd && bStart < aEnd) {
+        return true // ❌ overlap
+      }
+    }
+  }
+
+  return false // ✅ no overlap
+}
 
   const getHeaderColorClasses = (color: MenuColor) => {
     const colorMap: Record<MenuColor, { bg: string; text: string }> = {
@@ -422,22 +479,35 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
   s.passenger_count = count
 
   if (s.trip_type === 'route') {
-    s.passengers = Array.from({ length: count }, (_, i) => ({
-      id : s.passengers?.[i]?.id || crypto.randomUUID(),
-      name: s.passengers?.[i]?.name || '',
-      phone: s.passengers?.[i]?.phone || '',
-      address: s.passengers?.[i]?.address || '',
-      pickup_point: s.passengers?.[i]?.pickup_point || '',
-      pickup_lat: s.passengers?.[i]?.pickup_lat,  
-      pickup_lng: s.passengers?.[i]?.pickup_lng, // ✅ KEEP
-      pickup: s.passengers?.[i]?.pickup,       // ✅ KEEP
-        ispresent: s.passengers?.[i]?.ispresent, // ✅ KEEP
-        isdropped: s.passengers?.[i]?.isdropped, // ✅ KEEP
-      timestamp: s.passengers?.[i]?.timestamp, // ✅ KEEP
-    }))
+    const existing = s.passengers || []
+
+s.passengers = Array.from({ length: count }, (_, i) => ({
+  id: existing[i]?.id || crypto.randomUUID(),
+  name: existing[i]?.name || '',
+  phone: existing[i]?.phone || '',
+  address: existing[i]?.address || '',
+  pickup_point: existing[i]?.pickup_point || '',
+  pickup_lat: existing[i]?.pickup_lat,
+  pickup_lng: existing[i]?.pickup_lng,
+  pickup: existing[i]?.pickup,
+  ispresent: existing[i]?.ispresent,
+  isdropped: existing[i]?.isdropped,
+  timestamp: existing[i]?.timestamp,
+}))
   }
 
   setFormData({ ...formData, schedules: updated })
+  setActivePassengerTab(0)
+}
+
+const isDateOverlap = (
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+) => {
+  return new Date(startA) <= new Date(endB) &&
+         new Date(endA) >= new Date(startB)
 }
 
 
@@ -459,41 +529,9 @@ const updatePassengerCount = (scheduleIndex: number, count: number) => {
 
   }
 
- 
-  const getScheduleKey = (s: any) => {
-  if (!s.start_date || !s.one_way_start_time) return ''
-  return `${s.start_date} ${s.one_way_start_time}`
-}
 
-const getAvailableVehicles = (scheduleIndex: number) => {
-  const current = formData.schedules[scheduleIndex]
-  const key = getScheduleKey(current)
-  if (!key) return vehicles
 
-  return vehicles.filter(vehicle =>
-    !formData.schedules.some(
-      (s, idx) =>
-        idx !== scheduleIndex &&
-        s.vehicle_id === vehicle.id &&
-        getScheduleKey(s) === key
-    )
-  )
-}
 
-const getAvailableDrivers = (scheduleIndex: number) => {
-  const current = formData.schedules[scheduleIndex]
-  const key = getScheduleKey(current)
-  if (!key) return drivers
-
-  return drivers.filter(driver =>
-    !formData.schedules.some(
-      (s, idx) =>
-        idx !== scheduleIndex &&
-        s.driver_id === driver.id &&
-        getScheduleKey(s) === key
-    )
-  )
-}
 const toDateInput = (value?: string | null) => {
   if (!value) return ''
   // handles "2026-01-06T00:00:00" and "2026-01-06"
@@ -525,8 +563,8 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     // 🧹 DELETE REMOVED SCHEDULES
     for (const id of deletedScheduleIds) {
-      await axios.delete(
-        `http://127.0.0.1:8000/api/trip-schedules/${id}`,
+      await api.delete(
+        `/trip-schedules/${id}`,
         { headers }
       )
     }
@@ -546,7 +584,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         one_way_start_time: s.one_way_start_time || null,
         two_way_start_time: s.two_way_start_time || null,
        one_way_isActive: true,
-two_way_isActive: s.way === 'two_way',
+       two_way_isActive: s.way === 'two_way',
         way: s.way,
         trip_type: s.trip_type,
         passenger_count: s.passenger_count,
@@ -571,26 +609,26 @@ two_way_isActive: s.way === 'two_way',
           pickup_lng: p.pickup_lng,
           pickup:false,
           timestamp:  new Date().toISOString(),
-          ispresent: p.ispresent || false,
+          ispresent: true,
           isdropped: p.isdropped || false,
 
         })) || []
 
       }
 
-      console.log('Submitting schedule with payload: ' + JSON.stringify(payload, null, 2))
+      
 
       if (s.id) {
         // 🟡 UPDATE
-        await axios.put(
-          `http://127.0.0.1:8000/api/trip-schedules/${s.id}`,
+        await api.put(
+          `/trip-schedules/${s.id}`,
           payload,
           { headers }
         )
       } else {
         // 🟢 CREATE
-        await axios.post(
-          `http://127.0.0.1:8000/api/trip-schedules`,
+        await api.post(
+          `/trip-schedules`,
           payload,
           { headers }
         )
@@ -1133,7 +1171,7 @@ if (!durationMin && distanceKm) {
   
   
 
-  {getAvailableDrivers(index).map((driver) => (
+  {drivers.map((driver) => (
   <option key={driver.id} value={driver.id}>
     {driver?.user?.name || 'Unknown Driver'}
   </option>
@@ -1179,7 +1217,7 @@ if (!durationMin && distanceKm) {
                  
 
                   
-      {getAvailableVehicles(index).map((vehicle) => (
+      {vehicles.map((vehicle) => (
                           <option key={vehicle.id} value={vehicle.id}>
                             {vehicle.vehicle_registration_number} 
                           </option>
@@ -1278,7 +1316,9 @@ if (!durationMin && distanceKm) {
 
     {/* ================= ACTIVE PASSENGER ================= */}
     {(() => {
-      const p = schedule.passengers![activePassengerTab]
+      const p = schedule.passengers?.[activePassengerTab]
+
+if (!p) return null
 
       return (
         <div
