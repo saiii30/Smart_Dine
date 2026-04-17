@@ -15,6 +15,23 @@ router = APIRouter(
 )
 
 
+@router.get("/{agency_id}")
+def get_agency(agency_id: str, db: Session = Depends(get_db)):
+    agency = db.query(models.Agency).filter(
+        models.Agency.id == agency_id
+    ).first()
+
+    if not agency:
+        raise HTTPException(status_code=404, detail="Agency not found")
+
+    return {
+        "id": agency.id,
+        "plan": agency.plan,   # 🔥 important
+        "subscription": agency.subscription,
+        "ended_at": agency.ended_at
+    }
+
+
 @router.put("/plan", status_code=status.HTTP_200_OK)
 def update_agency_plan(
     request: schemas.UpdatePlanRequest,

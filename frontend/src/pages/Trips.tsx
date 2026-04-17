@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Plus, Edit, Trash2, MapPin, Search, Users } from 'lucide-react'
 import { Trip, Company } from '../types'
 import TripModal from '../components/TripModal'
+import api from '../api/axiosConfig'
 import { useAuth } from '../contexts/AuthContext'
 
 const Trips = () => {
@@ -17,24 +18,16 @@ const Trips = () => {
   
    const isSupervisor = user?.role === 'SUPERVISOR'
   
-  // Fetch trips and companies on mount
   useEffect(() => {
-    fetchTrips()
-    fetchCompanies()
-  }, [])
-
-  // Fetch trips whenever selected company changes
-  useEffect(() => {
-    fetchTrips()
-  }, [selectedCompany])
+  fetchTrips()
+  fetchCompanies()
+}, [])
 
  
 
   const fetchTrips = async () => {
   try {
-    const response = await axios.get(
-      'http://127.0.0.1:8000/api/trip-schedules'
-    )
+    const response = await api.get('/trip-schedules')
 
     const schedules = Array.isArray(response.data) ? response.data : []
 
@@ -54,6 +47,7 @@ const Trips = () => {
           company_id: sch.company_id,
           company_name: sch.company_name,
           company_branch: sch.company_branch,
+          address: sch.address ?? '',
 
           is_active: sch.is_active ?? true,
           created_at: sch.created_at ?? new Date().toISOString(),
@@ -114,8 +108,11 @@ const Trips = () => {
 
   // Fetch companies
   const fetchCompanies = async () => {
+
+    const agencyId = localStorage.getItem('selectedAgencyId')
+  if (!agencyId) return
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/trips/companies/')
+      const response = await api.get(`/companies/trip/dropdown/?agency_id=${agencyId}`)
       setCompanies(response.data)
     } catch (error) {
       console.error('Failed to fetch companies:', error)
@@ -129,7 +126,7 @@ const Trips = () => {
   }
 
   const handleEdit = (trip: Trip) => {
-    console.log('Editing trip:', JSON.stringify(trip, null, 2)) // Debug log
+   
     setEditingTrip(trip)
     setIsModalOpen(true)
   }
@@ -140,7 +137,7 @@ const Trips = () => {
     if (!confirm('Are you sure you want to delete this trip?')) return
 
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/trip-schedules/${id}`)
+      await api.delete(`/trip-schedules/${id}`)
       fetchTrips()
     } catch (error) {
       console.error('Failed to delete trip:', error)
@@ -159,21 +156,16 @@ const Trips = () => {
   }
 
   // Filter trips based on search query
-  const filteredTrips = useMemo(() => {
-    let filtered = trips
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      filtered = trips.filter((trip) => {
-      
-        const companyMatch = trip.company_name?.toLowerCase().includes(query)
-        const addressMatch = trip.address?.toLowerCase().includes(query)
-       
-        return   companyMatch || addressMatch 
-      })
-    }
-    return filtered
-  }, [trips, searchQuery])
+ const filteredTrips = useMemo(() => {
+  if (!searchQuery.trim()) return trips
 
+  const query = searchQuery.toLowerCase()
+
+  return trips.filter((trip) =>
+    trip.company_name?.toLowerCase().includes(query) ||
+    trip.address?.toLowerCase().includes(query)
+  )
+}, [trips, searchQuery])
   
 
   if (loading) {
@@ -190,9 +182,24 @@ const Trips = () => {
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Trips</h1>
         <div className="flex flex-1 md:max-w-2xl items-center gap-4 w-full md:w-auto">
-    
+
+
+          <select
+  value={selectedCompany}
+  onChange={(e) => setSelectedCompany(e.target.value)}
+  className="px-4 py-2 border rounded-lg"
+>
+  <option value="">All Companies</option>
+  {companies.map((c) => (
+    <option key={c.id} value={c.id}>
+      {c.company_name}
+    </option>
+  ))}
+</select>
+        
 
           {/* Search Bar */}
+
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-white" />
             <input

@@ -4,7 +4,8 @@ import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom"
-
+import { useEffect } from "react";
+import api from '../api/axiosConfig'
 const plans = [
   {
     id: "1m",
@@ -34,12 +35,43 @@ const plans = [
 ];
 
 export default function PriceSelection() {
-  const [selectedPlan, setSelectedPlan] = useState("3m");
+  // const [selectedPlan, setSelectedPlan] = useState("3m");
+  const [selectedPlan, setSelectedPlan] = useState("");
   const [loading, setLoading] = useState(false);
   const { user, token } = useAuth();
   const parent_id = localStorage.getItem('selectedAgencyId');
    const { logout,refreshUser  } = useAuth();
    const navigate = useNavigate()
+
+  
+useEffect(() => {
+  const fetchAgencyPlan = async () => {
+    try {
+    
+      const res = await api.get(`/agency/${parent_id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const map: any = {
+        "1Month": "1m",
+        "3Month": "3m",
+        "6Month": "6m",
+      }
+
+      if (res.data.plan) {
+        setSelectedPlan(map[res.data.plan]) // 🔥 FIX HERE
+      }
+    } catch (err) {
+      console.error("Failed to fetch agency", err)
+    }
+  }
+
+  if (parent_id) {
+    fetchAgencyPlan()
+  }
+}, [parent_id])
 
 
    const handleSelectPlan = async (planId: string) => {
@@ -58,9 +90,14 @@ export default function PriceSelection() {
   setLoading(true);
 
   try {
-    await axios.put("http://127.0.0.1:8000/api/agency/plan", {
+    
+    await api.put("/agency/plan", {
       plan_id: planId,
       parent_id: parent_id,
+    }, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
 
     await Swal.fire({
@@ -86,47 +123,10 @@ export default function PriceSelection() {
   } finally {
     setLoading(false);
   }
+
+  setSelectedPlan(planId)
 };
 
-
-//   const handleSelectPlan = async (planId: string) => {
-//   if (!user || !token) {
-//     alert("User not logged in!");
-//     return;
-//   }
-
-//   setSelectedPlan(planId);
-//   setLoading(true);
-
-//   try {
-//     await axios.put(
-//   "http://127.0.0.1:8000/api/agency/plan",
-//   {
-//     plan_id: planId,
-//     parent_id: parent_id,
-//   }
-// );
-
-
-//     Swal.fire({
-//   icon: "success",
-//   title: "Plan Activated!",
-//   text: "Please login again to continue",
-//   confirmButtonText: "Login Again"
-// }).then(() => {
-//   logout()
-// })
-//   } catch (err) {
-//     console.error("Error updating plan", err);
-//     Swal.fire({
-//       icon: "error",
-//       title: "Plan Update Failed",
-//       text: "There was an error updating your plan. Please try again.",
-//     });
-//   } finally {
-//     setLoading(false);
-//   }
-// };
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:to-gray-950 py-20 px-6">
