@@ -9,7 +9,7 @@ env_path = Path(__file__).parent.parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
 # Database URL - PostgreSQL (updated with your actual credentials)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:srisainila@localhost:5432/tms_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://tms_sfa5_user:pg6aGGcdsIxbOXrtQdrz9KHSIlWOALhW@dpg-d7hkdbt8nd3s7385um70-a/tms_sfa5")
 
 # Print database URL for debugging
 print(f"Using database at: {DATABASE_URL}")
