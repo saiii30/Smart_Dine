@@ -38,7 +38,7 @@ const Login = () => {
   // Account type switch: 'agency' or 'it'
   const [accountType, setAccountType] = useState<'agency' | 'it'>('agency');
 
-  const { user, logout ,login} = useAuth()
+  const { login} = useAuth()
   const navigate = useNavigate();
 
   // Fetch agencies on component mount

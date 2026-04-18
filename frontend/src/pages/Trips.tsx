@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo } from 'react'
-import axios from 'axios'
 import { Plus, Edit, Trash2, MapPin, Search, Users } from 'lucide-react'
 import { Trip, Company } from '../types'
 import TripModal from '../components/TripModal'

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
-import { MapPin, Route, Calendar, Users, Car } from 'lucide-react'
+import { MapPin, Route, Calendar, Car } from 'lucide-react'
 import { TripSchedule } from '../types'
 import { useNavigate } from 'react-router-dom'
 

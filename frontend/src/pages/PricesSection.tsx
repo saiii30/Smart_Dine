@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
-import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom"
@@ -40,7 +39,7 @@ export default function PriceSelection() {
   const [loading, setLoading] = useState(false);
   const { user, token } = useAuth();
   const parent_id = localStorage.getItem('selectedAgencyId');
-   const { logout,refreshUser  } = useAuth();
+   const { refreshUser  } = useAuth();
    const navigate = useNavigate()
 
   

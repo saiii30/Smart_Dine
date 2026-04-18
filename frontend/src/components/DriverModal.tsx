@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import axios from 'axios'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { X, Upload, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react'
 import { Driver } from '../types'
 import { useAuth } from '../contexts/AuthContext'
@@ -162,7 +162,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
   }, [driver?.id]);
     // --- Handlers ---
   
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const headers = [
       'Full Name', 'Phone Number', 'Date of Birth', 'Gender', 'Aadhar Number',
       'License Number', 'License Expiry', 'Blood Group', 'Status', 'Shift Preference',
@@ -176,10 +176,11 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       '2 years at ABC Transport', 'English, Tamil'
     ];
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-    XLSX.writeFile(wb, "Driver_Upload_Template.xlsx");
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Template');
+    worksheet.addRow(headers);
+    worksheet.addRow(sampleRow);
+    await workbook.xlsx.writeFile('Driver_Upload_Template.xlsx');
   };
 
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,10 +191,22 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
 
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+      const buffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.worksheets[0];
+      
+      // Convert worksheet to JSON format
+      const jsonData: any[] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+        const rowValues: any = {};
+        worksheet.getRow(1).eachCell((cell, colNumber) => {
+          const headerValue = cell.value?.toString() || `Column${colNumber}`;
+          rowValues[headerValue] = row.getCell(colNumber).value;
+        });
+        jsonData.push(rowValues);
+      });
 
       if (jsonData.length === 0) {
         showAlert('Empty File', 'The file appears to be empty.', 'error');

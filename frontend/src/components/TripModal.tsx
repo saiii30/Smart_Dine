@@ -34,13 +34,6 @@ const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
 const [activeScheduleIndex, setActiveScheduleIndex] = useState<number | null>(null)
 const [activeField, setActiveField] = useState<'starting_point' | 'end_point' | null>(null)
 
-const inputClass =
-  "w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 \
-   bg-white dark:bg-gray-800 text-sm \
-   focus:ring-2 focus:ring-primary-500 focus:border-primary-500 \
-   outline-none transition-all duration-200";
-
-
 const INPUTClass =
   "w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 \
    bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm \
@@ -500,20 +493,6 @@ s.passengers = Array.from({ length: count }, (_, i) => ({
   setActivePassengerTab(0)
 }
 
-const isDateOverlap = (
-  startA: string,
-  endA: string,
-  startB: string,
-  endB: string
-) => {
-  return new Date(startA) <= new Date(endB) &&
-         new Date(endA) >= new Date(startB)
-}
-
-
-
-
-
   const updateSchedule = (index: number, field: string, value: string | number | undefined) => {
     const updated = [...formData.schedules]
     updated[index] = { ...updated[index], [field]: value }
@@ -871,7 +850,7 @@ const selectClass =
 
     if (e.target.value === 'route') {
       const count = s.passenger_count || 0
-      s.passengers = Array.from({ length: count }, (_, i) => ({
+      s.passengers = Array.from({ length: count }, (_) => ({
         id : "",
         name: '',
         phone: '',
