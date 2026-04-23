@@ -182,9 +182,6 @@ else console.warn("End location failed");
             // Generate Pickups
             const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
 
-            console.log(schedule.trip_type)
-            console.log(schedule.route_point)
-
             
 // ✅ ROUTE TRIP (has passenger coordinates)
 if (schedule.route_point && schedule.route_point.length > 0 && schedule.trip_type === "route") {
@@ -204,7 +201,6 @@ routePoints.forEach((rp: any) => {
     }
 })
 
-console.log(routePoints)
 
 } 
 else if (start && schedule.passenger_count && schedule.trip_type === "shuttle") {
@@ -229,13 +225,13 @@ else if (start && schedule.passenger_count && schedule.trip_type === "shuttle") 
     }
 }
 
-console.log(points)
-
-
-
         
           if(schedule.route_point && schedule.route_point.length > 0 ){
             setPickupPoints(points)   
+            console.log(pickupPoints)
+          }
+          else{
+            console.log("giii")
           }
 
             // Fetch Route & Start Animation with Robust Fallback
