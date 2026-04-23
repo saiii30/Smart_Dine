@@ -1,39 +1,58 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useDebounce } from '../hooks/useDebounce'
 import { Plus, Edit, Trash2, MapPin, Search, Users } from 'lucide-react'
 import { Trip, Company } from '../types'
 import TripModal from '../components/TripModal'
-import api from '../api/axiosConfig'
+import axios from 'axios'
+import DeleteModal from '../components/DeleteModal'
+import API from "../api/axiosConfig"
 import { useAuth } from '../contexts/AuthContext'
 
 const Trips = () => {
+  const MAX_SCHEDULE_PREVIEW = 3
   const [trips, setTrips] = useState<Trip[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
-  const [loading, setLoading] = useState(true)
+
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCompany, setSelectedCompany] = useState<string>('')
+  const debouncedSearch = useDebounce(searchQuery, 300)
+  const [fetchingTrips, setFetchingTrips] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+const [fetchingCompanies, setFetchingCompanies] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+const [deleteId, setDeleteId] = useState<number | null>(null)
   const { user } = useAuth()
   
    const isSupervisor = user?.role === 'SUPERVISOR'
   
-  useEffect(() => {
-  fetchTrips()
-  fetchCompanies()
+useEffect(() => {
+  const controller = new AbortController()
+
+  fetchTrips(controller.signal)
+  fetchCompanies(controller.signal)
+
+  return () => {
+    controller.abort()
+  }
 }, [])
 
- 
-
-  const fetchTrips = async () => {
+const fetchTrips = async (signal?: AbortSignal) => {
+  setFetchingTrips(true)
+  
   try {
-    const response = await api.get('/trip-schedules')
+    const response = await API.get('/trip-schedules/', { signal })
 
     const schedules = Array.isArray(response.data) ? response.data : []
 
     const tripMap: Record<string, Trip> = {}
 
+    
+
     schedules.forEach((sch: any) => {
-      const tripId = sch.trip_id || sch.id   // fallback safety
+      const tripId = sch.trip_id ?? sch.id
 
       if (!tripId) return   // ⛔ skip bad data
 
@@ -42,10 +61,10 @@ const Trips = () => {
           id: tripId,
           
           user_id: sch.user_id ?? '',
-          agency_id: sch.agency_id,
-          company_id: sch.company_id,
-          company_name: sch.company_name,
-          company_branch: sch.company_branch,
+          agency_id: sch.agency_id ?? '',
+          company_id: sch.company_id ?? '',
+          company_name: sch.company_name ?? 'Unknown Company',
+          company_branch: sch.company_branch ?? '',
           address: sch.address ?? '',
 
           is_active: sch.is_active ?? true,
@@ -73,50 +92,80 @@ const Trips = () => {
         way: sch.way,
         trip_type: sch.trip_type,
         passenger_count: sch.passenger_count ?? 0,
-        notes: sch.notes,
-        vehicle_id: sch.vehicle_id,
-        distance_km: sch.distance_km,
-        duration_min: sch.duration_min,
-        starting_lat: sch.starting_lat,
-        starting_lng: sch.starting_lng,
-        end_lat: sch.end_lat,
-        end_lng: sch.end_lng,
+        notes: sch.notes ?? '',
+        vehicle_id: sch.vehicle_id ?? '',
+        distance_km:  sch.distance_km ?? 0,
+        duration_min: sch.duration_min ?? 0,
+        starting_lat: sch.starting_lat ?? 0,
+        starting_lng: sch.starting_lng ?? 0,
+        end_lat: sch.end_lat ?? 0,
+        end_lng: sch.end_lng ?? 0,
 
         route_point: sch.route_point ,
 
         
         
-        vehicle_number: sch.vehicle_number,
-        driver_id: sch.driver_id,
-        vehicle_registration_number: sch.vehicle_registration_number,
-        driver_name: sch.driver_name,
+        vehicle_number: sch.vehicle_number ?? '', 
+        driver_id: sch.driver_id ?? '',
+        vehicle_registration_number: sch.vehicle_registration_number ?? '',
+        driver_name: sch.driver_name ?? '',
         is_active: sch.is_active ?? true,
         created_at: sch.created_at,
         updated_at: sch.updated_at,
       })
     })
-
+    setError(null)
     setTrips(Object.values(tripMap))
-  } catch (error) {
-    console.error('Failed to fetch trips:', error)
+  } catch (error : any) {
+   
+  // ✅ handle ALL cancel cases
+  if (
+    error.name === 'CanceledError' ||
+    error.code === 'ERR_CANCELED'
+  ) {
+    return
+  }
+
+  console.error('Failed to fetch trips:', error)
+  setError('Failed to load trips. Please try again.')
+
   } finally {
-    setLoading(false)
+    setFetchingTrips(false)
+  
   }
 }
 
 
   // Fetch companies
-  const fetchCompanies = async () => {
+const fetchCompanies = async (signal?: AbortSignal) => {
+  const agencyId = localStorage.getItem('selectedAgencyId')
 
-    const agencyId = localStorage.getItem('selectedAgencyId')
   if (!agencyId) return
-    try {
-      const response = await api.get(`/companies/trip/dropdown/?agency_id=${agencyId}`)
-      setCompanies(response.data)
-    } catch (error) {
-      console.error('Failed to fetch companies:', error)
-    }
+
+  setFetchingCompanies(true)
+
+  try {
+    const response = await axios.get(
+      `api/companies/trip/dropdown/?agency_id=${agencyId}`,
+      { signal }
+    )
+
+    setCompanies(response.data)
+
+    // ✅ CLEAR ERROR ON SUCCESS
+    setError(null)
+
+  } catch (error: any) {
+
+    if (error.name === 'CanceledError') return
+
+    console.error('Failed to fetch companies:', error)
+
+    setError('Failed to load companies')
+  } finally {
+    setFetchingCompanies(false)
   }
+}
 
   // Modal handlers
   const handleCreate = () => {
@@ -130,19 +179,34 @@ const Trips = () => {
     setIsModalOpen(true)
   }
 
+  const handleDeleteClick = (id: number) => {
+  setDeleteId(id)
+  setShowConfirm(true)
+}
+
+const confirmDelete = async () => {
+  if (deleteId === null) return
+
+  setDeleteLoading(true)
+
+  try {
+    await axios.delete(`api/trip-schedules/${deleteId}`)
+    fetchTrips()
+  } catch (error: any) {
+  console.error('Failed to delete trip:', error)
+
+  setError(
+    error?.response?.data?.message ||
+    'Failed to delete trip. Please try again.'
+  )
+}finally {
+    setDeleteLoading(false)
+    setShowConfirm(false)
+    setDeleteId(null)
+  }
+}
   
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this trip?')) return
-
-    try {
-      await api.delete(`/trip-schedules/${id}`)
-      fetchTrips()
-    } catch (error) {
-      console.error('Failed to delete trip:', error)
-      alert('Failed to delete trip')
-    }
-  }
 
   const handleModalClose = () => {
     setIsModalOpen(false)
@@ -155,19 +219,24 @@ const Trips = () => {
   }
 
   // Filter trips based on search query
- const filteredTrips = useMemo(() => {
-  if (!searchQuery.trim()) return trips
+const filteredTrips = useMemo(() => {
+  const query = debouncedSearch.toLowerCase().trim()
 
-  const query = searchQuery.toLowerCase()
+  return trips.filter((trip) => {
+    const matchesSearch =
+      !query ||
+      (trip.company_name ?? '').toLowerCase().includes(query) ||
+      (trip.address ?? '').toLowerCase().includes(query)
 
-  return trips.filter((trip) =>
-    trip.company_name?.toLowerCase().includes(query) ||
-    trip.address?.toLowerCase().includes(query)
-  )
-}, [trips, searchQuery])
+    const matchesCompany =
+      !selectedCompany || String(trip.company_id) === selectedCompany
+
+    return matchesSearch && matchesCompany
+  })
+}, [trips, debouncedSearch, selectedCompany])
   
 
-  if (loading) {
+  if (fetchingTrips) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 dark:border-primary-400"></div>
@@ -177,23 +246,37 @@ const Trips = () => {
 
   return (
     <div>
+
+      {error && (
+  <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
+    {error}
+  </div>
+)}
       {/* Header */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Trips</h1>
         <div className="flex flex-1 md:max-w-2xl items-center gap-4 w-full md:w-auto">
 
 
-          <select
+         <select
   value={selectedCompany}
   onChange={(e) => setSelectedCompany(e.target.value)}
   className="px-4 py-2 border rounded-lg"
+  disabled={fetchingCompanies}
 >
   <option value="">All Companies</option>
-  {companies.map((c) => (
-    <option key={c.id} value={c.id}>
-      {c.company_name}
-    </option>
-  ))}
+
+  {fetchingCompanies ? (
+    <option>Loading companies...</option>
+  ) : companies.length === 0 ? (
+    <option disabled>No companies found</option>
+  ) : (
+    companies.map((c) => (
+      <option key={c.id} value={c.id}>
+        {c.company_name}
+      </option>
+    ))
+  )}
 </select>
         
 
@@ -299,7 +382,7 @@ const Trips = () => {
                   <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                    
                     <div className="space-y-2">
-                      {schedules.slice(0, 3).map((schedule, idx) => (
+                      {schedules.slice(0, MAX_SCHEDULE_PREVIEW).map((schedule, idx) => (
                         <div
                           key={idx}
                           className="text-xs text-gray-600 dark:text-white border-b border-gray-200 dark:border-gray-600 pb-2 last:border-0"
@@ -348,7 +431,7 @@ const Trips = () => {
       </button>
 
       <button
-        onClick={() => handleDelete(trip.id)}
+        onClick={() => handleDeleteClick(trip.id)}
         className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
       >
         <Trash2 className="mr-2 h-4 w-4" />
@@ -371,6 +454,16 @@ const Trips = () => {
           onSuccess={handleModalSuccess}
         />
       )}
+
+      {showConfirm && (
+  <DeleteModal
+    title="Delete Trip"
+    message="Are you sure you want to delete this trip? This action cannot be undone."
+    onCancel={() => setShowConfirm(false)}
+    onConfirm={confirmDelete}
+    loading={deleteLoading}
+  />
+)}
     </div>
   )
 }

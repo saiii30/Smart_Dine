@@ -28,7 +28,7 @@ const isSupervisor = user?.role === "SUPERVISOR";
 
   const fetchVehicles = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/vehicles/')
+      const response = await axios.get('/api/vehicles/')
       setVehicles(response.data)
     } catch (error) {
       console.error('Failed to fetch vehicles:', error)
@@ -39,7 +39,7 @@ const isSupervisor = user?.role === "SUPERVISOR";
 
   const fetchTrips = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/trips/')
+      const response = await axios.get('/api/trips/')
       setTrips(response.data)
     } catch (error) {
       console.error('Failed to fetch trips:', error)

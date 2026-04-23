@@ -133,16 +133,16 @@ async def health_check():
     return {"status": "healthy"}
  
 # -------------------- Users --------------------
-@app.get("/users/{parent_id}", response_model=List[schemas.User])
+@app.get("/api/users/{parent_id}", response_model=List[schemas.User])
 def get_users_by_parent(parent_id: str, db: Session = Depends(get_db)):
     users = db.query(models.User).filter(models.User.agency_id == parent_id).all()
     return users
  
-@app.get("/users", response_model=list[schemas.User])
+@app.get("/api/users", response_model=list[schemas.User])
 def get_users(db: Session = Depends(get_db)):
     return db.query(models.User).all()
  
-@app.put("/users/{user_id}/role", response_model=schemas.UserRoleUpdate)
+@app.put("/api/users/{user_id}/role", response_model=schemas.UserRoleUpdate)
 def update_user_role(
     user_id: str,
     data: schemas.UserRoleUpdate,
@@ -157,7 +157,7 @@ def update_user_role(
     db.refresh(user)
     return {"role": user.role}
  
-@app.delete("/users/{user_id}")
+@app.delete("/api/users/{user_id}")
 def delete_user(user_id: str, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
@@ -167,7 +167,7 @@ def delete_user(user_id: str, db: Session = Depends(get_db)):
     return {"message": "User deleted permanently"}
 
 
-@app.get("/geocode")
+@app.get("/api/geocode")
 def geocode(q: str = Query(...)):
     try:
         url = "https://nominatim.openstreetmap.org/search"

@@ -482,7 +482,7 @@ def deactivate_location_tracking(
         db.rollback()
         raise HTTPException(500, f"Error deactivating location tracking: {str(e)}")
  
-@router.websocket("/ws/{driver_id}")
+@router.websocket("/ws/driver/{driver_id}")
 async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
     """
     WebSocket endpoint for live driver location tracking
@@ -507,6 +507,11 @@ async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
             location = db.query(models.DriverLocation).filter(
             models.DriverLocation.driver_id == driver_id
             ).order_by(models.DriverLocation.timestamp.desc()).first()
+
+            lat = None
+            lng = None
+            route_point = None
+            current_timestamp = None
 
             if location:
                 lat = location.latitude
@@ -546,3 +551,4 @@ async def websocket_live_tracking(websocket: WebSocket, driver_id: str):
     finally:
         db.close()
         print(" DB session closed")
+

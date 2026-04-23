@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback,useRef } from 'react'
 import { X, Navigation } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
+import { createWebSocket } from "../utils/websocket";
 
+import axios from 'axios'
 import API from '../api/axiosConfig'
 
 
@@ -102,27 +104,54 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
             setLoading(true)
 
 
-            const fetchCoords = async (query: string) => {
-    if (!query) return null
+         const fetchCoords = async (query: string): Promise<[number, number] | null> => {
+  if (!query) return null;
 
+  const clean = query
+    .replace(/,/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const variations = [
+    clean,
+    clean.split(" ").slice(0, 5).join(" "),
+    clean.split(" ").slice(-5).join(" "),
+  ];
+
+  for (let q of variations) {
     try {
-        const res = await API.get(`http://127.0.0.1:8000/geocode?q=${encodeURIComponent(query)}`)
+      const res = await axios.get(
+        "https://nominatim.openstreetmap.org/search",
+        {
+          params: {
+            q,
+            format: "json",
+            limit: 1,
+            countrycodes: "in",
+          },
+          
+        }
+      );
 
-        if (res.data && res.data.length > 0) {
-            return [
-                parseFloat(res.data[0].lat),
-                parseFloat(res.data[0].lon)
-            ] as [number, number]
-        }
-        } catch (e) {
-        console.warn("Geocoding failed", e)
-        }
+      if (res.data?.length > 0) {
+        return [
+          parseFloat(res.data[0].lat),
+          parseFloat(res.data[0].lon),
+        ];
+      }
+    } catch (e) {
+      console.warn("Error:", q);
+    }
+  }
 
-            return null
-        }
+  console.error("❌ Failed:", query);
+  return null;
+};
 
             let startLocation = schedule.starting_point
+           
 let endLocation = schedule.end_point
+
 
 const start = await fetchCoords(startLocation)
 const end = await fetchCoords(endLocation)
@@ -131,7 +160,7 @@ const end = await fetchCoords(endLocation)
             let driver: [number, number] | null = null
             if (schedule.driver_id) {
                 try {
-                    const res = await API.get(`mobile/locations?driver_id=${schedule.driver_id}`)
+                    const res = await axios.get(`api/mobile/locations?driver_id=${schedule.driver_id}`)
                     // const res = await API.get(`/locations/drivers/${schedule.driver_id}/current`)
                     if (res.data && res.data.latitude && res.data.longitude) {
                         driver = [res.data.latitude, res.data.longitude]
@@ -143,17 +172,24 @@ const end = await fetchCoords(endLocation)
                 }
             }
 
-            setStartCoords(start)
-            setEndCoords(end)
+if (start) setStartCoords(start);
+else console.warn("Start location failed");
+
+if (end) setEndCoords(end);
+else console.warn("End location failed");
             setDriverLocation(driver)
 
             // Generate Pickups
             const points: { id: string, coords: [number, number], name: string, phone: string, pickup: string }[] = []
+
+            console.log(schedule.trip_type)
+            console.log(schedule.route_point)
+
             
 // ✅ ROUTE TRIP (has passenger coordinates)
-if (schedule.route_point && Array.isArray(schedule.route_point) && schedule.route_point.length > 0) {
+if (schedule.route_point && schedule.route_point.length > 0 && schedule.trip_type === "route") {
 
-    let routePoints = [...schedule.route_point]
+    let routePoints = fixRoutePoint(schedule.route_point);
 
 
 routePoints.forEach((rp: any) => {
@@ -168,9 +204,10 @@ routePoints.forEach((rp: any) => {
     }
 })
 
+console.log(routePoints)
+
 } 
-// ✅ SHUTTLE TRIP (no passenger coords → use count)
-else if (start && schedule.passenger_count) {
+else if (start && schedule.passenger_count && schedule.trip_type === "shuttle") {
 
     const passengerCount = schedule.passenger_count
 
@@ -191,6 +228,8 @@ else if (start && schedule.passenger_count) {
         })
     }
 }
+
+console.log(points)
 
 
 
@@ -227,13 +266,14 @@ else if (start && schedule.passenger_count) {
 
 
                         setRoutePath(path)
+                       
 }
                 } catch (e: any) {
                     console.error("All route fetch attempts failed", e)
-                    // Inform user nicely
-                    alert(`Route generation failed. Please check internet connection or try again later. Error: ${e.message}`)
+                    
                 }
             }
+            
 
             setLoading(false)
         }
@@ -241,13 +281,54 @@ else if (start && schedule.passenger_count) {
     }, [schedule])
 
 
+    const fixRoutePoint = (data: any): any[] => {
+  if (!data) return [];
 
-    
+  // ✅ Case 1: already correct array
+  if (Array.isArray(data) && typeof data[0] === "object") {
+    return data;
+  }
+
+  // ✅ Case 2: array of characters (YOUR CASE)
+  if (Array.isArray(data) && typeof data[0] === "string") {
+    try {
+      const fixed = data.join(""); // 🔥 convert chars → string
+      return JSON.parse(fixed);    // 🔥 string → JSON
+    } catch (e) {
+      console.error("Parse error", e);
+      return [];
+    }
+  }
+
+  // ✅ Case 3: string JSON
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      console.error("Parse error", e);
+      return [];
+    }
+  }
+
+  return [];
+};
+
+
+
+    const wsRef = useRef<WebSocket | null>(null)
 
 useEffect(() => {
     if (!schedule.driver_id) return;
 
-    const ws = new WebSocket(`ws://127.0.0.1:8000/api/mobile/ws/${schedule.driver_id}`);
+    if (wsRef.current) return 
+
+    const baseUrl = import.meta.env.VITE_BACKEND_URL
+
+const WS_URL = baseUrl.replace('http', 'ws')
+
+const ws = new WebSocket(`${WS_URL}/api/mobile/ws/driver/${schedule.driver_id}`)
+
+
 
     ws.onopen = () => {
         console.log("✅ Connected");
@@ -288,7 +369,22 @@ useEffect(() => {
         }
     };
 
-    return () => ws.close();
+     ws.onerror = (err) => {
+        console.error("❌ WS error", err)
+    }
+
+    ws.onclose = () => {
+        wsRef.current = null
+    }
+
+
+
+    return () => {
+        if (wsRef.current) {
+            wsRef.current.close()
+            wsRef.current = null
+        }
+    }
 
 }, [schedule.driver_id]);
 
