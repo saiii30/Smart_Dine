@@ -59,8 +59,13 @@ useEffect(() => {
 
         const baseUrl = import.meta.env.VITE_BACKEND_URL 
         const WS_URL = baseUrl.replace('http', 'ws')
+        console.log(baseUrl)
 
-        const ws = new WebSocket(`${WS_URL}/api/locations/live`)
+        const parent_id = localStorage.getItem("selectedAgencyId")
+
+const ws = new WebSocket(
+  `${WS_URL}/api/locations/live?parent_id=${parent_id}`
+)
         wsRef.current = ws
 
         ws.onopen = () => {
