@@ -34,12 +34,12 @@ const plans = [
 ];
 
 export default function PriceSelection() {
-  // const [selectedPlan, setSelectedPlan] = useState("3m");
+ 
   const [selectedPlan, setSelectedPlan] = useState("");
   const [loading, setLoading] = useState(false);
   const { user, token } = useAuth();
   const parent_id = localStorage.getItem('selectedAgencyId');
-   const { refreshUser  } = useAuth();
+   const { logout,refreshUser  } = useAuth();
    const navigate = useNavigate()
 
   

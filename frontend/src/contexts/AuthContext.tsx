@@ -38,12 +38,12 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE_URL = "http://127.0.0.1:8000";
+ 
  
   /* -------------------- LOAD USER -------------------- */
   const fetchUser = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/auth/me`, {
+      const res = await axios.get(`/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -77,7 +77,7 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
   const login = async (data: LoginPayload) => {
     try {
       const res = await axios.post(
-        `${API_BASE_URL}/api/auth/login`,
+        `/api/auth/login`,
         data,
         {
           headers: { "Content-Type": "application/json" },
@@ -93,7 +93,7 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
       axios.defaults.headers.common.Authorization = `Bearer ${access_token}`;
  
       // Fetch user data using the token
-      const userResponse = await axios.get(`${API_BASE_URL}/api/auth/me`, {
+      const userResponse = await axios.get(`/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${access_token}`,
         },
@@ -116,7 +116,7 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
     agencyId: string
   ) => {
     try {
-      await axios.post(`${API_BASE_URL}/api/auth/register`, {
+      await axios.post(`/api/auth/register`, {
         name,
         email,
         password,
@@ -148,7 +148,7 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
 
 const refreshUser = async () => {
   try {
-    const res = await axios.get(`${API_BASE_URL}/api/auth/me`)
+    const res = await axios.get(`/api/auth/me`)
 
     console.log("REFRESH USER:", res.data) // debug
 
