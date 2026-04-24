@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import List
@@ -137,7 +137,7 @@ def login(
     db: Session = Depends(get_db)
 ):
     # First try to authenticate with the provided credentials
-    user = auth.authenticate_user(db, login_data.username, login_data.password)
+    user = auth.authenticate_user(db, login_data.username, login_data.password, "auto")
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -181,7 +181,7 @@ def login(
         )
     
     # Update last login time
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     db.commit()
     
     # Generate access token
@@ -200,15 +200,20 @@ def login(
 
 @router.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(auth.get_current_active_user)):
-    agency = current_user.agency  # ✅ relationship access
+    agency = current_user.agency  
 
     return {
         "id": current_user.id,
         "email": current_user.email,
         "name": current_user.name,
+        "contact_number": current_user.contact_number,
         "role": current_user.role,
         "is_active": current_user.is_active,
         "agency_status": agency.status if agency else None,
+        "last_login": current_user.last_login,
+        "created_at": current_user.created_at,
+        "updated_at": current_user.updated_at,
+        "agency_name": agency.agency_name if agency else None,
     }
 
 @router.post("/test-register")

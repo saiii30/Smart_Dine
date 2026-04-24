@@ -1,13 +1,11 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi import FastAPI, Request, Depends, HTTPException, status, Query, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi import APIRouter
 from sqlalchemy.orm import Session
 from typing import List
 import json
-from fastapi import Query   
-from fastapi import FastAPI
+import os
 from .scheduler import start_scheduler, shutdown_scheduler
 import logging
 import requests
@@ -62,23 +60,24 @@ async def shutdown_event():
 # Custom exception handler for validation errors with debugging
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    # Print raw body for debugging
-    try:
-        body = await request.body()
-        if body:
-            try:
-                json_body = json.loads(body)
-                print("=" * 50)
-                print("VALIDATION ERROR - RAW JSON RECEIVED:")
-                print(json.dumps(json_body, indent=2))
-                print("=" * 50)
-            except:
-                print("=" * 50)
-                print(" VALIDATION ERROR - RAW BODY (not JSON):")
-                print(body.decode('utf-8', errors='ignore'))
-                print("=" * 50)
-    except Exception as e:
-        print(f"Error reading body: {e}")
+    # Print raw body for debugging only in development mode
+    if os.getenv("DEBUG", "false").lower() == "true":
+        try:
+            body = await request.body()
+            if body:
+                try:
+                    json_body = json.loads(body)
+                    print("=" * 50)
+                    print("VALIDATION ERROR - RAW JSON RECEIVED:")
+                    print(json.dumps(json_body, indent=2))
+                    print("=" * 50)
+                except:
+                    print("=" * 50)
+                    print(" VALIDATION ERROR - RAW BODY (not JSON):")
+                    print(body.decode('utf-8', errors='ignore'))
+                    print("=" * 50)
+        except Exception as e:
+            print(f"Error reading body: {e}")
    
     # Initialize error messages list
     error_messages = []
@@ -103,10 +102,25 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content={"detail": error_messages},
     )
-# CORS middleware configuration - simplified for development
+# CORS middleware configuration - configurable via environment variables
+def get_cors_origins():
+    """Get CORS origins from environment variable or use defaults."""
+    cors_origins_env = os.getenv("CORS_ORIGINS", "")
+    if cors_origins_env:
+        # Split comma-separated origins and strip whitespace
+        return [origin.strip() for origin in cors_origins_env.split(",")]
+    
+    # Default origins for development
+    return [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Allow frontend origin
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -133,16 +147,16 @@ async def health_check():
     return {"status": "healthy"}
  
 # -------------------- Users --------------------
-@app.get("/users/{parent_id}", response_model=List[schemas.User])
+@app.get("/api/users/{parent_id}", response_model=List[schemas.User])
 def get_users_by_parent(parent_id: str, db: Session = Depends(get_db)):
     users = db.query(models.User).filter(models.User.agency_id == parent_id).all()
     return users
  
-@app.get("/users", response_model=list[schemas.User])
+@app.get("/api/users", response_model=list[schemas.User])
 def get_users(db: Session = Depends(get_db)):
     return db.query(models.User).all()
  
-@app.put("/users/{user_id}/role", response_model=schemas.UserRoleUpdate)
+@app.put("/api/users/{user_id}/role", response_model=schemas.UserRoleUpdate)
 def update_user_role(
     user_id: str,
     data: schemas.UserRoleUpdate,
@@ -157,7 +171,7 @@ def update_user_role(
     db.refresh(user)
     return {"role": user.role}
  
-@app.delete("/users/{user_id}")
+@app.delete("/api/users/{user_id}")
 def delete_user(user_id: str, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
@@ -179,12 +193,24 @@ def geocode(q: str = Query(...)):
         }
 
         headers = {
-            "User-Agent": "my-app"   # IMPORTANT (OSM requires this)
+            "User-Agent": "TMS-App/1.0"   # IMPORTANT (OSM requires this)
         }
 
-        res = requests.get(url, params=params, headers=headers)
+        # Add timeout and proper error handling
+        res = requests.get(url, params=params, headers=headers, timeout=10)
+        res.raise_for_status()  # Raise exception for bad status codes
 
         return res.json()
 
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Geocoding service timeout")
+    except requests.exceptions.ConnectionError:
+        raise HTTPException(status_code=503, detail="Geocoding service unavailable")
+    except requests.exceptions.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"Geocoding service error: {e}")
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=503, detail="Geocoding service unavailable")
     except Exception as e:
-        return {"error": str(e)}
+        if os.getenv("DEBUG", "false").lower() == "true":
+            print(f"Unexpected geocoding error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
