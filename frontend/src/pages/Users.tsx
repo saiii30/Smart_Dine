@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import {  Trash2, User, Search } from 'lucide-react'
-import axios from 'axios'
 import { useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../api/axiosConfig'

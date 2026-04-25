@@ -41,7 +41,7 @@ export default function PriceSelection() {
   const parent_id = localStorage.getItem('selectedAgencyId');
 
 
-   const { logout,refreshUser  } = useAuth();
+   const { refreshUser  } = useAuth();
    const navigate = useNavigate()
 
   

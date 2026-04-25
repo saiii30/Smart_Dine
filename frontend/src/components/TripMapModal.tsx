@@ -3,12 +3,7 @@ import { X, Navigation } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { createWebSocket } from "../utils/websocket";
-
 import axios from 'axios'
-import API from '../api/axiosConfig'
-
-
 
 
 // Custom icons

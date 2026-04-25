@@ -516,20 +516,6 @@ s.passengers = Array.from({ length: count }, (_, i) => ({
   setActivePassengerTab(0)
 }
 
-const isDateOverlap = (
-  startA: string,
-  endA: string,
-  startB: string,
-  endB: string
-) => {
-  return new Date(startA) <= new Date(endB) &&
-         new Date(endA) >= new Date(startB)
-}
-
-
-
-
-
   const updateSchedule = (index: number, field: string, value: string | number | undefined) => {
     const updated = [...formData.schedules]
     updated[index] = { ...updated[index], [field]: value }
@@ -544,8 +530,6 @@ const isDateOverlap = (
 
 
   }
-
-
 
 
 const toDateInput = (value?: string | null) => {
@@ -877,7 +861,7 @@ const selectClass =
 
     if (e.target.value === 'route') {
       const count = s.passenger_count || 0
-      s.passengers = Array.from({ length: count }, (_, i) => ({
+      s.passengers = Array.from({ length: count }, (_) => ({
         id : "",
         name: '',
         phone: '',
