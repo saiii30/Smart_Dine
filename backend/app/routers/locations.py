@@ -1,5 +1,5 @@
 from typing import List, Dict, Optional
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, status,Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from datetime import datetime, timedelta
@@ -250,7 +250,7 @@ def broadcast_location_update(driver_id: str, location: schemas.LocationUpdate):
  
 
 @router.websocket("/live")
-async def websocket_tracking(websocket: WebSocket):
+async def websocket_tracking(websocket: WebSocket,parent_id: str = Query(None) ):
     await websocket.accept()
     print("✅ WS Connected")
 
@@ -269,7 +269,9 @@ async def websocket_tracking(websocket: WebSocket):
             }
 
             # 🔥 GET TRIPS
-            trips = db.query(models.TripSchedule).all()
+            trips = db.query(models.TripSchedule).filter(
+                models.TripSchedule.agency_id == parent_id
+            ).all()
 
             response = []
 

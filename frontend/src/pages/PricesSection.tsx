@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom"
 import { useEffect } from "react";
-import api from '../api/axiosConfig'
+import axios from "axios";
 const plans = [
   {
     id: "1m",
@@ -39,7 +39,9 @@ export default function PriceSelection() {
   const [loading, setLoading] = useState(false);
   const { user, token } = useAuth();
   const parent_id = localStorage.getItem('selectedAgencyId');
-   const { logout,refreshUser  } = useAuth();
+
+
+   const { refreshUser  } = useAuth();
    const navigate = useNavigate()
 
   
@@ -47,7 +49,7 @@ useEffect(() => {
   const fetchAgencyPlan = async () => {
     try {
     
-      const res = await api.get(`/agency/${parent_id}`, {
+      const res = await axios.get(`api/agency/${parent_id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -70,6 +72,8 @@ useEffect(() => {
   if (parent_id) {
     fetchAgencyPlan()
   }
+
+  
 }, [parent_id])
 
 
@@ -90,7 +94,7 @@ useEffect(() => {
 
   try {
     
-    await api.put("/agency/plan", {
+    await axios.put("api/agency/plan", {
       plan_id: planId,
       parent_id: parent_id,
     }, {
