@@ -1,17 +1,25 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import axios from 'axios'
-import { Plus, Edit, Trash2, Car, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Car, Search, AlertCircle, RefreshCw } from 'lucide-react'
 import { Vehicle, Trip } from '../types'
 import VehicleModal from '../components/VehicleModal'
 import VehicleViewModal from '../components/VehicleViewModal'
 import { useAuth } from '../contexts/AuthContext'
-const Vehicles = () => {
- 
 
+// API configuration - proper environment variable setup
+const API_BASE_URL = import.meta.env?.VITE_API_URL || 'http://127.0.0.1:8000'
+
+// Permission utility
+const usePermissions = () => {
   const { user } = useAuth()
-  const isSuperAdmin = user?.role === "SUPER_ADMIN";
-const isAdmin = user?.role === "ADMIN";
-const isSupervisor = user?.role === "SUPERVISOR";
+  return {
+    canManageVehicles: user?.role !== "SUPERVISOR"
+  }
+}
+
+const Vehicles = () => {
+  const { canManageVehicles } = usePermissions()
+  const abortControllerRef = useRef<AbortController | null>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,6 +28,28 @@ const isSupervisor = user?.role === "SUPERVISOR";
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
   const [viewingVehicle, setViewingVehicle] = useState<Vehicle | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState<number | null>(null)
+  const [hoveredVehicleId, setHoveredVehicleId] = useState<number | null>(null)
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [])
 
   useEffect(() => {
     fetchVehicles()
@@ -28,10 +58,17 @@ const isSupervisor = user?.role === "SUPERVISOR";
 
   const fetchVehicles = async () => {
     try {
-      const response = await axios.get('/api/vehicles/')
+      setError(null)
+      abortControllerRef.current = new AbortController()
+      const response = await axios.get(`${API_BASE_URL}/api/vehicles/`, {
+        signal: abortControllerRef.current.signal
+      })
       setVehicles(response.data)
-    } catch (error) {
-      console.error('Failed to fetch vehicles:', error)
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error('Failed to fetch vehicles:', error)
+        setError('Failed to fetch vehicles. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -39,23 +76,32 @@ const isSupervisor = user?.role === "SUPERVISOR";
 
   const fetchTrips = async () => {
     try {
-      const response = await axios.get('/api/trips/')
+      abortControllerRef.current = new AbortController()
+      const response = await axios.get(`${API_BASE_URL}/api/trips/`, {
+        signal: abortControllerRef.current.signal
+      })
       setTrips(response.data)
-    } catch (error) {
-      console.error('Failed to fetch trips:', error)
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error('Failed to fetch trips:', error)
+        // Don't set error state for trips failure - vehicles can still work without trips
+        // Just log the error and set empty trips array
+        setTrips([])
+      }
     }
   }
 
-  const getVehicleTrips = (vehicleId: number): Trip[] => {
+  // Memoized vehicle trips calculation
+  const getVehicleTrips = useCallback((vehicleId: number): Trip[] => {
     return trips.filter(trip =>
       trip.schedules.some(schedule => schedule.vehicle_id === vehicleId)
     )
-  }
+  }, [trips])
 
-  const canDeleteVehicle = (vehicleId: number): boolean => {
+  const canDeleteVehicle = useCallback((vehicleId: number): boolean => {
     const vehicleTrips = getVehicleTrips(vehicleId)
     return vehicleTrips.length === 0
-  }
+  }, [getVehicleTrips])
 
   
   const handleCreate = () => {
@@ -65,18 +111,21 @@ const isSupervisor = user?.role === "SUPERVISOR";
     try {
       localStorage.removeItem('vehicle_modal_draft_v1')
     } catch (e) {
-      // Ignore localStorage errors
+      // Log error but don't break the flow - localStorage might be disabled
+      console.warn('localStorage access failed:', e)
+      // Could add toast notification here if needed
     }
   }
 
   const handleEdit = async (vehicle: Vehicle) => {
     try {
       // Fetch complete vehicle details to ensure all fields are available
-      const response = await axios.get(`http://127.0.0.1:8000/api/vehicles/${vehicle.id}`)
+      const response = await axios.get(`${API_BASE_URL}/api/vehicles/${vehicle.id}`)
       setEditingVehicle(response.data)
       setIsModalOpen(true)
     } catch (error) {
       console.error('Failed to fetch vehicle details:', error)
+      setError('Failed to fetch vehicle details. Please try again.')
       // Fallback to using the basic vehicle data if detailed fetch fails
       setEditingVehicle(vehicle)
       setIsModalOpen(true)
@@ -84,11 +133,16 @@ const isSupervisor = user?.role === "SUPERVISOR";
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this vehicle?')) return
+    setShowDeleteModal(id)
+  }
+
+  const confirmDelete = async () => {
+    if (!showDeleteModal) return
 
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/vehicles/${id}`)
-      fetchVehicles()
+      await axios.delete(`${API_BASE_URL}/api/vehicles/${showDeleteModal}`)
+      setVehicles(prev => prev.filter(v => v.id !== showDeleteModal))
+      setShowDeleteModal(null)
     } catch (error: any) {
       console.error('Failed to delete vehicle:', error)
       
@@ -100,8 +154,12 @@ const isSupervisor = user?.role === "SUPERVISOR";
         errorMessage = error.message
       }
       
-      alert(errorMessage)
+      setError(errorMessage)
     }
+  }
+
+  const cancelDelete = () => {
+    setShowDeleteModal(null)
   }
 
   const handleModalClose = () => {
@@ -109,8 +167,16 @@ const isSupervisor = user?.role === "SUPERVISOR";
     setEditingVehicle(null)
   }
 
-  const handleModalSuccess = () => {
-    fetchVehicles()
+  const handleModalSuccess = (newVehicle?: Vehicle) => {
+    if (newVehicle) {
+      if (editingVehicle) {
+        // Update existing vehicle
+        setVehicles(prev => prev.map(v => v.id === newVehicle.id ? newVehicle : v))
+      } else {
+        // Add new vehicle
+        setVehicles(prev => [...prev, newVehicle])
+      }
+    }
     handleModalClose()
   }
 
@@ -141,17 +207,17 @@ const isSupervisor = user?.role === "SUPERVISOR";
 
   // Filter vehicles based on search query (vehicle number and model)
   const filteredVehicles = useMemo(() => {
-    if (!searchQuery.trim()) {
+    if (!debouncedSearchQuery.trim()) {
       return vehicles
     }
-    const query = searchQuery.toLowerCase().trim()
+    const query = debouncedSearchQuery.toLowerCase().trim()
     return vehicles.filter((vehicle) => {
       const vehicleNumberMatch = vehicle.vehicle_registration_number.toLowerCase().includes(query)
       const modelMatch = vehicle.vehicle_model.toLowerCase().includes(query)
       const typeMatch = vehicle.vehicle_type.toLowerCase().includes(query)
       return vehicleNumberMatch || modelMatch || typeMatch
     })
-  }, [vehicles, searchQuery])
+  }, [vehicles, debouncedSearchQuery])
 
   if (loading) {
     return (
@@ -161,8 +227,44 @@ const isSupervisor = user?.role === "SUPERVISOR";
     )
   }
 
+  // Error boundary component
+  const ErrorBoundary = ({ error, onRetry }: { error: string | null; onRetry: () => void }) => {
+    if (!error) return null
+    
+    return (
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 mb-6">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">
+              Something went wrong
+            </h3>
+            <p className="text-sm text-red-700 dark:text-red-300 mb-3">
+              {error}
+            </p>
+            <button
+              onClick={onRetry}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
+      <ErrorBoundary 
+        error={error} 
+        onRetry={() => {
+          setError(null)
+          fetchVehicles()
+          fetchTrips()
+        }} 
+      />
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Vehicles</h1>
         <div className="flex flex-1 md:max-w-lg items-center gap-4 w-full md:w-auto">
@@ -178,7 +280,7 @@ const isSupervisor = user?.role === "SUPERVISOR";
             />
           </div>
          {
-          !isSupervisor && (
+          canManageVehicles && (
              <button
             onClick={handleCreate}
             className="flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors whitespace-nowrap"
@@ -203,16 +305,7 @@ const isSupervisor = user?.role === "SUPERVISOR";
               : 'Get started by adding your first vehicle.'}
           </p>
 
-          {/* {!searchQuery.trim() && !isSupervisor && (
-            <button
-              onClick={handleCreate}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
-            >
-              <Plus className="mr-2 h-5 w-5" />
-              Add Driver
-            </button>
-          )} */}
-          {!searchQuery.trim() && !isSupervisor && (
+          {canManageVehicles && (
             <button
               onClick={handleCreate}
               className="inline-flex items-center px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600"
@@ -278,52 +371,57 @@ const isSupervisor = user?.role === "SUPERVISOR";
               </div>
 
               <div className="flex gap-2">
+                <button
+                  onClick={() => handleView(vehicle)}
+                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                >
+                  <Search className="mr-2 h-4 w-4" />
+                  View
+                </button>
+                
+                {canManageVehicles && (
+                  <>
+                    <button
+                      onClick={() => handleEdit(vehicle)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit
+                    </button>
 
-                 {isSupervisor ? (
-    <button
-      onClick={() => handleView(vehicle)}
-      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-    >
-      <Search className="mr-2 h-4 w-4" />
-      View
-    </button>
-  ) : (
-    <>
-      {(isSuperAdmin || isAdmin) && (
-        <button
-          onClick={() => handleView(vehicle)}
-          className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-        >
-          <Search className="mr-2 h-4 w-4" />
-          View
-        </button>
-      )}
-      <button
-        onClick={() => handleEdit(vehicle)}
-        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-      >
-        <Edit className="mr-2 h-4 w-4" />
-        Edit
-      </button>
-
-      <button
-        onClick={() => handleDelete(vehicle.id)}
-        disabled={!canDeleteVehicle(vehicle.id)}
-        className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-          canDeleteVehicle(vehicle.id)
-            ? 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
-            : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
-        }`}
-        title={!canDeleteVehicle(vehicle.id) ? `Cannot delete: Vehicle has ${getVehicleTrips(vehicle.id).length} associated trip(s)` : ''}
-      >
-        <Trash2 className="mr-2 h-4 w-4" />
-        Delete
-      </button>
-    </>
-  )}
-
-
-                </div>
+                    <div
+                      className="relative"
+                      onMouseEnter={() => setHoveredVehicleId(vehicle.id)}
+                      onMouseLeave={() => setHoveredVehicleId(null)}
+                    >
+                      <button
+                        onClick={() => handleDelete(vehicle.id)}
+                        disabled={!canDeleteVehicle(vehicle.id)}
+                        className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          canDeleteVehicle(vehicle.id)
+                            ? 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
+                            : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+                        }`}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </button>
+                      
+                      {/* Enhanced tooltip */}
+                      {!canDeleteVehicle(vehicle.id) && hoveredVehicleId === vehicle.id && (
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm rounded-lg shadow-lg whitespace-nowrap z-10">
+                          <div className="text-xs font-medium">
+                            Cannot delete: Vehicle has {getVehicleTrips(vehicle.id).length} associated trip(s)
+                          </div>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                            <div className="border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
 
               
               
@@ -345,6 +443,34 @@ const isSupervisor = user?.role === "SUPERVISOR";
           vehicle={viewingVehicle}
           onClose={handleViewModalClose}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Confirm Delete
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to delete this vehicle? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-white bg-red-600 dark:bg-red-500 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
