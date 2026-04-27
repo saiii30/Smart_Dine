@@ -1,11 +1,12 @@
 from typing import List, Dict, Optional
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, status,Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 from app.database import get_db
 from app import models, schemas, auth
 import json
+import asyncio
 
 
 router = APIRouter()
@@ -247,3 +248,79 @@ def broadcast_location_update(driver_id: str, location: schemas.LocationUpdate):
         # In production, use Redis pub/sub or message queue for better scalability
         # For now, we'll just update the cache
  
+
+@router.websocket("/live")
+async def websocket_tracking(websocket: WebSocket,parent_id: str = Query(None) ):
+    await websocket.accept()
+    print("✅ WS Connected")
+
+    try:
+        while True:
+            db = next(get_db())
+
+            # 🔥 GET ACTIVE DRIVER LOCATIONS ONLY
+            active_locations = db.query(models.DriverLocation).filter(
+                models.DriverLocation.is_active == True
+            ).all()
+
+            # 🔥 CREATE MAP (trip_id → location)
+            location_map = {
+                str(loc.trip_id): loc for loc in active_locations
+            }
+
+            # 🔥 GET TRIPS
+            trips = db.query(models.TripSchedule).filter(
+                models.TripSchedule.agency_id == parent_id
+            ).all()
+
+            response = []
+
+            for trip in trips:
+                trip_id = str(trip.id)
+
+                # 🔥 SAME AS YOUR find()
+                driverActive = location_map.get(trip_id)
+
+                user = db.query(models.User).filter(
+                        models.User.id == trip.driver_id
+                 ).first()
+
+                if not driverActive:
+                    continue   # ⛔ skip if no active driver
+
+                # 🔥 YOUR scheduleObj (FULL)
+                scheduleObj = {
+                    "id": trip.id,
+                    "trip_id": trip.id,
+                    "company_name": trip.company_name,
+                    "vehicle_registration_number": trip.vehicle.vehicle_registration_number if trip.vehicle else "Unassigned",
+                    "driver_name": user.name if user else "Unassigned",
+                    "starting_point": trip.starting_point,
+                    "end_point": trip.end_point,
+                    "start_date": str(trip.start_date) if trip.start_date else None,
+                    "passenger_count": trip.passenger_count,
+                    "trip_type": trip.trip_type,
+                    "route_point": trip.route_point,
+                    
+
+                    "status": "Active" if trip.is_active else "Inactive",
+
+                    "driver_id": trip.driver_id,
+
+                    "driver_phone":
+                        (trip.driver.user.contact_number if trip.driver and trip.driver.user else None)
+                        or trip.driver_phone,
+
+                }
+
+                response.append(scheduleObj)
+                print(f"Prepared data for trip {trip_id}: {scheduleObj}")
+
+            await websocket.send_text(json.dumps(response))
+
+            db.close()
+            await asyncio.sleep(3)
+
+    except Exception as e:
+        print("❌ WS Error:", e)
+        await websocket.close()

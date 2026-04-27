@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import {  Trash2, User, Search } from 'lucide-react'
-import axios from 'axios'
 import { useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import api from '../api/axiosConfig'
 
 export interface AppUser {
   id: string
@@ -25,27 +25,15 @@ useEffect(() => {
   }
 }, [loggedInUser])
 
-// const fetchUsers = async () => {
-//   const parentId = localStorage.getItem("selectedAgencyId")
-//   const res = await axios.get(
-//     `http://127.0.0.1:8000/users/${parentId}`
-//   )
-
-//   setUsers(
-//     res.data.filter(
-//       (u: AppUser) => u.id !== loggedInUser.id.toString()
-//     )
-//   )
-// }
 
 const fetchUsers = async () => {
   const parentId = localStorage.getItem("selectedAgencyId")
   if (!parentId) return
 
   try {
-    const res = await axios.get<AppUser[]>(
-      `http://127.0.0.1:8000/users/${parentId}`
-    )
+
+    const res = await api.get<AppUser[]>(`/users/${parentId}`)
+   
 
     // Filter users: exclude logged-in user + only IT_COMPANY or DRIVER roles
     const filteredUsers = res.data.filter((u: AppUser) => 
@@ -64,8 +52,10 @@ const fetchUsers = async () => {
   const [searchQuery, setSearchQuery] = useState('')
 
  const handleRoleChange = async (userId: string, newRole: string) => {
-  await axios.put(
-    `http://127.0.0.1:8000/users/${userId}/role`,
+
+  
+  await api.put(
+    `/users/${userId}/role`,
     { role: newRole }
   )
 
@@ -91,7 +81,7 @@ const fetchUsers = async () => {
   const handleDelete = async (id: string) => {
   if (!confirm('Are you sure?')) return
 
-  await axios.delete(`http://127.0.0.1:8000/users/${id}`)
+  await api.delete(`/users/${id}`)
   await fetchUsers()   // 🔥 IMPORTANT
 }
 

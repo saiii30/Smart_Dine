@@ -6,7 +6,9 @@ import { useTheme } from '../contexts/ThemeContext'
 import MapPicker from '../components/MapPicker'
 import { MapPin } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
-import api from '../api/axiosConfig'
+import API from '../api/axiosConfig'
+
+
 
 import { useAuth } from '../contexts/AuthContext'
 
@@ -25,6 +27,8 @@ const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [vehicleLoading, setVehicleLoading] = useState(false)
+const [driverLoading, setDriverLoading] = useState(false)
   const [activePassengerIndex, setActivePassengerIndex] = useState<number | null>(null)
   const [activePassengerTab, setActivePassengerTab] = useState(0)
  const { user } = useAuth()
@@ -98,7 +102,15 @@ const labelClass =
 
   const fetchCompanies = async () => {
     try {
-      const res = await api.get(`/companies/trip/dropdown/?agency_id=${agencyId}`)
+
+      const token = localStorage.getItem('token')
+    const headers = {
+      Authorization: `Bearer ${token}`,
+    }
+
+      const res = await API.get(`/companies/trip/dropdown/?agency_id=${agencyId}`,
+        {headers}
+      )
       setCompanies(res.data) // [{id, company_name}]
     } catch (err) {
       
@@ -260,10 +272,13 @@ const fetchVehicles = async (scheduleIndex: number) => {
 
   if (!s.start_date || !s.end_date) return
 
+   setVehicleLoading(true)
+
   const token = localStorage.getItem('token') || ''
+  
 
   try {
-    const res = await api.get('/vehicles/available/vehicles/', {
+    const res = await API.get('/vehicles/available/vehicles/', {
       params: {
         start_date: s.start_date,
         end_date: s.end_date,
@@ -294,6 +309,9 @@ const fetchVehicles = async (scheduleIndex: number) => {
   } catch (err) {
     console.error('Vehicle fetch failed', err)
   }
+  finally {
+    setVehicleLoading(false)
+  }
 }
 
 
@@ -305,10 +323,12 @@ const fetchDrivers = async (scheduleIndex: number) => {
 
   if (!s.start_date || !s.end_date) return
 
+  setDriverLoading(true)
+
   const token = localStorage.getItem('token') || ''
 
   try {
-    const res = await api.get('/drivers/available/drivers/', {
+    const res = await API.get('/drivers/available/drivers/', {
       params: {
         start_date: s.start_date,
         end_date: s.end_date,
@@ -340,6 +360,9 @@ const fetchDrivers = async (scheduleIndex: number) => {
     setDrivers(filteredDrivers)
   } catch (err) {
     console.error('Driver fetch failed', err)
+  }
+  finally {
+    setDriverLoading(false)
   }
 }
 
@@ -509,8 +532,6 @@ s.passengers = Array.from({ length: count }, (_, i) => ({
   }
 
 
-
-
 const toDateInput = (value?: string | null) => {
   if (!value) return ''
   // handles "2026-01-06T00:00:00" and "2026-01-06"
@@ -542,7 +563,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     // 🧹 DELETE REMOVED SCHEDULES
     for (const id of deletedScheduleIds) {
-      await api.delete(
+      await API.delete(
         `/trip-schedules/${id}`,
         { headers }
       )
@@ -599,14 +620,14 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       if (s.id) {
         // 🟡 UPDATE
-        await api.put(
+        await API.put(
           `/trip-schedules/${s.id}`,
           payload,
           { headers }
         )
       } else {
         // 🟢 CREATE
-        await api.post(
+        await API.post(
           `/trip-schedules`,
           payload,
           { headers }
@@ -619,18 +640,8 @@ const handleSubmit = async (e: React.FormEvent) => {
   catch (err: any) {
   const msg = err.response?.data?.detail || ""
 
-  if (msg.includes("at least 2")) {
-    setError("Name should be at least 2 characters")
-  } 
-  else if (msg.includes("at least 10")) {
-    setError("Phone number must be 10 digits")
-  } 
-  else if (msg.includes("at least 5")) {
-    setError("Location should be minimum 5 characters")
-  } 
-  else {
-    setError("Something went wrong. Please try again")
-  }
+    setError(msg || 'An error occurred while saving the trip')
+    console.error('Save failed', err)
 }
   finally {
     setLoading(false)
@@ -1025,94 +1036,89 @@ const selectClass =
 
 
 <MapPicker
-  mode={activeField}
-  startPoint={
-    activeScheduleIndex !== null
-      ? (() => {
-          const s = formData.schedules[activeScheduleIndex]
-
-          // 🔥 ROUTE → PASSENGER
-          if (s.trip_type === 'route' && activePassengerIndex !== null) {
-            const p = s.passengers?.[activePassengerIndex]
-            return p?.pickup_lat && p?.pickup_lng
-              ? { lat: p.pickup_lat, lng: p.pickup_lng }
-              : undefined
-          }
-
-          // 🔵 SHUTTLE / AMBULANCE → SCHEDULE
-          return s.starting_lat && s.starting_lng
-            ? { lat: s.starting_lat, lng: s.starting_lng }
-            : undefined
-        })()
-      : undefined
+  mode={
+    activePassengerIndex !== null
+      ? null   // 🔥 passenger mode
+      : activeField
   }
+
+  passengerPoint={
+  activeScheduleIndex !== null &&
+  activePassengerIndex !== null
+    ? (() => {
+        const p =
+          formData.schedules[activeScheduleIndex]
+            .passengers?.[activePassengerIndex]
+
+        return p?.pickup_lat && p?.pickup_lng
+          ? { lat: p.pickup_lat, lng: p.pickup_lng }
+          : null
+      })()
+    : null
+}
+  startPoint={
+  activeScheduleIndex !== null
+    ? (() => {
+        const s = formData.schedules[activeScheduleIndex]
+
+        // 🔥 ALWAYS schedule start மட்டும் use
+        return s.starting_lat && s.starting_lng
+          ? { lat: s.starting_lat, lng: s.starting_lng }
+          : undefined
+      })()
+    : undefined
+}
   endPoint={
   activeScheduleIndex !== null
     ? (() => {
         const s = formData.schedules[activeScheduleIndex]
 
-        // 🚫 PASSENGER PICKUP → do not show endPoint
-        if (s.trip_type === 'route' && activePassengerIndex !== null) {
-          return undefined
-        }
-
-        // 🔵 SHUTTLE / AMBULANCE → SCHEDULE
         return s.end_lat && s.end_lng
           ? { lat: s.end_lat, lng: s.end_lng }
           : undefined
       })()
     : undefined
 }
+
   onSelect={async (lat, lng, distanceKm, durationMin) => {
-    if (activeScheduleIndex === null || !activeField) return
+  if (activeScheduleIndex === null) return
 
-    const address = await getAddressFromLatLng(lat, lng)
-    const updated = [...formData.schedules]
-    const s = updated[activeScheduleIndex]
+  const address = await getAddressFromLatLng(lat, lng)
+  const updated = [...formData.schedules]
+  const s = updated[activeScheduleIndex]
 
-    // 🔥 ROUTE – PASSENGER LEVEL
-    if (s.trip_type === 'route' && activePassengerIndex !== null) {
-      const p = s.passengers![activePassengerIndex]
+  // 🔥 PASSENGER MODE
+  if (s.trip_type === 'route' && activePassengerIndex !== null) {
+    const p = s.passengers![activePassengerIndex]
 
-      if (activeField === 'starting_point') {
-        p.pickup_point = address
-        p.pickup_lat = lat
-        p.pickup_lng = lng
-      } 
+    p.pickup_point = address
+    p.pickup_lat = lat
+    p.pickup_lng = lng
+  }
+
+  // 🔵 SCHEDULE MODE
+  else {
+    if (activeField === 'starting_point') {
+      s.starting_point = address
+      s.starting_lat = lat
+      s.starting_lng = lng
+    } else if (activeField === 'end_point') {
+      s.end_point = address
+      s.end_lat = lat
+      s.end_lng = lng
     }
+  }
 
-    // 🔵 SHUTTLE / AMBULANCE – SCHEDULE LEVEL
-    else {
-      if (activeField === 'starting_point') {
-        s.starting_point = address
-        s.starting_lat = lat
-        s.starting_lng = lng
-      } else {
-        s.end_point = address
-        s.end_lat = lat
-        s.end_lng = lng
-      }
-    }
+  // distance + time
+  if (distanceKm !== undefined) s.distance_km = distanceKm
+  if (durationMin !== undefined) s.duration_min = Math.ceil(durationMin)
 
-    // Distance only schedule-level
-    // ✅ Always set distance
-if (distanceKm !== undefined) {
-  s.distance_km = distanceKm
-}
+  if (!durationMin && distanceKm) {
+    s.duration_min = Math.ceil((distanceKm / 40) * 60)
+  }
 
-// ✅ Always set duration
-if (durationMin !== undefined) {
-  s.duration_min = Math.ceil(durationMin)
-}
-
-// 🔥 Fallback (if routing time not available)
-if (!durationMin && distanceKm) {
-  s.duration_min = Math.ceil((distanceKm / 40) * 60)
-}
-
-
-    setFormData({ ...formData, schedules: updated })
-  }}
+  setFormData({ ...formData, schedules: updated })
+}}
 />
 
 
@@ -1150,11 +1156,15 @@ if (!durationMin && distanceKm) {
   
   
 
-  {drivers.map((driver) => (
-  <option key={driver.id} value={driver.id}>
-    {driver?.user?.name || 'Unknown Driver'}
-  </option>
-))}
+ {driverLoading ? (
+  <option>Loading drivers...</option>
+) : (
+  drivers.map((driver) => (
+    <option key={driver.id} value={driver.id}>
+      {driver?.user?.name || 'Unknown Driver'}
+    </option>
+  ))
+)}
 </select>
 
               </div>
@@ -1196,11 +1206,15 @@ if (!durationMin && distanceKm) {
                  
 
                   
-      {vehicles.map((vehicle) => (
-                          <option key={vehicle.id} value={vehicle.id}>
-                            {vehicle.vehicle_registration_number} 
-                          </option>
-                        ))}
+      {vehicleLoading ? (
+  <option>Loading vehicles...</option>
+) : (
+  vehicles.map((vehicle) => (
+    <option key={vehicle.id} value={vehicle.id}>
+      {vehicle.vehicle_registration_number}
+    </option>
+  ))
+)}
                 </select> 
 
                
@@ -1371,11 +1385,21 @@ if (!p) return null
               <button
                 type="button"
                 onClick={() => {
-                  setActiveScheduleIndex(index)
-                  setActivePassengerIndex(activePassengerTab)
-                  setActiveField('starting_point')
-                  setShowMap(true)
-                }}
+  const s = formData.schedules[index]
+
+  // 🔥 MUST HAVE START + END
+  if (!s.starting_lat || !s.end_lat) {
+    alert("Please select Start & End point first")
+    return
+  }
+
+  setActiveScheduleIndex(index)
+  setActivePassengerIndex(activePassengerTab)
+
+  setActiveField(null)   // ✅ IMPORTANT (passenger mode)
+
+  setShowMap(true)
+}}
                 className="rounded-xl border border-dashed border-indigo-400
                            p-4 text-left hover:bg-indigo-50 transition"
               >

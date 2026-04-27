@@ -181,7 +181,7 @@ def delete_user(user_id: str, db: Session = Depends(get_db)):
     return {"message": "User deleted permanently"}
 
 
-@app.get("/geocode")
+@app.get("/api/geocode")
 def geocode(q: str = Query(...)):
     try:
         url = "https://nominatim.openstreetmap.org/search"

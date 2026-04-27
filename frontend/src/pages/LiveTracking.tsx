@@ -1,106 +1,147 @@
-import { useEffect, useState } from 'react'
-import API from '../api/axiosConfig'
+import { useEffect, useState,useRef } from 'react'
+
 import { MapPin, Search, Navigation } from 'lucide-react'
 import TripMapModal from '../components/TripMapModal'
 import { useMemo } from 'react'
 import { Schedule } from '../types'
 
+
 const LiveTracking = () => {
     const [schedules, setSchedules] = useState<Schedule[]>([])
     const [loading, setLoading] = useState(true)
+    const searchTimeout = useRef<number | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
     const [isMapModalOpen, setIsMapModalOpen] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [connectionStatus, setConnectionStatus] = useState<
+    'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+>('connecting')
+
+
+
+
+    
 
     useEffect(() => {
-        fetchSchedules()
-    }, [])
-
-    useEffect(() => {
-    const interval = setInterval(() => {
-        fetchSchedules()
-    }, 5000)
-
-    return () => clearInterval(interval)
+    return () => {
+        if (searchTimeout.current) {
+            clearTimeout(searchTimeout.current)
+        }
+    }
 }, [])
 
-    const fetchSchedules = async () => {
-    try {
-       
 
-       
+const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
 
-        const [scheduleRes, driverLocRes] = await Promise.all([
-    API.get('/trip-schedules/'),
-    API.get('/mobile/locations/all/')
-])
+    if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current)
+    }
 
-        const schedulesData = Array.isArray(scheduleRes.data) ? scheduleRes.data : []
-        const driverLocations = Array.isArray(driverLocRes.data) ? driverLocRes.data : []
+    searchTimeout.current = setTimeout(() => {
+        setSearchQuery(value)
+    }, 300)
+}
 
-        // ✅ Active driver மட்டும்
-        const activeDriverLocations = driverLocations.filter(
-            (d: any) => Boolean(Number(d.is_active))
+const wsRef = useRef<WebSocket | null>(null)
+
+useEffect(() => {
+    let retryCount = 0
+    const maxRetries = 5
+
+    const connectWebSocket = () => {
+        if (wsRef.current) return   // 🔥 prevent duplicate
+
+        setConnectionStatus(
+            retryCount === 0 ? 'connecting' : 'reconnecting'
         )
 
-        const allSchedules: any[] = []
+        const baseUrl = import.meta.env.VITE_BACKEND_URL 
+        const WS_URL = baseUrl.replace('http', 'ws')
+        console.log(baseUrl)
 
-        schedulesData.forEach((trip: any) => {
+        const parent_id = localStorage.getItem("selectedAgencyId")
 
-            // 🔥 matching active driver
-            const driverActive = activeDriverLocations.find(
-                (d: any) => String(d.trip_id) === String(trip.id)
-            )
+const ws = new WebSocket(
+  `${WS_URL}/api/locations/live?parent_id=${parent_id}`
+)
+        wsRef.current = ws
 
-      
-            // ❌ driver active இல்லனா skip
-            if (!driverActive) return
+        ws.onopen = () => {
+            console.log("✅ Live WS connected")
+            setConnectionStatus('connected')
+            setError(null)
+            retryCount = 0
+        }
 
-            const scheduleObj = {
-                id: trip.id,
-                trip_id: trip.id,
-                company_name: trip.company_name,
-
-                vehicle_registration_number:
-                    trip.vehicle_registration_number ||
-                    trip.vehicle?.vehicle_registration_number ||
-                    'Unassigned',
-
-                driver_name:
-                    trip.driver_name ||
-                    trip.driver?.user?.name ||
-                    trip.driver?.full_name ||
-                    'Unassigned',
-
-                starting_point: trip.starting_point,
-                end_point: trip.end_point,
-                start_date: trip.start_date,
-                start_time: trip.start_time,
-                passenger_count: trip.passenger_count,
-                trip_type: trip.trip_type,
-                route_point: trip.route_point,
-
-                status: trip.is_active ? 'Active' : 'Inactive',
-
-                driver_id: trip.driver_id,
-
-                driver_phone:
-                    trip.driver?.user?.contact_number ||
-                    trip.driver_phone 
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data)
+                setSchedules(data)
+                setLoading(false)
+            } catch {
+                setError("Invalid data received")
             }
+        }
 
-            allSchedules.push(scheduleObj)
-        })
+        ws.onerror = () => {
+            setConnectionStatus('disconnected')
+            setError("WebSocket error")
+        }
 
-        setSchedules(allSchedules)
+        ws.onclose = () => {
+            wsRef.current = null   // 🔥 important
 
-    } catch (error) {
-        console.error('Failed to fetch schedules:', error)
-    } finally {
-        setLoading(false)
+            if (retryCount < maxRetries) {
+                retryCount++
+                setTimeout(connectWebSocket, 2000)
+            } else {
+                setConnectionStatus('disconnected')
+                setError("Connection failed")
+            }
+        }
     }
-}
-   
+
+    connectWebSocket()
+
+    return () => {
+        if (wsRef.current) {
+            wsRef.current.close()
+            wsRef.current = null
+        }
+    }
+}, [])
+
+
+
+
+// useEffect(() => {
+//     const ws = new WebSocket('ws://127.0.0.1:8000/api/locations/live')
+
+//     ws.onopen = () => {
+//         console.log("✅ Live WS connected")
+//     }
+
+//     ws.onmessage = (event) => {
+//         const data = JSON.parse(event.data)
+
+//         console.log("🔥 LIVE DATA:", data)
+
+//         setSchedules(data)   // 💥 DIRECT UI UPDATE
+//         setLoading(false)
+//     }
+
+//     ws.onerror = (err) => {
+//         console.error("❌ WS Error", err)
+//     }
+
+//     ws.onclose = () => {
+//         console.log("⚠️ WS Closed")
+//     }
+
+//     return () => ws.close()
+// }, [])
 
     const handleOpenMap = (schedule: any) => {
         setSelectedSchedule(schedule)
@@ -125,12 +166,43 @@ const LiveTracking = () => {
 
     return (
         <div className="p-6">
+
+            {error && (
+    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
+        {error}
+    </div>
+)}
             <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                         <Navigation className="h-8 w-8 text-primary-600" />
                         Live Tracking
                     </h1>
+                    <div className="flex items-center gap-2 mt-2">
+    <span className="text-sm text-gray-500">Status:</span>
+
+    {connectionStatus === 'connected' && (
+        <span className="text-green-600 text-sm font-medium">● Live</span>
+    )}
+
+    {connectionStatus === 'connecting' && (
+        <span className="text-yellow-600 text-sm font-medium animate-pulse">
+            ● Connecting...
+        </span>
+    )}
+
+    {connectionStatus === 'reconnecting' && (
+        <span className="text-orange-600 text-sm font-medium animate-pulse">
+            ● Reconnecting...
+        </span>
+    )}
+
+    {connectionStatus === 'disconnected' && (
+        <span className="text-red-600 text-sm font-medium">
+            ● Offline
+        </span>
+    )}
+</div>
                     <p className="text-gray-500 dark:text-gray-400 mt-1">Track active trips and vehicle locations in real-time</p>
                 </div>
 
@@ -140,7 +212,7 @@ const LiveTracking = () => {
                         type="text"
                         placeholder="Search driver, vehicle..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e) => handleSearchChange(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
                     />
                 </div>
