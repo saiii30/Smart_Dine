@@ -1,7 +1,7 @@
-const BASE_URL = import.meta.env.BACKEND_URL;
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
                  
 if (!BASE_URL) {
-  console.error("❌ VITE_API_BASE_URL is not defined");
+  console.error("❌ VITE_BACKEND_URL is not defined");
 }
 else{
   console.log(BASE_URL)

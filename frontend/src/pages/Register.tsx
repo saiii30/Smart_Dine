@@ -23,7 +23,7 @@ const Register = () => {
   /* -------- Fetch agencies for dropdown -------- */
   useEffect(() => {
     axios
-      .get('http://127.0.0.1:8000/api/auth/agencies')
+      .get(`${import.meta.env.VITE_BACKEND_URL}/api/auth/agencies`)
       .then(res => setAgencies(res.data))
       .catch(() => setError('Failed to load agencies'))
   }, [])
