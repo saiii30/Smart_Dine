@@ -206,3 +206,5 @@ def geocode(q: str = Query(...)):
         if os.getenv("DEBUG", "false").lower() == "true":
             print(f"Unexpected geocoding error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+        
