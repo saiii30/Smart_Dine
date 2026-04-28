@@ -55,8 +55,8 @@ def _serialize_trip(trip):
         "agency_id": trip.agency_id,
         "user_id": trip.user_id,
         "company_id": trip.company_id,
-        "company_name": trip.company.company_name if trip.company else None,
-        "company_branch": trip.company.company_branch if trip.company else None,
+        "company_name": trip.company_name if trip.company else None,
+        "company_branch": trip.company_branch if trip.company else None,
 
         "start_date": trip.start_date,
         "end_date": trip.end_date,
