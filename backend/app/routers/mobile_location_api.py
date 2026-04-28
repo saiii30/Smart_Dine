@@ -378,11 +378,11 @@ def deactivate_location_tracking(
         ).first()
         
         if trip_schedule:
-            if trip_schedule.trip_type == "one_way":
+            if trip_schedule.way == "one_way":
                 # One-way trip complete: update one_way_is_active
                 trip_schedule.one_way_is_active = False
-                trip_schedule.overall_is_active = False
-            elif trip_schedule.trip_type == "two_way":
+                trip_schedule.is_active = False
+            elif trip_schedule.way == "two_way":
                 # Two-way trip: check which leg is completing
                 if trip_schedule.one_way_is_active == True:
                     # First leg (one-way) complete
@@ -390,7 +390,7 @@ def deactivate_location_tracking(
                 elif trip_schedule.two_way_is_active == True:
                     # Second leg (two-way) complete
                     trip_schedule.two_way_is_active = False
-                    trip_schedule.overall_is_active = False  # Both legs complete
+                    trip_schedule.is_active = False  # Both legs complete
             
             trip_schedule.updated_at = datetime.now(timezone.utc)
        

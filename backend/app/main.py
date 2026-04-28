@@ -104,19 +104,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 # CORS middleware configuration - configurable via environment variables
 def get_cors_origins():
-    """Get CORS origins from environment variable or use defaults."""
+    """Get CORS origins from environment variable."""
     cors_origins_env = os.getenv("CORS_ORIGINS", "")
-    if cors_origins_env:
-        # Split comma-separated origins and strip whitespace
-        return [origin.strip() for origin in cors_origins_env.split(",")]
-    
-    # Default origins for development
-    return [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ]
+    if not cors_origins_env:
+        raise ValueError("CORS_ORIGINS environment variable must be set")
+    return [origin.strip() for origin in cors_origins_env.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
@@ -214,3 +206,5 @@ def geocode(q: str = Query(...)):
         if os.getenv("DEBUG", "false").lower() == "true":
             print(f"Unexpected geocoding error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+        
