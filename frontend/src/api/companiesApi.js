@@ -58,9 +58,8 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: import.meta.env.VITE_BACKEND_URL + "/api",
 });
-
 
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem("token"); // or sessionStorage
@@ -69,7 +68,6 @@ API.interceptors.request.use((config) => {
   }
   return config;
 });
-
 
 // GET ALL
 export const getCompany = async () => {

@@ -6,7 +6,7 @@ import AuthLayout from "../components/AuthLayout";
 
 // Create an Axios instance with default config
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: import.meta.env.VITE_BACKEND_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

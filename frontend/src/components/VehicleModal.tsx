@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext'
 interface VehicleModalProps {
   vehicle: Vehicle | null
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (newVehicle?: Vehicle) => void
 }
 
 const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
@@ -285,14 +285,14 @@ const isSupervisor = user?.role === 'SUPERVISOR';
             formData.append('seating_capacity', String(row['Seating Capacity'] || 4));
             if(row['GPS ID']) formData.append('gps_device_id', row['GPS ID']);
 
-            await axios.post('http://127.0.0.1:8000/api/vehicles/', formData);
+            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/`, formData);
             successCount++;
           } catch (err) {
             failCount++;
           }
         }
         showAlert('Upload Complete', `Success: ${successCount}\nFailed: ${failCount}`, 'success', () => {
-          onSuccess();
+          onSuccess(); // For bulk upload, we don't pass specific vehicle data
           onClose();
         });
       });
@@ -375,7 +375,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
     try {
       // Check vehicle registration number uniqueness
       if (draft.vehicle_registration_number?.trim()) {
-        const regResponse = await axios.get(`http://127.0.0.1:8000/api/vehicles/check-registration/${draft.vehicle_registration_number}`);
+        const regResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/check-registration/${draft.vehicle_registration_number}`);
         if (regResponse.data.exists && (!vehicle || regResponse.data.vehicle_id !== vehicle.id)) {
           errors.vehicle_registration_number = 'Vehicle registration number already exists';
         }
@@ -383,7 +383,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
       
       // Check RC number uniqueness
       if (draft.rc_number?.trim()) {
-        const rcResponse = await axios.get(`http://127.0.0.1:8000/api/vehicles/check-rc/${draft.rc_number}`);
+        const rcResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/check-rc/${draft.rc_number}`);
         if (rcResponse.data.exists && (!vehicle || rcResponse.data.vehicle_id !== vehicle.id)) {
           errors.rc_number = 'RC number already exists';
         }
@@ -453,14 +453,15 @@ const isSupervisor = user?.role === 'SUPERVISOR';
       }
 
       // For edit mode: use PUT; for create mode: use POST
+      let response;
       if (vehicle?.id) {
-        await axios.put(`http://127.0.0.1:8000/api/vehicles/${vehicle.id}`, formData);
+        response = await axios.put(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/${vehicle.id}`, formData);
       } else {
-        await axios.post('http://127.0.0.1:8000/api/vehicles/', formData);
+        response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/`, formData);
       }
 
       clearDraft();
-      onSuccess();
+      onSuccess(response.data);
       onClose();
     } catch (error: any) {
       console.error('Failed to save vehicle:', error);

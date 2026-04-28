@@ -7,7 +7,7 @@ import VehicleViewModal from '../components/VehicleViewModal'
 import { useAuth } from '../contexts/AuthContext'
 
 // API configuration - proper environment variable setup
-const API_BASE_URL = import.meta.env?.VITE_API_URL || 'http://127.0.0.1:8000'
+const API_BASE_URL = import.meta.env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
 
 // Permission utility
 const usePermissions = () => {
@@ -176,6 +176,9 @@ const Vehicles = () => {
         // Add new vehicle
         setVehicles(prev => [...prev, newVehicle])
       }
+    } else {
+      // If no vehicle data provided (e.g., bulk upload), refresh the list
+      fetchVehicles()
     }
     handleModalClose()
   }
