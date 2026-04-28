@@ -221,7 +221,7 @@ export default function CompanyModal({
 
 
 {selectedCompany && (
-  <div className={`space-y-1 ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
+  <div className={`space-y-1 ${isReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
     
     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
       STATUS
