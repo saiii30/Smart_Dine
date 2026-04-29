@@ -23,8 +23,8 @@ interface TripModalProps {
 
 const TripModal = ({ trip, onClose, onSuccess }: TripModalProps) => {
   const { menuColor } = useTheme()
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [drivers, setDrivers] = useState<Driver[]>([])
+const [vehicles, setVehicles] = useState<Record<number, Vehicle[]>>({})
+const [drivers, setDrivers] = useState<Record<number, Driver[]>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [vehicleLoading, setVehicleLoading] = useState(false)
@@ -305,7 +305,10 @@ const fetchVehicles = async (scheduleIndex: number) => {
   })
 })
 
-    setVehicles(filteredVehicles)
+    setVehicles(prev => ({
+  ...prev,
+  [scheduleIndex]: filteredVehicles
+}))
   } catch (err) {
     console.error('Vehicle fetch failed', err)
   }
@@ -357,7 +360,10 @@ const fetchDrivers = async (scheduleIndex: number) => {
   })
 })
 
-    setDrivers(filteredDrivers)
+    setDrivers(prev => ({
+  ...prev,
+  [scheduleIndex]: filteredDrivers
+}))
   } catch (err) {
     console.error('Driver fetch failed', err)
   }
@@ -517,9 +523,12 @@ s.passengers = Array.from({ length: count }, (_, i) => ({
 }
 
   const updateSchedule = (index: number, field: string, value: string | number | undefined) => {
-    const updated = [...formData.schedules]
-    updated[index] = { ...updated[index], [field]: value }
-    setFormData({ ...formData, schedules: updated })
+     setFormData(prev => ({
+    ...prev,
+    schedules: prev.schedules.map((sch, i) =>
+      i === index ? { ...sch, [field]: value } : sch
+    )
+  }))
 
     if(field === "vechile_id"){
       fetchVehicles(index)
@@ -770,7 +779,7 @@ const selectClass =
       <div className="space-y-6">
         {formData.schedules.map((schedule, index) => (
           <div
-            key={index}
+            key={schedule.id || index}
             className="p-6 rounded-xl border border-gray-200 dark:border-gray-700
                        bg-gray-50 dark:bg-gray-800/50 shadow-sm"
           >
@@ -854,31 +863,35 @@ const selectClass =
    className={selectClass}
   value={schedule.trip_type}
   onChange={(e) => {
-    const updated = [...formData.schedules]
-    const s = updated[index]
- 
-    s.trip_type = e.target.value
+    setFormData(prev => ({
+  ...prev,
+  schedules: prev.schedules.map((sch, i) => {
+    if (i !== index) return sch
 
-    if (e.target.value === 'route') {
-      const count = s.passenger_count || 0
-      s.passengers = Array.from({ length: count }, (_) => ({
-        id : "",
-        name: '',
-        phone: '',
-        address: '',
-        pickup_point: '',
-        pickup_lat: undefined,
-        pickup_lng: undefined,
-        ispresent: true,
-        isdropped: false,
-        pickup: false,
-        timestamp: '',
-      }))
-    } else {
-      s.passengers = []
+    const value = e.target.value
+
+    return {
+      ...sch,
+      trip_type: value,
+      passengers:
+        value === 'route'
+          ? Array.from({ length: sch.passenger_count || 0 }, () => ({
+              id: "",
+              name: '',
+              phone: '',
+              address: '',
+              pickup_point: '',
+              pickup_lat: undefined,
+              pickup_lng: undefined,
+              ispresent: true,
+              isdropped: false,
+              pickup: false,
+              timestamp: '',
+            }))
+          : []
     }
-
-    setFormData({ ...formData, schedules: updated })
+  })
+}))
   }}
 >
 
@@ -1084,40 +1097,42 @@ const selectClass =
   if (activeScheduleIndex === null) return
 
   const address = await getAddressFromLatLng(lat, lng)
-  const updated = [...formData.schedules]
-  const s = updated[activeScheduleIndex]
+  setFormData(prev => ({
+  ...prev,
+  schedules: prev.schedules.map((sch, i) => {
+    if (i !== activeScheduleIndex) return sch
 
-  // 🔥 PASSENGER MODE
-  if (s.trip_type === 'route' && activePassengerIndex !== null) {
-    const p = s.passengers![activePassengerIndex]
+    let updatedSchedule = { ...sch }
 
-    p.pickup_point = address
-    p.pickup_lat = lat
-    p.pickup_lng = lng
-  }
-
-  // 🔵 SCHEDULE MODE
-  else {
-    if (activeField === 'starting_point') {
-      s.starting_point = address
-      s.starting_lat = lat
-      s.starting_lng = lng
-    } else if (activeField === 'end_point') {
-      s.end_point = address
-      s.end_lat = lat
-      s.end_lng = lng
+    if (sch.trip_type === 'route' && activePassengerIndex !== null) {
+      updatedSchedule.passengers = sch.passengers?.map((p, pi) =>
+        pi === activePassengerIndex
+          ? {
+              ...p,
+              pickup_point: address,
+              pickup_lat: lat,
+              pickup_lng: lng
+            }
+          : p
+      )
+    } else {
+      if (activeField === 'starting_point') {
+        updatedSchedule.starting_point = address
+        updatedSchedule.starting_lat = lat
+        updatedSchedule.starting_lng = lng
+      } else if (activeField === 'end_point') {
+        updatedSchedule.end_point = address
+        updatedSchedule.end_lat = lat
+        updatedSchedule.end_lng = lng
+      }
     }
-  }
 
-  // distance + time
-  if (distanceKm !== undefined) s.distance_km = distanceKm
-  if (durationMin !== undefined) s.duration_min = Math.ceil(durationMin)
+    if (distanceKm !== undefined) updatedSchedule.distance_km = distanceKm
+    if (durationMin !== undefined) updatedSchedule.duration_min = Math.ceil(durationMin)
 
-  if (!durationMin && distanceKm) {
-    s.duration_min = Math.ceil((distanceKm / 40) * 60)
-  }
-
-  setFormData({ ...formData, schedules: updated })
+    return updatedSchedule
+  })
+}))
 }}
 />
 
@@ -1159,7 +1174,7 @@ const selectClass =
  {driverLoading ? (
   <option>Loading drivers...</option>
 ) : (
-  drivers.map((driver) => (
+  (drivers[index] || []).map((driver) => (
     <option key={driver.id} value={driver.id}>
       {driver?.user?.name || 'Unknown Driver'}
     </option>
@@ -1178,20 +1193,24 @@ const selectClass =
       onChange={(e) => {
   const vehicleId = Number(e.target.value)
 
-  const selectedVehicle = vehicles.find(v => v.id === vehicleId)
+  const selectedVehicle = (vehicles[index] || []).find(v => v.id === vehicleId)
   const maxCapacity = selectedVehicle?.seating_capacity || 0
 
-  const updated = [...formData.schedules]
-  const s = updated[index]
+  setFormData(prev => ({
+  ...prev,
+  schedules: prev.schedules.map((sch, i) => {
+    if (i !== index) return sch
 
-  s.vehicle_id = vehicleId
-
-  // ✅ Auto adjust passenger count
-  if (s.passenger_count > maxCapacity) {
-    s.passenger_count = maxCapacity
-  }
-
-  setFormData({ ...formData, schedules: updated })
+    return {
+      ...sch,
+      vehicle_id: vehicleId,
+      passenger_count:
+        sch.passenger_count > maxCapacity
+          ? maxCapacity
+          : sch.passenger_count
+    }
+  })
+}))
 }}
     
                  className={selectClass}
@@ -1209,7 +1228,7 @@ const selectClass =
       {vehicleLoading ? (
   <option>Loading vehicles...</option>
 ) : (
-  vehicles.map((vehicle) => (
+  (vehicles[index] || []).map((vehicle) => (
     <option key={vehicle.id} value={vehicle.id}>
       {vehicle.vehicle_registration_number}
     </option>
@@ -1343,9 +1362,21 @@ if (!p) return null
                 type="text"
                 value={p.name}
                 onChange={(e) => {
-                  const updated = [...formData.schedules]
-                  updated[index].passengers![activePassengerTab].name = e.target.value
-                  setFormData({ ...formData, schedules: updated })
+                  setFormData(prev => ({
+  ...prev,
+  schedules: prev.schedules.map((sch, i) => {
+    if (i !== index) return sch
+
+    return {
+      ...sch,
+      passengers: sch.passengers?.map((p, pi) =>
+        pi === activePassengerTab
+          ? { ...p, name: e.target.value }
+          : p
+      )
+    }
+  })
+}))
                 }}
                className={INPUTClass}
               />
@@ -1363,10 +1394,21 @@ if (!p) return null
   onChange={(e) => {
     const value = e.target.value.replace(/\D/g, '') // only numbers
 
-    const updated = [...formData.schedules]
-    updated[index].passengers![activePassengerTab].phone = value
+    setFormData(prev => ({
+  ...prev,
+  schedules: prev.schedules.map((sch, i) => {
+    if (i !== index) return sch
 
-    setFormData({ ...formData, schedules: updated })
+    return {
+      ...sch,
+      passengers: sch.passengers?.map((p, pi) =>
+        pi === activePassengerTab
+          ? { ...p, phone: value }
+          : p
+      )
+    }
+  })
+}))
   }}
   className={INPUTClass}
 />
