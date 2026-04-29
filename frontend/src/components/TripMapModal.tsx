@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import axios from 'axios'
+import { api } from '../api/api'
 
 
 // Custom icons
@@ -155,7 +156,7 @@ const end = await fetchCoords(endLocation)
             let driver: [number, number] | null = null
             if (schedule.driver_id) {
                 try {
-                    const res = await axios.get(`api/mobile/locations?driver_id=${schedule.driver_id}`)
+                    const res = await api.get(`/mobile/locations?driver_id=${schedule.driver_id}`)
                     // const res = await API.get(`/locations/drivers/${schedule.driver_id}/current`)
                     if (res.data && res.data.latitude && res.data.longitude) {
                         driver = [res.data.latitude, res.data.longitude]

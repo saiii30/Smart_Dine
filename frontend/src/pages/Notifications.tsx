@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import axios from 'axios'
+import { api } from '../api/api'
 import { Bell, AlertTriangle, Calendar, CarTaxiFront, Users, Search, Clock, CheckCircle } from 'lucide-react'
 import { useSettings } from '../contexts/SettingsContext'
 
@@ -58,7 +58,7 @@ const Notifications = () => {
       if (selectedType) params.append('type', selectedType)
       if (selectedSeverity) params.append('severity', selectedSeverity)
       
-      const response = await axios.get(`/api/notifications/?${params.toString()}`)
+      const response = await api.get(`/notifications/?${params.toString()}`)
       setNotifications(response.data)
     } catch (error) {
       console.error('Failed to fetch notifications:', error)
@@ -181,7 +181,7 @@ const Notifications = () => {
 
   const handleAcknowledgeNotification = async (notificationId: string) => {
     try {
-      await axios.delete(`/api/notifications/${notificationId}`)
+      await api.delete(`/notifications/${notificationId}`)
       setNotifications(prev => prev.filter(n => n.id !== notificationId))
       
       // Emit custom event to update notification count in Layout

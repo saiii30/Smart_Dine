@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom"
 import { useEffect } from "react";
-import axios from "axios";
+import { api } from '../api/api'
 const plans = [
   {
     id: "1m",
@@ -49,7 +49,7 @@ useEffect(() => {
   const fetchAgencyPlan = async () => {
     try {
     
-      const res = await axios.get(`api/agency/${parent_id}`, {
+      const res = await api.get(`/agency/${parent_id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -94,7 +94,7 @@ useEffect(() => {
 
   try {
     
-    await axios.put("api/agency/plan", {
+    await api.put(`/agency/plan`, {
       plan_id: planId,
       parent_id: parent_id,
     }, {

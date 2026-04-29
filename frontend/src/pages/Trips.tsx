@@ -3,9 +3,8 @@ import { useDebounce } from '../hooks/useDebounce'
 import { Plus, Edit, Trash2, MapPin, Search, Users } from 'lucide-react'
 import { Trip, Company } from '../types'
 import TripModal from '../components/TripModal'
-import axios from 'axios'
+import { api } from '../api/api'
 import DeleteModal from '../components/DeleteModal'
-import API from "../api/axiosConfig"
 import { useAuth } from '../contexts/AuthContext'
 
 const Trips = () => {
@@ -43,7 +42,7 @@ const fetchTrips = async (signal?: AbortSignal) => {
   setFetchingTrips(true)
   
   try {
-    const response = await API.get('/trip-schedules/', { signal })
+    const response = await api.get('/trip-schedules/', { signal })
 
     const schedules = Array.isArray(response.data) ? response.data : []
 
@@ -145,8 +144,8 @@ const fetchCompanies = async (signal?: AbortSignal) => {
   setFetchingCompanies(true)
 
   try {
-    const response = await axios.get(
-      `api/companies/trip/dropdown/?agency_id=${agencyId}`,
+    const response = await api.get(
+      `/companies/trip/dropdown/?agency_id=${agencyId}`,
       { signal }
     )
 
@@ -190,7 +189,7 @@ const confirmDelete = async () => {
   setDeleteLoading(true)
 
   try {
-    await axios.delete(`api/trip-schedules/${deleteId}`)
+    await api.delete(`/trip-schedules/${deleteId}`)
     fetchTrips()
   } catch (error: any) {
   console.error('Failed to delete trip:', error)

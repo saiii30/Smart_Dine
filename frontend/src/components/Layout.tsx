@@ -8,7 +8,7 @@ import SettingsModal from './SettingsModal'
 import DriverUnauthorizedScreen from './DriverUnauthorizedScreen'
 import { Wallet } from 'lucide-react'
 import { Building2} from "lucide-react";
-import axios from 'axios'
+import { api } from '../api/api'
 const Layout = () => {
   const { user, logout } = useAuth()
   const { menuColor } = useTheme()
@@ -31,7 +31,7 @@ const Layout = () => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await axios.get('/api/notifications/')
+      const response = await api.get('/api/notifications/')
       const allNotifications = response.data
       
       // Map frontend document IDs to backend document types

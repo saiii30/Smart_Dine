@@ -1,26 +1,8 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import { api } from "../api/api";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
-
-// Create an Axios instance with default config
-const api = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL,
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add a response interceptor to handle errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('API Error:', error);
-    return Promise.reject(error);
-  }
-);
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -45,7 +27,7 @@ const Login = () => {
   useEffect(() => {
     const fetchAgencies = async () => {
       try {
-        const response = await api.get("api/auth/agencies");
+        const response = await api.get("/auth/agencies");
         setAgencies(response.data);
       } catch (err) {
         console.error("Error fetching agencies:", err);
@@ -67,7 +49,7 @@ const Login = () => {
       }
 
       try {
-        const response = await api.get(`/api/companies/dropdown?agency_id=${formData.agencyId}`);
+        const response = await api.get(`/companies/dropdown?agency_id=${formData.agencyId}`);
         setFilteredItCompanies(response.data);
       } catch (err) {
         console.error("Error fetching filtered companies:", err);
@@ -86,15 +68,14 @@ const Login = () => {
       ...prev,
       [name]: value
     }));
-    if(name === 'agencyId') {
+    if (name === 'agencyId') {
       localStorage.setItem('selectedAgencyId', value);
-      // Clear IT company selection when agency changes
-      if (accountType === 'it') {
-        setFormData(prev => ({
-          ...prev,
-          itCompanyId: ""
-        }));
-      }
+      setFormData(prev => ({
+        ...prev,
+        agencyId: value,
+        ...(accountType === 'it' ? { itCompanyId: "" } : {}),
+      }));
+      return; // skip the outer setFormData
     }
   };
 
@@ -145,7 +126,7 @@ else {
 
   } catch (err: any) {
     console.error("Login error:", err);
-    setError(err.response?.data?.detail || "Failed to login. Please check your credentials.");
+    setError(err.message || "Failed to login. Please check your credentials.");
   } finally {
     setLoading(false);
   }

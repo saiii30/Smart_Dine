@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
-import API from '../api/axiosConfig'
+import { api } from '../api/api'
 import { Plus, Edit, Trash2, User, Search } from 'lucide-react'
 import { Driver } from '../types'
 import DriverModal from '../components/DriverModal'
@@ -56,7 +56,7 @@ const Drivers = () => {
  
   const fetchDrivers = async () => {
     try {
-      const response = await API.get('/drivers/')
+      const response = await api.get('/drivers/')
       setDrivers(response.data)
     } catch (error) {
       console.error('Failed to fetch drivers:', error)
@@ -86,7 +86,7 @@ const Drivers = () => {
     setDrivers(drivers.filter(driver => driver.id !== id))
 
     try {
-      await API.delete(`/drivers/${id}`)
+      await api.delete(`/drivers/${id}`)
     } catch (error: any) {
       // Rollback on error
       setDrivers(previousDrivers)

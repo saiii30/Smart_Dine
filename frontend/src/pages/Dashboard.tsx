@@ -1,5 +1,5 @@
 import { useEffect, useReducer, memo } from 'react'
-import API from '../api/axiosConfig'
+import { api } from '../api/api'
 import { Car, Users } from 'lucide-react'
 import { Vehicle, Driver, TripSchedule } from '../types'
 import StatCard from '../components/dashboard/StatCard'
@@ -102,8 +102,8 @@ const Dashboard = memo(() => {
   const fetchStats = async () => {
     try {
       const [vehiclesRes, driversRes] = await Promise.all([
-        API.get('/vehicles/'),
-        API.get('/drivers/'),
+        api.get('/vehicles/'),
+        api.get('/drivers/'),
       ])
 
       const vehicles = vehiclesRes.data as Vehicle[]
@@ -151,10 +151,10 @@ const Dashboard = memo(() => {
       try {
         // Batch all API calls together for better performance
         const [vehiclesRes, driversRes, tripsRes, notificationsRes] = await Promise.allSettled([
-          API.get('/vehicles/'),
-          API.get('/drivers/'),
-          API.get('/trip-schedules/'),
-          API.get('/notifications/')
+          api.get('/vehicles/'),
+          api.get('/drivers/'),
+          api.get('/trip-schedules/'),
+          api.get('/notifications/')
         ])
         
         // Check if component is still mounted

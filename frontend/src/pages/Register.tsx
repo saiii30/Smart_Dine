@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
 import { Link, useNavigate } from 'react-router-dom'
+import { api } from "../api/api";
 import { useAuth } from '../contexts/AuthContext'
 import AuthLayout from '../components/AuthLayout'
 
@@ -20,13 +20,20 @@ const Register = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  /* -------- Fetch agencies for dropdown -------- */
+  // Fetch agencies on component mount
   useEffect(() => {
-    axios
-      .get(`${import.meta.env.VITE_BACKEND_URL}/api/auth/agencies`)
-      .then(res => setAgencies(res.data))
-      .catch(() => setError('Failed to load agencies'))
-  }, [])
+    const fetchAgencies = async () => {
+      try {
+        const response = await api.get("/auth/agencies");
+        setAgencies(response.data);
+      } catch (err) {
+        console.error("Error fetching agencies:", err);
+        setError("Failed to load agencies. Please try again later.");
+      }
+    };
+
+    fetchAgencies();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })

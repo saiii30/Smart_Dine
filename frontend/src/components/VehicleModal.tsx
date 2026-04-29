@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { X, ShieldCheck, Car, User, Upload, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react'
-import axios from 'axios'
+import { api } from '../api/api'
 import ExcelJS from 'exceljs'
 import { Vehicle } from '../types'
 import { useAuth } from '../contexts/AuthContext'
@@ -285,7 +285,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
             formData.append('seating_capacity', String(row['Seating Capacity'] || 4));
             if(row['GPS ID']) formData.append('gps_device_id', row['GPS ID']);
 
-            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/`, formData);
+            await api.post('/api/vehicles/', formData);
             successCount++;
           } catch (err) {
             failCount++;
@@ -375,7 +375,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
     try {
       // Check vehicle registration number uniqueness
       if (draft.vehicle_registration_number?.trim()) {
-        const regResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/check-registration/${draft.vehicle_registration_number}`);
+        const regResponse = await api.get(`/vehicles/check-registration/${draft.vehicle_registration_number}`);
         if (regResponse.data.exists && (!vehicle || regResponse.data.vehicle_id !== vehicle.id)) {
           errors.vehicle_registration_number = 'Vehicle registration number already exists';
         }
@@ -383,7 +383,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
       
       // Check RC number uniqueness
       if (draft.rc_number?.trim()) {
-        const rcResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/check-rc/${draft.rc_number}`);
+        const rcResponse = await api.get(`/vehicles/check-rc/${draft.rc_number}`);
         if (rcResponse.data.exists && (!vehicle || rcResponse.data.vehicle_id !== vehicle.id)) {
           errors.rc_number = 'RC number already exists';
         }
@@ -445,9 +445,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
       if (files.pollution_certificate) formData.append('pollution_certificate', files.pollution_certificate);
 
       // Log auth header and FormData entries for debug
-      try {
-        console.log('Auth header before submit:', axios.defaults.headers?.common?.Authorization);
-      } catch (e) { }
+     
       for (const pair of (formData as any).entries()) {
         console.log('FormData:', pair[0], pair[1]);
       }
@@ -455,9 +453,9 @@ const isSupervisor = user?.role === 'SUPERVISOR';
       // For edit mode: use PUT; for create mode: use POST
       let response;
       if (vehicle?.id) {
-        response = await axios.put(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/${vehicle.id}`, formData);
+        response = await api.put(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/${vehicle.id}`, formData);
       } else {
-        response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/`, formData);
+        response = await api.post(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/`, formData);
       }
 
       clearDraft();

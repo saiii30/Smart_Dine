@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import axios from 'axios'
+import {api} from '../api/api'
 import ExcelJS from 'exceljs'
 import { X, Upload, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react'
 import { Driver } from '../types'
@@ -275,7 +275,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
             if (row['Previous Employer Experience']) formData.append('previous_employer_experience', String(row['Previous Employer Experience']).trim());
             if (row['Languages Spoken']) formData.append('languages_spoken', String(row['Languages Spoken']).trim());
 
-            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/drivers/`, formData);
+            await api.post("/drivers/", formData);
             successCount++;
           } catch (err: any) {
             failCount++;
@@ -493,7 +493,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     try {
       // Check phone number uniqueness
       if (draft.phone_number?.trim()) {
-        const phoneResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/drivers/check-phone/${draft.phone_number.replace(/\D/g, '')}`);
+        const phoneResponse = await api.get(`/drivers/check-phone/${draft.phone_number.replace(/\D/g, '')}`);
         if (phoneResponse.data.exists && (!isEditing || phoneResponse.data.driver_id !== (driver as any)?.id)) {
           errors.phone_number = 'Phone number already exists';
         }
@@ -501,7 +501,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       
       // Check Aadhar number uniqueness (only if provided)
       if (draft.aadhar_number?.trim()) {
-        const aadharResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/drivers/check-aadhar/${draft.aadhar_number.replace(/\D/g, '')}`);
+        const aadharResponse = await api.get(`/drivers/check-aadhar/${draft.aadhar_number.replace(/\D/g, '')}`);
         if (aadharResponse.data.exists && (!isEditing || aadharResponse.data.driver_id !== (driver as any)?.id)) {
           errors.aadhar_number = 'Aadhar number already exists';
         }
@@ -509,7 +509,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       
       // Check driving license uniqueness
       if (draft.driving_license_number?.trim()) {
-        const licenseResponse = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/drivers/check-license/${draft.driving_license_number}`);
+        const licenseResponse = await api.get(`/drivers/check-license/${draft.driving_license_number}`);
         if (licenseResponse.data.exists && (!isEditing || licenseResponse.data.driver_id !== (driver as any)?.id)) {
           errors.driving_license_number = 'Driving license number already exists';
         }
@@ -558,14 +558,14 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
         if (!draft.password_modified) {
           payload.delete('password'); // Don't update password if it wasn't modified
         }
-        await axios.put(`${import.meta.env.VITE_BACKEND_URL}/api/drivers/${(driver as any).id}`, payload);
+        await api.put(`/drivers/${(driver as any).id}`, payload);
       } else {
         // For new drivers, require a password
         if (!draft.password) {
           alert('Please enter a password');
           return;
         }
-        await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/drivers/`, payload);
+        await api.post("/drivers/", payload);
       }
 
       clearDraft();

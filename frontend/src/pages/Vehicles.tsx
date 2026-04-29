@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
-import axios from 'axios'
+import { api } from '../api/api'
 import { Plus, Edit, Trash2, Car, Search, AlertCircle, RefreshCw } from 'lucide-react'
 import { Vehicle, Trip } from '../types'
 import VehicleModal from '../components/VehicleModal'
@@ -60,7 +60,7 @@ const Vehicles = () => {
     try {
       setError(null)
       abortControllerRef.current = new AbortController()
-      const response = await axios.get(`${API_BASE_URL}/api/vehicles/`, {
+      const response = await api.get(`/vehicles/`, {
         signal: abortControllerRef.current.signal
       })
       setVehicles(response.data)
@@ -77,7 +77,7 @@ const Vehicles = () => {
   const fetchTrips = async () => {
     try {
       abortControllerRef.current = new AbortController()
-      const response = await axios.get(`${API_BASE_URL}/api/trips/`, {
+      const response = await api.get(`/trips/`, {
         signal: abortControllerRef.current.signal
       })
       setTrips(response.data)
@@ -120,7 +120,7 @@ const Vehicles = () => {
   const handleEdit = async (vehicle: Vehicle) => {
     try {
       // Fetch complete vehicle details to ensure all fields are available
-      const response = await axios.get(`${API_BASE_URL}/api/vehicles/${vehicle.id}`)
+      const response = await api.get(`/vehicles/${vehicle.id}`)
       setEditingVehicle(response.data)
       setIsModalOpen(true)
     } catch (error) {
@@ -140,7 +140,7 @@ const Vehicles = () => {
     if (!showDeleteModal) return
 
     try {
-      await axios.delete(`${API_BASE_URL}/api/vehicles/${showDeleteModal}`)
+      await api.delete(`/vehicles/${showDeleteModal}`)
       setVehicles(prev => prev.filter(v => v.id !== showDeleteModal))
       setShowDeleteModal(null)
     } catch (error: any) {

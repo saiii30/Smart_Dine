@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import axios from "axios";
+import {api} from "../api/api";
 import { User } from "../types";
  
 interface LoginPayload {
@@ -43,11 +43,7 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
   /* -------------------- LOAD USER -------------------- */
   const fetchUser = async () => {
     try {
-      const res = await axios.get(`/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await api.get("/auth/me");
       setUser(res.data);
     } catch (err) {
       console.error("Failed to fetch user", err);
@@ -61,14 +57,14 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
     const storedToken = localStorage.getItem("token");
     if (storedToken) {
       setToken(storedToken);
-      axios.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
+      api.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
     } else {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (token) {
+    if (token && !user) {
       fetchUser();
     }
   }, [token]);
@@ -76,29 +72,18 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
   /* -------------------- LOGIN -------------------- */
   const login = async (data: LoginPayload) => {
     try {
-      const res = await axios.post(
-        `/api/auth/login`,
-        data,
-        {
-          headers: { "Content-Type": "application/json" },
-          withCredentials: true
-        }
-      );
+      const res = await api.post("/auth/login", data);
  
       const { access_token } = res.data;
  
       // Store the token
       localStorage.setItem("token", access_token);
       setToken(access_token);
-      axios.defaults.headers.common.Authorization = `Bearer ${access_token}`;
+      //api.defaults.headers.common.Authorization = `Bearer ${access_token}`;
  
       // Fetch user data using the token
-      const userResponse = await axios.get(`/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-        },
-      });
- 
+      const userResponse = await api.get("/auth/me");
+
       setUser(userResponse.data); // Set user data from the /me endpoint
       return userResponse.data; // Return user data for potential use in components
     } catch (err: any) {
@@ -116,7 +101,7 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
     agencyId: string
   ) => {
     try {
-      await axios.post(`/api/auth/register`, {
+      await api.post("/auth/register", {
         name,
         email,
         password,
@@ -148,7 +133,7 @@ export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNo
 
 const refreshUser = async () => {
   try {
-    const res = await axios.get(`/api/auth/me`)
+    const res = await api.get("/auth/me");
 
     console.log("REFRESH USER:", res.data) // debug
 

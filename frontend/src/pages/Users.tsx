@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import {  Trash2, User, Search } from 'lucide-react'
 import { useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import api from '../api/axiosConfig'
+import { api } from '../api/api'
 
 export interface AppUser {
   id: string
