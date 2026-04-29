@@ -285,7 +285,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
             formData.append('seating_capacity', String(row['Seating Capacity'] || 4));
             if(row['GPS ID']) formData.append('gps_device_id', row['GPS ID']);
 
-            await api.post('/api/vehicles/', formData);
+            await api.post('/vehicles/', formData);
             successCount++;
           } catch (err) {
             failCount++;
@@ -453,9 +453,9 @@ const isSupervisor = user?.role === 'SUPERVISOR';
       // For edit mode: use PUT; for create mode: use POST
       let response;
       if (vehicle?.id) {
-        response = await api.put(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/${vehicle.id}`, formData);
+        response = await api.put(`/vehicles/${vehicle.id}`, formData);
       } else {
-        response = await api.post(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/`, formData);
+        response = await api.post('/vehicles/', formData);
       }
 
       clearDraft();

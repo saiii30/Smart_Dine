@@ -31,7 +31,7 @@ const Layout = () => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await api.get('/api/notifications/')
+      const response = await api.get('/notifications/')
       const allNotifications = response.data
       
       // Map frontend document IDs to backend document types

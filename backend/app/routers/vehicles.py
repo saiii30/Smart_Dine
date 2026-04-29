@@ -84,7 +84,11 @@ def process_vehicle_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
     for field in date_fields:
         if field in data and isinstance(data[field], str):
             try:
-                data[field] = datetime.fromisoformat(data[field].replace('Z', '+00:00'))
+                # Handle YYYY-MM-DD format from frontend
+                if len(data[field]) == 10 and data[field].count('-') == 2:
+                    data[field] = datetime.strptime(data[field], '%Y-%m-%d')
+                else:
+                    data[field] = datetime.fromisoformat(data[field].replace('Z', '+00:00'))
             except (ValueError, AttributeError):
                 data[field] = None
     
@@ -96,6 +100,8 @@ def process_vehicle_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
                 data[field] = data[field].lower() in ('true', '1', 'yes')
             elif isinstance(data[field], bool):
                 data[field] = data[field]
+            else:
+                data[field] = bool(data[field])
     
     # Convert string numbers to integers
     int_fields = ['seating_capacity', 'manufacturing_year']
@@ -130,9 +136,11 @@ async def create_vehicle(
         data = process_vehicle_data(dict(form_data))
         
         # Check for required fields
-        required_fields = ['vehicle_brand', 'vehicle_model', 'manufacturing_year', 'vehicle_registration_number', 'rc_number', 'vehicle_type', 'seating_capacity']
+        required_fields = ['vehicle_brand', 'vehicle_model', 'manufacturing_year', 'vehicle_registration_number', 'rc_number', 'vehicle_type', 'seating_capacity', 'fuel_type', 'registration_date', 'registration_expiry', 'insurance_number', 'insurance_date', 'insurance_expiry', 'service_expiry', 'puc_expiry']
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
+            logger.error(f"Missing required fields: {missing_fields}")
+            logger.error(f"Form data received: {list(data.keys())}")
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"missing_fields": missing_fields}
@@ -643,3 +651,41 @@ def get_available_vehicles(
             status_code=500,
             detail="Error fetching available vehicles"
         )
+
+@router.get("/check-registration/{registration_number}")
+def check_vehicle_registration(
+    registration_number: str,
+    db: Session = Depends(get_db)
+):
+    """Check if vehicle registration number is already in use"""
+    if not registration_number:
+        return {"exists": False, "message": "Registration number not provided"}
+    
+    # Check if registration number exists in vehicles table
+    existing_vehicle = db.query(models.Vehicle).filter(
+        models.Vehicle.vehicle_registration_number == registration_number
+    ).first()
+    
+    if existing_vehicle:
+        return {"exists": True, "vehicle_id": existing_vehicle.id, "message": "Registration number already exists"}
+    
+    return {"exists": False, "message": "Registration number available"}
+
+@router.get("/check-rc/{rc_number}")
+def check_vehicle_rc(
+    rc_number: str,
+    db: Session = Depends(get_db)
+):
+    """Check if vehicle RC number is already in use"""
+    if not rc_number:
+        return {"exists": False, "message": "RC number not provided"}
+    
+    # Check if RC number exists in vehicles table
+    existing_vehicle = db.query(models.Vehicle).filter(
+        models.Vehicle.rc_number == rc_number
+    ).first()
+    
+    if existing_vehicle:
+        return {"exists": True, "vehicle_id": existing_vehicle.id, "message": "RC number already exists"}
+    
+    return {"exists": False, "message": "RC number available"}
