@@ -10,9 +10,7 @@ if (!API_BASE_URL) {
 export const api = axios.create({
   baseURL: API_BASE_URL + "/api",
   withCredentials: true, // important for auth/cookies
-  headers: {
-    "Content-Type": "application/json",
-  },
+  // Don't set Content-Type here to allow FormData to set multipart/form-data with boundary
 });
 
 // 🔥 Request interceptor (optional: attach token)

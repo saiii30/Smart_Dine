@@ -327,7 +327,6 @@ def read_drivers(
     query = (
         db.query(models.Driver)
         .join(models.User, models.Driver.id == models.User.id)
-        .options(joinedload(models.Driver.user))
     )
     
    # Apply agency filter for all users (including super_admin)
@@ -346,22 +345,13 @@ def read_drivers(
         .all()
     )
     
-    # Map to response model (user is already loaded)
+    # Map to response model - need to load user data separately
     driver_responses = []
 
     for driver in drivers:
-
-        if hasattr(driver, 'user') and driver.user:
-
-            driver_responses.append(map_driver_response(driver, driver.user))
-
-        else:
-
-            # Handle case where user is not loaded (shouldn't happen with joinedload)
-
-            driver_responses.append(map_driver_response(driver, None))
-
-   
+        # Load user data for each driver
+        user = db.query(models.User).filter(models.User.id == driver.id).first()
+        driver_responses.append(map_driver_response(driver, user))
 
     return driver_responses
 
@@ -625,6 +615,53 @@ def delete_driver(
         )
 
 
+@router.get("/check-phone/{phone_number}")
+def check_phone_number(
+    phone_number: str,
+    db: Session = Depends(get_db)
+):
+    """Check if phone number is already in use"""
+    # Clean and validate phone number
+    try:
+        cleaned_phone = validate_phone_number(phone_number)
+    except HTTPException:
+        return {"exists": True, "message": "Invalid phone number format"}
+    
+    # Check if phone number exists in users table
+    existing_user = db.query(models.User).filter(
+        models.User.contact_number == cleaned_phone
+    ).first()
+    
+    if existing_user:
+        return {"exists": True, "driver_id": existing_user.id, "message": "Phone number already in use"}
+    
+    return {"exists": False, "message": "Phone number available"}
+
+@router.get("/check-aadhar/{aadhar_number}")
+def check_aadhar_number(
+    aadhar_number: str,
+    db: Session = Depends(get_db)
+):
+    """Check if Aadhar number is already in use"""
+    # Clean and validate Aadhar number (remove non-digits)
+    if not aadhar_number:
+        return {"exists": False, "message": "Aadhar number not provided"}
+    
+    cleaned_aadhar = ''.join(filter(str.isdigit, aadhar_number))
+    
+    # Basic Aadhar validation (12 digits)
+    if len(cleaned_aadhar) != 12:
+        return {"exists": True, "message": "Invalid Aadhar number format"}
+    
+    # Check if Aadhar number exists in drivers table
+    existing_driver = db.query(models.Driver).filter(
+        models.Driver.aadhar_number == cleaned_aadhar
+    ).first()
+    
+    if existing_driver:
+        return {"exists": True, "driver_id": existing_driver.id, "message": "Aadhar number already exists"}
+    
+    return {"exists": False, "message": "Aadhar number available"}
 
 # list available drivers within a specific time range
 @router.get("/available/drivers", response_model=List[schemas.DriverResponse])

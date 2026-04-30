@@ -1,13 +1,11 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { api } from '../api/api'
 import { Plus, Edit, Trash2, Car, Search, AlertCircle, RefreshCw } from 'lucide-react'
-import { Vehicle, Trip } from '../types'
+import { Vehicle, TripSchedule } from '../types'
 import VehicleModal from '../components/VehicleModal'
 import VehicleViewModal from '../components/VehicleViewModal'
 import { useAuth } from '../contexts/AuthContext'
 
-// API configuration - proper environment variable setup
-const API_BASE_URL = import.meta.env?.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
 
 // Permission utility
 const usePermissions = () => {
@@ -19,9 +17,11 @@ const usePermissions = () => {
 
 const Vehicles = () => {
   const { canManageVehicles } = usePermissions()
+  const { user } = useAuth()
+  console.log('Vehicles component - User role:', user?.role, 'canManageVehicles:', canManageVehicles)
   const abortControllerRef = useRef<AbortController | null>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [trips, setTrips] = useState<Trip[]>([])
+  const [trips, setTrips] = useState<TripSchedule[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
@@ -92,10 +92,9 @@ const Vehicles = () => {
   }
 
   // Memoized vehicle trips calculation
-  const getVehicleTrips = useCallback((vehicleId: number): Trip[] => {
-    return trips.filter(trip =>
-      trip.schedules.some(schedule => schedule.vehicle_id === vehicleId)
-    )
+  const getVehicleTrips = useCallback((vehicleId: number): TripSchedule[] => {
+    if (!trips || !Array.isArray(trips)) return []
+    return trips.filter(trip => trip.vehicle_id === vehicleId)
   }, [trips])
 
   const canDeleteVehicle = useCallback((vehicleId: number): boolean => {
@@ -105,8 +104,10 @@ const Vehicles = () => {
 
   
   const handleCreate = () => {
+    console.log('handleCreate called, canManageVehicles:', canManageVehicles)
     setEditingVehicle(null)
     setIsModalOpen(true)
+    console.log('isModalOpen set to true')
     // Clear any existing form data from localStorage to ensure clean form
     try {
       localStorage.removeItem('vehicle_modal_draft_v1')
