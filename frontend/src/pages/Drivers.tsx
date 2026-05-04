@@ -4,6 +4,7 @@ import { Plus, Edit, Trash2, User, Search } from 'lucide-react'
 import { Driver } from '../types'
 import DriverModal from '../components/DriverModal'
 import DriverViewModal from '../components/DriverViewModal'
+import DeleteModal from '../components/DeleteModal'
 import { useAuth } from '../contexts/AuthContext'
 
 const DRIVER_STATUS = {
@@ -31,6 +32,9 @@ const Drivers = () => {
   const [viewingDriver, setViewingDriver] = useState<Driver | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [driverToDelete, setDriverToDelete] = useState<Driver | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const debounceTimeoutRef = useRef<number>()
 
   // Debounce search input
@@ -76,17 +80,24 @@ const Drivers = () => {
     setIsModalOpen(true)
   }
  
-  const handleDelete = async (id: string) => {
-    const driverToDelete = drivers.find(d => d.id === id)
-    const driverName = driverToDelete?.user?.name || 'this driver'
-    if (!window.confirm(`Are you sure you want to delete ${driverName}? This action cannot be undone.`)) return
+  const handleDeleteClick = (driver: Driver) => {
+    setDriverToDelete(driver)
+    setIsDeleteModalOpen(true)
+  }
 
+  const handleDeleteConfirm = async () => {
+    if (!driverToDelete) return
+
+    setIsDeleting(true)
+    
     // Optimistic update - remove driver from UI immediately
     const previousDrivers = [...drivers]
-    setDrivers(drivers.filter(driver => driver.id !== id))
+    setDrivers(drivers.filter(driver => driver.id !== driverToDelete.id))
 
     try {
-      await api.delete(`/drivers/${id}`)
+      await api.delete(`/drivers/${driverToDelete.id}`)
+      setIsDeleteModalOpen(false)
+      setDriverToDelete(null)
     } catch (error: any) {
       // Rollback on error
       setDrivers(previousDrivers)
@@ -111,7 +122,14 @@ const Drivers = () => {
       }
       
       alert(errorMessage)
+    } finally {
+      setIsDeleting(false)
     }
+  }
+
+  const handleDeleteCancel = () => {
+    setIsDeleteModalOpen(false)
+    setDriverToDelete(null)
   }
  
   const handleModalClose = () => {
@@ -290,7 +308,7 @@ const Drivers = () => {
                     </button>
 
                     <button
-                      onClick={() => handleDelete(driver.id)}
+                      onClick={() => handleDeleteClick(driver)}
                       aria-label={`Delete driver ${driver.user?.name || 'record'}`}
                       className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                     >
@@ -321,9 +339,18 @@ const Drivers = () => {
           onClose={handleViewModalClose}
         />
       )}
+
+      {isDeleteModalOpen && (
+        <DeleteModal
+          title="Confirm Delete"
+          message={`Are you sure you want to delete ${driverToDelete?.user?.name || 'this driver'}? This action cannot be undone.`}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+          loading={isDeleting}
+        />
+      )}
     </div>
   )
 }
  
 export default Drivers
- 

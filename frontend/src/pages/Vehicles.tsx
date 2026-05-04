@@ -103,11 +103,9 @@ const Vehicles = () => {
   }, [getVehicleTrips])
 
   
-  const handleCreate = () => {
-    console.log('handleCreate called, canManageVehicles:', canManageVehicles)
+  const handleCreate = () => {   
     setEditingVehicle(null)
     setIsModalOpen(true)
-    console.log('isModalOpen set to true')
     // Clear any existing form data from localStorage to ensure clean form
     try {
       localStorage.removeItem('vehicle_modal_draft_v1')

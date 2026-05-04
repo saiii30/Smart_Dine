@@ -25,7 +25,7 @@ router = APIRouter()
 UPLOAD_DIR = Path("uploads/vehicles")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-def save_upload_file(file: UploadFile, vehicle_id: int, file_type: str) -> str:
+def save_upload_file(file: UploadFile, vehicle_id: str, file_type: str) -> str:
     """Save an uploaded file and return the relative path"""
     if not file or not file.filename:
         return None
