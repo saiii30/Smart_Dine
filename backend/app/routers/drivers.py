@@ -7,16 +7,11 @@ import shutil
 import os
 import re
 import logging
-from datetime import date, time, datetime
+from datetime import datetime, date, time, timedelta
 from sqlalchemy import func, and_, or_
 import uuid
 from app.auth import get_password_hash
-from datetime import datetime, date, time
 import traceback
-
-from datetime import timedelta
-
-
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -323,15 +318,13 @@ def read_drivers(
     - **limit**: Maximum number of records to return
     - **status**: Filter by driver status (e.g., 'Active', 'Inactive')
     """
-    # Start with a base query that joins Driver and User
-    query = (
-        db.query(models.Driver)
-        .join(models.User, models.Driver.id == models.User.id)
-    )
+    # Start with a base query with eager loading
+    query = db.query(models.Driver).options(joinedload(models.Driver.user))
     
-   # Apply agency filter for all users (including super_admin)
-
-    query = query.filter(models.User.agency_id == current_user.agency_id)
+    # Add join only for filtering on User fields
+    query = query.join(models.User).filter(
+        models.User.agency_id == current_user.agency_id
+    )
     
     # Apply status filter if provided
     if status:
@@ -345,13 +338,11 @@ def read_drivers(
         .all()
     )
     
-    # Map to response model - need to load user data separately
-    driver_responses = []
-
-    for driver in drivers:
-        # Load user data for each driver
-        user = db.query(models.User).filter(models.User.id == driver.id).first()
-        driver_responses.append(map_driver_response(driver, user))
+    # Map to response model (user is already loaded via joinedload)
+    driver_responses = [
+        map_driver_response(driver, driver.user)
+        for driver in drivers
+    ]
 
     return driver_responses
 
@@ -738,10 +729,15 @@ def get_available_drivers(
         )
  
         # 4️ QUERY AVAILABLE DRIVERS
+        query = db.query(models.Driver).options(joinedload(models.Driver.user))
+        
+        # Add join only for filtering on User fields
+        query = query.join(models.User).filter(
+            models.User.agency_id == current_user.agency_id
+        )
+        
         available_drivers = (
-            db.query(models.Driver)
-            .join(models.User)
-            .options(joinedload(models.Driver.user))
+            query
             .outerjoin(
                 models.TripSchedule,
                 and_(
@@ -754,7 +750,6 @@ def get_available_drivers(
             .filter(
                 models.Driver.status == "Active",
                 models.User.is_active == True,
-                models.User.agency_id == current_user.agency_id,
                 models.TripSchedule.id.is_(None)  # No overlapping trip
             )
             .all()
