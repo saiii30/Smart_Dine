@@ -90,9 +90,12 @@ const TripMapModal = ({ schedule, onClose }: TripMapModalProps) => {
    const [pickedMap, setPickedMap] = useState<{
   [id: string]: { pickup: boolean; ispresent: boolean; isdropped: boolean }
 }>({})
-    
-
-
+   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+   
+   const showNotification = (type: 'success' | 'error', message: string) => {
+     setNotification({ type, message })
+     setTimeout(() => setNotification(null), 5000)
+   }
 
     // Fetch Data
     useEffect(() => {
@@ -165,14 +168,21 @@ const end = await fetchCoords(endLocation)
 
                 } catch (e) {
                     console.warn("Could not fetch initial driver location", e)
+                    showNotification('error', 'Could not fetch driver location')
                 }
             }
 
 if (start) setStartCoords(start);
-else console.warn("Start location failed");
+else {
+  console.warn("Start location failed");
+  showNotification('error', 'Could not resolve start location')
+}
 
 if (end) setEndCoords(end);
-else console.warn("End location failed");
+else {
+  console.warn("End location failed");
+  showNotification('error', 'Could not resolve end location')
+}
             setDriverLocation(driver)
 
             // Generate Pickups
@@ -262,7 +272,7 @@ else if (start && schedule.passenger_count && schedule.trip_type === "shuttle") 
 }
                 } catch (e: any) {
                     console.error("All route fetch attempts failed", e)
-                    
+                    showNotification('error', 'Could not fetch route information')
                 }
             }
             
@@ -363,6 +373,7 @@ const ws = new WebSocket(`${WS_URL}/api/mobile/ws/driver/${schedule.driver_id}`)
 
      ws.onerror = (err) => {
         console.error("❌ WS error", err)
+        showNotification('error', 'Connection error occurred')
     }
 
     ws.onclose = () => {
@@ -530,6 +541,25 @@ const rawActiveLocation = driverLocation || startCoords || endCoords || null
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            {/* Notification */}
+            {notification && (
+                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+                    notification.type === 'success' 
+                        ? 'bg-green-100 text-green-700 border border-green-200' 
+                        : 'bg-red-100 text-red-700 border border-red-200'
+                }`}>
+                    <div className="flex items-center justify-between">
+                        <span>{notification.message}</span>
+                        <button
+                            onClick={() => setNotification(null)}
+                            className="ml-4 text-gray-500 hover:text-gray-700"
+                        >
+                            ×
+                        </button>
+                    </div>
+                </div>
+            )}
+            
             <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden relative">
 
                 {/* Header */}
@@ -566,7 +596,10 @@ const rawActiveLocation = driverLocation || startCoords || endCoords || null
 
                     {loading ? (
                         <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-800/80 z-20">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                            <div className="flex flex-col items-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+                                <p className="text-gray-600 dark:text-gray-300">Loading map data...</p>
+                            </div>
                         </div>
                     ) : (
                         <MapContainer

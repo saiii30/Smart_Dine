@@ -27,12 +27,18 @@ const [vehicles, setVehicles] = useState<Record<number, Vehicle[]>>({})
 const [drivers, setDrivers] = useState<Record<number, Driver[]>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [vehicleLoading, setVehicleLoading] = useState(false)
 const [driverLoading, setDriverLoading] = useState(false)
   const [activePassengerIndex, setActivePassengerIndex] = useState<number | null>(null)
   const [activePassengerTab, setActivePassengerTab] = useState(0)
  const { user } = useAuth()
  const isSupervisor = user?.role === 'SUPERVISOR'
+ 
+ const showNotification = (type: 'success' | 'error', message: string) => {
+   setNotification({ type, message })
+   setTimeout(() => setNotification(null), 5000)
+ }
 
   const [showMap, setShowMap] = useState(false)
 const [activeScheduleIndex, setActiveScheduleIndex] = useState<number | null>(null)
@@ -116,6 +122,7 @@ const labelClass =
     } catch (err) {
       
       console.error('Failed to fetch companies', err)
+      showNotification('error', 'Failed to fetch companies')
     }
   }
 
@@ -313,6 +320,7 @@ const fetchVehicles = async (scheduleIndex: number) => {
 }))
   } catch (err) {
     console.error('Vehicle fetch failed', err)
+    showNotification('error', 'Failed to fetch available vehicles')
   }
   finally {
     setVehicleLoading(false)
@@ -368,6 +376,7 @@ const fetchDrivers = async (scheduleIndex: number) => {
 }))
   } catch (err) {
     console.error('Driver fetch failed', err)
+    showNotification('error', 'Failed to fetch available drivers')
   }
   finally {
     setDriverLoading(false)
@@ -649,11 +658,13 @@ const handleSubmit = async (e: React.FormEvent) => {
     }
 
     onSuccess()
+    showNotification('success', trip ? 'Trip updated successfully' : 'Trip created successfully')
   } 
   catch (err: any) {
   const msg = err.response?.data?.detail || ""
 
     setError(msg || 'An error occurred while saving the trip')
+    showNotification('error', msg || 'An error occurred while saving the trip')
     console.error('Save failed', err)
 }
   finally {
@@ -671,6 +682,25 @@ const selectClass =
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+          notification.type === 'success' 
+            ? 'bg-green-100 text-green-700 border border-green-200' 
+            : 'bg-red-100 text-red-700 border border-red-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-4 text-gray-500 hover:text-gray-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className={`sticky z-50 top-0 ${headerColors.bg} px-6 py-4 flex justify-between items-center rounded-t-lg`}>
           <h2 className={`text-xl font-semibold ${headerColors.text}`}>
@@ -1177,7 +1207,9 @@ const selectClass =
   
 
  {driverLoading ? (
-  <option>Loading drivers...</option>
+  <option disabled>Loading drivers...</option>
+) : drivers[index] && drivers[index].length === 0 ? (
+  <option disabled>No drivers available</option>
 ) : (
   (drivers[index] || []).map((driver) => (
     <option key={driver.id} value={driver.id}>
@@ -1231,7 +1263,9 @@ const selectClass =
 
                   
       {vehicleLoading ? (
-  <option>Loading vehicles...</option>
+  <option disabled>Loading vehicles...</option>
+) : vehicles[index] && vehicles[index].length === 0 ? (
+  <option disabled>No vehicles available</option>
 ) : (
   (vehicles[index] || []).map((vehicle) => (
     <option key={vehicle.id} value={vehicle.id}>
@@ -1504,7 +1538,14 @@ if (!p) return null
         className="px-6 py-2.5 rounded-xl bg-primary-600 text-white
                    hover:bg-primary-700 shadow-md disabled:opacity-50"
       >
-        {loading ? 'Saving...' : trip ? 'Update Trip' : 'Create Trip'}
+        {loading ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            Saving...
+          </>
+        ) : (
+          trip ? 'Update Trip' : 'Create Trip'
+        )}
       </button>
 )}
 

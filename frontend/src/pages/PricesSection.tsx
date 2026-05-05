@@ -36,45 +36,63 @@ const plans = [
 export default function PriceSelection() {
  
   const [selectedPlan, setSelectedPlan] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const { user, token } = useAuth();
   const parent_id = localStorage.getItem('selectedAgencyId');
 
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message })
+    setTimeout(() => setNotification(null), 5000)
+  }
 
-   const { refreshUser  } = useAuth();
-   const navigate = useNavigate()
+  const { refreshUser  } = useAuth();
+  const navigate = useNavigate()
 
-  
-useEffect(() => {
-  const fetchAgencyPlan = async () => {
-    try {
-    
-      const res = await api.get(`/agency/${parent_id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  useEffect(() => {
+    const fetchAgencyPlan = async () => {
+      const startTime = Date.now()
+      setLoading(true)
+      try {
+      
+        const res = await api.get(`/agency/${parent_id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      const map: any = {
-        "1Month": "1m",
-        "3Month": "3m",
-        "6Month": "6m",
+        const map: any = {
+          "1Month": "1m",
+          "3Month": "3m",
+          "6Month": "6m",
+        }
+
+        if (res.data.plan) {
+          setSelectedPlan(map[res.data.plan]) // 
+        }
+        setError(null)
+        setTimeout(() => {
+          showNotification('success', 'Agency plan loaded successfully')
+        }, 300)
+      } catch (err) {
+        console.error("Failed to fetch agency", err)
+        setError('Failed to fetch agency plan')
+        showNotification('error', 'Failed to fetch agency plan')
+      } finally {
+        const elapsed = Date.now() - startTime
+        const minLoadingTime = 600 // minimum 600ms loading
+        
+        setTimeout(() => {
+          setLoading(false)
+        }, Math.max(0, minLoadingTime - elapsed))
       }
-
-      if (res.data.plan) {
-        setSelectedPlan(map[res.data.plan]) // 🔥 FIX HERE
-      }
-    } catch (err) {
-      console.error("Failed to fetch agency", err)
     }
-  }
 
-  if (parent_id) {
-    fetchAgencyPlan()
-  }
-
-  
-}, [parent_id])
+    if (parent_id) {
+      fetchAgencyPlan()
+    }
+  }, [parent_id])
 
 
    const handleSelectPlan = async (planId: string) => {
@@ -131,8 +149,41 @@ useEffect(() => {
 };
 
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+        <p className="text-gray-600 dark:text-gray-300">Loading pricing plans...</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:to-gray-950 py-20 px-6">
+    <div>
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+          notification.type === 'success' 
+            ? 'bg-green-100 text-green-700 border border-green-200' 
+            : 'bg-red-100 text-red-700 border border-red-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-4 text-gray-500 hover:text-gray-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
+          {error}
+        </div>
+      )}
       {/* Header */}
       <div className="text-center mb-16">
         <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white">

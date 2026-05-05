@@ -14,9 +14,15 @@ const LiveTracking = () => {
     const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
     const [isMapModalOpen, setIsMapModalOpen] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [connectionStatus, setConnectionStatus] = useState<
     'connecting' | 'connected' | 'reconnecting' | 'disconnected'
 >('connecting')
+
+    const showNotification = (type: 'success' | 'error', message: string) => {
+      setNotification({ type, message })
+      setTimeout(() => setNotification(null), 5000)
+    }
 
 
 
@@ -73,6 +79,7 @@ const ws = new WebSocket(
             setConnectionStatus('connected')
             setError(null)
             retryCount = 0
+            showNotification('success', 'Connected to live tracking')
         }
 
         ws.onmessage = (event) => {
@@ -82,12 +89,14 @@ const ws = new WebSocket(
                 setLoading(false)
             } catch {
                 setError("Invalid data received")
+                showNotification('error', 'Invalid data received from server')
             }
         }
 
         ws.onerror = () => {
             setConnectionStatus('disconnected')
             setError("WebSocket error")
+            showNotification('error', 'Connection error occurred')
         }
 
         ws.onclose = () => {
@@ -99,6 +108,7 @@ const ws = new WebSocket(
             } else {
                 setConnectionStatus('disconnected')
                 setError("Connection failed")
+                showNotification('error', 'Failed to connect to live tracking')
             }
         }
     }
@@ -158,14 +168,33 @@ const ws = new WebSocket(
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            <div className="flex flex-col items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-300">Loading live tracking data...</p>
             </div>
         )
     }
 
     return (
         <div className="p-6">
+            {/* Notification */}
+            {notification && (
+                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+                    notification.type === 'success' 
+                        ? 'bg-green-100 text-green-700 border border-green-200' 
+                        : 'bg-red-100 text-red-700 border border-red-200'
+                }`}>
+                    <div className="flex items-center justify-between">
+                        <span>{notification.message}</span>
+                        <button
+                            onClick={() => setNotification(null)}
+                            className="ml-4 text-gray-500 hover:text-gray-700"
+                        >
+                            ×
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {error && (
     <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
@@ -272,8 +301,15 @@ const ws = new WebSocket(
                 ))}
 
                 {filteredSchedules.length === 0 && (
-                    <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
-                        No active trips found matching your search.
+                    <div className="col-span-full text-center py-12">
+                        <div className="flex flex-col items-center">
+                            <div className="text-gray-500 dark:text-gray-400 mb-2">
+                                {loading ? 'Loading schedules...' : 'No active trips found matching your search.'}
+                            </div>
+                            {!loading && searchQuery && (
+                                <p className="text-sm text-gray-400">Try adjusting your search criteria.</p>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
