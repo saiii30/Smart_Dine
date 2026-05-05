@@ -260,7 +260,7 @@ def get_vehicles(
     summary="Get vehicle by ID",
     description="Retrieve detailed information about a specific vehicle.")
 def get_vehicle(
-    vehicle_id: int,
+    vehicle_id: str,
     include_maintenance: bool = False,
     include_trips: bool = False,
     current_user: models.User = Depends(get_current_active_user),
@@ -303,7 +303,7 @@ def get_vehicle(
     description="Update an existing vehicle's information.")
 
 async def update_vehicle(
-    vehicle_id: int,
+    vehicle_id: str,
     request: Request,
     current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -400,7 +400,7 @@ async def update_vehicle(
     description="Delete a vehicle by ID. This action cannot be undone.")
 
 def delete_vehicle(
-    vehicle_id: int,
+    vehicle_id: str,
     current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -483,7 +483,7 @@ def delete_vehicle(
     description="Retrieve a specific document for a vehicle.")
 
 async def get_vehicle_document(
-    vehicle_id: int,
+    vehicle_id: str,
     document_type: str,
     current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)

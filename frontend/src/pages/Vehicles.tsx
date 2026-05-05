@@ -30,8 +30,8 @@ const Vehicles = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [showDeleteModal, setShowDeleteModal] = useState<number | null>(null)
-  const [hoveredVehicleId, setHoveredVehicleId] = useState<number | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null)
+  const [hoveredVehicleId, setHoveredVehicleId] = useState<string | null>(null)
 
   // Debounce search query
   useEffect(() => {
@@ -92,12 +92,12 @@ const Vehicles = () => {
   }
 
   // Memoized vehicle trips calculation
-  const getVehicleTrips = useCallback((vehicleId: number): TripSchedule[] => {
+  const getVehicleTrips = useCallback((vehicleId: string): TripSchedule[] => {
     if (!trips || !Array.isArray(trips)) return []
     return trips.filter(trip => trip.vehicle_id === vehicleId)
   }, [trips])
 
-  const canDeleteVehicle = useCallback((vehicleId: number): boolean => {
+  const canDeleteVehicle = useCallback((vehicleId: string): boolean => {
     const vehicleTrips = getVehicleTrips(vehicleId)
     return vehicleTrips.length === 0
   }, [getVehicleTrips])
@@ -133,7 +133,7 @@ const Vehicles = () => {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id:string) => {
     setShowDeleteModal(id)
   }
 
