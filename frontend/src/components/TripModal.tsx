@@ -78,6 +78,7 @@ const labelClass =
     pickup?: boolean
     ispresent?: boolean
     isdropped?: boolean
+    dropoff?:boolean
   }[]
   passenger_count: number
   driver_id?: string
@@ -260,6 +261,7 @@ useEffect(() => {
         pickup: p.pickup,
         ispresent: p.ispresent,
         isdropped: p.isdropped,
+        dropoff:p.dropoff,
         })) : []
     })),
   })
@@ -514,6 +516,7 @@ s.passengers = Array.from({ length: count }, (_, i) => ({
   pickup: existing[i]?.pickup,
   ispresent: existing[i]?.ispresent,
   isdropped: existing[i]?.isdropped,
+  dropoff:existing[i]?.dropoff,
   timestamp: existing[i]?.timestamp,
 }))
   }
@@ -616,10 +619,11 @@ const handleSubmit = async (e: React.FormEvent) => {
           pickup_point: p.pickup_point,
           pickup_lat: p.pickup_lat,
           pickup_lng: p.pickup_lng,
-          pickup:false,
+          pickup:p.pickup || false,
           timestamp:  new Date().toISOString(),
-          ispresent: true,
+          ispresent:p.ispresent || true,
           isdropped: p.isdropped || false,
+          dropoff:p.dropoff || false,
 
         })) || []
 
@@ -885,6 +889,7 @@ const selectClass =
               pickup_lng: undefined,
               ispresent: true,
               isdropped: false,
+              dropoff:false,
               pickup: false,
               timestamp: '',
             }))

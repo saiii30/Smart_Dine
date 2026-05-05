@@ -196,6 +196,7 @@ export interface RoutePoint {
   timestamp: string
   ispresent: boolean
   isdropped: boolean
+  dropoff:boolean
 }
 
 export interface Trip {
