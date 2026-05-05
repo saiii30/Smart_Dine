@@ -230,7 +230,7 @@ else {
 
         <div>
           <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Username
+            Email or Phone Number
           </label>
           <input
             id="username"

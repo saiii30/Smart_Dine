@@ -1,6 +1,7 @@
 from typing import List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Form, File, UploadFile
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 from app.database import get_db
 from app import models, schemas, auth
 import shutil
@@ -77,7 +78,16 @@ def save_upload_file(upload_file: UploadFile, destination_folder: str) -> str:
         return file_path
     finally:
         upload_file.file.close()
- 
+
+def delete_old_file(file_path: str) -> None:
+    """Delete an old file if it exists"""
+    if file_path:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            logger.error(f"Error deleting file {file_path}: {e}")
+
 def validate_phone_number(phone: str) -> str:
     """Validate and clean phone number."""
     if not phone:
@@ -498,113 +508,98 @@ async def update_driver(
     db.commit()
     db.refresh(db_driver)
     db.refresh(db_user)
-   
+    
     return map_driver_response(db_driver, db_user)
 
 @router.delete("/{driver_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_driver(
-    driver_id: str, # str
+    driver_id: str,
+    current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    logger.info(f"Delete request for driver {driver_id} (auth temporarily disabled)")
-    
     try:
-        # Test database connection
-        try:
-            from sqlalchemy import text
-            db.execute(text("SELECT 1"))
-            logger.info("Database connection OK")
-        except Exception as db_error:
-            logger.error(f"Database connection failed: {str(db_error)}")
-            raise HTTPException(status_code=500, detail=f"Database connection error: {str(db_error)}")
+        # Get the driver to delete
+        db_driver = db.query(models.Driver).filter(
+            models.Driver.id == driver_id
+        ).first()
         
-        # Test if driver exists first
-        try:
-            driver_test = db.query(models.Driver).filter(models.Driver.id == driver_id).first()
-            if not driver_test:
-                logger.error(f"Driver {driver_id} not found")
-                raise HTTPException(status_code=404, detail="Driver not found")
-            logger.info(f"Driver {driver_id} found")
-        except Exception as query_error:
-            logger.error(f"Driver query failed: {str(query_error)}")
-            raise HTTPException(status_code=500, detail=f"Driver query error: {str(query_error)}")
+        if not db_driver:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Driver not found"
+            )
         
-        # Test user query
-        try:
-            user_test = db.query(models.User).filter(models.User.id == driver_id).first()
-            if not user_test:
-                logger.error(f"User {driver_id} not found")
-                raise HTTPException(status_code=404, detail="User not found")
-            logger.info(f"User {driver_id} found")
-        except Exception as user_query_error:
-            logger.error(f"User query failed: {str(user_query_error)}")
-            raise HTTPException(status_code=500, detail=f"User query error: {str(user_query_error)}")
+        # Check permissions - restrict to same agency for all users including super_admin
+        if db_driver.agency_id != current_user.agency_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to delete this driver"
+            )
         
-        # Try the deletion using raw SQL to avoid ORM issues
-        try:
-            logger.info("Starting deletion process...")
-            from sqlalchemy import text
-            
-            # Delete using raw SQL to avoid ORM schema issues
-            logger.info("Deleting driver record with raw SQL...")
-            db.execute(text("DELETE FROM drivers WHERE id = :driver_id"), {"driver_id": driver_id})
-            
-            logger.info("Deleting user record with raw SQL...")
-            db.execute(text("DELETE FROM users WHERE id = :driver_id"), {"driver_id": driver_id})
-            
-            logger.info("Committing transaction...")
-            db.commit()
-            
-            logger.info(f"Successfully deleted driver {driver_id}")
-            return None
-            
-        except Exception as delete_error:
-            db.rollback()
-            logger.error(f"Deletion failed: {str(delete_error)}")
-            
-            # Check constraints without problematic queries
-            logger.info("Checking basic constraints...")
-            
-            try:
-                associated_trips = db.query(models.TripSchedule).filter(
-                    models.TripSchedule.driver_id == driver_id
-                ).count()
-                logger.info(f"Driver trips: {associated_trips}")
-            except Exception as trips_error:
-                logger.error(f"Trip query failed: {str(trips_error)}")
-                associated_trips = -1
-            
-            try:
-                vehicles = db.query(models.Vehicle).filter(
-                    models.Vehicle.user_id == driver_id
-                ).count()
-                logger.info(f"User vehicles: {vehicles}")
-            except Exception as vehicles_error:
-                logger.error(f"Vehicle query failed: {str(vehicles_error)}")
-                vehicles = -1
-            
-            try:
-                user_trips = db.query(models.TripSchedule).filter(
-                    models.TripSchedule.user_id == driver_id
-                ).count()
-                logger.info(f"User trips: {user_trips}")
-            except Exception as user_trips_error:
-                logger.error(f"User trips query failed: {str(user_trips_error)}")
-                user_trips = -1
-            
-            error_detail = f"Deletion failed. Trips: {associated_trips}, Vehicles: {vehicles}, User trips: {user_trips}. Error: {str(delete_error)}"
-            logger.error(error_detail)
-            raise HTTPException(status_code=500, detail=error_detail)
-
+        # Delete associated files
+        if db_driver.aadhar_document:
+            delete_old_file(db_driver.aadhar_document)
+        if db_driver.driver_photo:
+            delete_old_file(db_driver.driver_photo)
+        if db_driver.police_verification_certificate:
+            delete_old_file(db_driver.police_verification_certificate)
+        if db_driver.medical_fitness_certificate:
+            delete_old_file(db_driver.medical_fitness_certificate)
+        
+        # Check for associated trip schedules
+        associated_trips = db.query(models.TripSchedule).filter(
+            models.TripSchedule.driver_id == driver_id
+        ).all()
+        
+        if associated_trips:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete driver: It is associated with {len(associated_trips)} trip(s). Please reassign or delete the trips first."
+            )
+        
+        # Check for assigned vehicles
+        assigned_vehicles = db.query(models.Vehicle).filter(
+            models.Vehicle.assigned_driver_id == driver_id
+        ).all()
+        
+        if assigned_vehicles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete driver: It is assigned to {len(assigned_vehicles)} vehicle(s). Please reassign the vehicles first."
+            )
+        
+        # Delete the driver and associated user
+        # First delete the driver record
+        db.delete(db_driver)
+        
+        # Then delete the associated user record
+        db_user = db.query(models.User).filter(
+            models.User.id == driver_id
+        ).first()
+        
+        if db_user:
+            db.delete(db_user)
+        
+        db.commit()
+        
+        return {"message": "Driver deleted successfully"}
+        
     except HTTPException:
-        raise  # Re-raise HTTP exceptions as-is
-    except Exception as e:
-        logger.error(f"Unexpected error deleting driver {driver_id}: {str(e)}", exc_info=True)
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"Integrity error deleting driver {driver_id}: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete driver: It has associated records (trips, vehicles, or other dependencies). Please remove these associations first."
         )
-
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting driver {driver_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting driver: {str(e)}"
+        )
 
 @router.get("/check-phone/{phone_number}")
 def check_phone_number(
