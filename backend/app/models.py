@@ -9,8 +9,8 @@ import uuid
 from sqlalchemy import Time,  DateTime, Date
 from datetime import datetime
 import pytz
-from sqlalchemy import JSON 
-
+from sqlalchemy import JSON
+from typing import Optional
 
 # ADDED USER AND COMPANY CHANGES ID LINE OF CODE 29 AND 188 11,12
 
@@ -60,7 +60,7 @@ class User(Base):
 class Vehicle(Base):
     __tablename__ = "vehicles"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     agency_id = Column(String, ForeignKey("agencies.id"), nullable=True, index=True)
     
@@ -190,7 +190,7 @@ class Driver(Base):
     previous_employer_experience = Column(Text, nullable=True)
     languages_spoken = Column(String, nullable=True)
     shift_preference = Column(String, nullable=True)
-    assigned_vehicle_id = Column(Integer, nullable=True)
+    assigned_vehicle_id = Column(String, nullable=True)
     
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -253,7 +253,7 @@ class TripSchedule(Base):
     agency_id = Column(String, ForeignKey("agencies.id"), nullable=True, index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     company_id = Column(String, ForeignKey("companies.id"), nullable=False)
-    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
+    vehicle_id = Column(String, ForeignKey("vehicles.id"), nullable=True)
     driver_id = Column(String, ForeignKey("drivers.id"), nullable=True)
     company_name = Column(String, nullable=False)
     company_branch = Column(Text, nullable=True)
@@ -285,6 +285,8 @@ class TripSchedule(Base):
     two_way_start_time = Column(Time, nullable=True)
     one_way_is_active = Column(Boolean, nullable=True)
     two_way_is_active = Column(Boolean, nullable=True)
+    driver_response_two_way = Column(String, nullable=True)
+    driver_reason_two_way = Column(Text, nullable=True)
 
     # Relationships with proper cascade and back_populates
     user = relationship("User", back_populates="trip_schedules")

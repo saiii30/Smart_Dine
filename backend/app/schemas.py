@@ -218,7 +218,7 @@ class VehicleUpdate(BaseModel):
     ownership_type: Optional[str] = None
 
 class VehicleResponse(BaseModel):
-    id: int
+    id: str
     vehicle_registration_number: str
     vehicle_type: Optional[str] = None
     vehicle_brand: Optional[str] = None
@@ -595,14 +595,14 @@ class RoutePoint(BaseModel):
     passenger_phone: str = Field(..., min_length=10, max_length=15)
     # status: str = Field(..., pattern=r'^(pickup|dropped)$')  # Only "pickup" or "dropped"
     timestamp:Optional[str] = Field(None, description="ISO datetime string")
-    pickup :Optional[bool] = Field(None, description="True if pickup point, False if drop-off point")
+    pickup :Optional[bool] = Field(None, description="True if pickup point reached, False otherwise")
     
     # Optional location coordinates for route tracking
     pickup_point: Optional[str] = Field(None, min_length=5, max_length=500)
     pickup_lat: Optional[float] = Field(None, ge=-90, le=90)
     pickup_lng: Optional[float] = Field(None, ge=-180, le=180)
     ispresent: Optional[bool] = Field(None, description="True if passenger is present, False otherwise")
-    isdropped: Optional[bool] = Field(None, description="True if passenger has been dropped, False otherwise")
+    dropoff:Optional[bool] = Field(None)
     # end_lat: Optional[float] = Field(None, ge=-90, le=90)
     # end_lng: Optional[float] = Field(None, ge=-180, le=180)
 
@@ -625,7 +625,7 @@ class TripScheduleBase(BaseModel):
     company_id: str
     company_name: str
     company_branch: Optional[str] = None
-    vehicle_id: Optional[int] = None
+    vehicle_id: Optional[str] = None
     driver_id: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -648,6 +648,8 @@ class TripScheduleBase(BaseModel):
     driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
     driver_response_at: Optional[datetime] = None
+    driver_response_two_way: Optional[str] = None
+    driver_reason_two_way: Optional[str] = None
     route_point: Optional[List[RoutePoint]] = Field(
         None,
         description="List of route points with passenger details. Required when trip_type is 'route'"
@@ -698,7 +700,7 @@ class TripScheduleUpdate(BaseModel):
     company_id: Optional[str] = None
     company_name: Optional[str] = None
     company_branch: Optional[str] = None
-    vehicle_id: Optional[int] = None
+    vehicle_id: Optional[str] = None
     driver_id: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -722,6 +724,8 @@ class TripScheduleUpdate(BaseModel):
     end_lng: Optional[float] = None
     driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
+    driver_response_two_way: Optional[str] = None
+    driver_reason_two_way: Optional[str] = None
     driver_response_at: Optional[datetime] = None
     route_point: Optional[List[RoutePoint]] = Field(
         None,
@@ -742,7 +746,7 @@ class TripScheduleResponse(BaseModel):
     agency_id: Optional[str] = None
     user_id: str
     company_id: str
-    vehicle_id: Optional[int] = None
+    vehicle_id: Optional[str] = None
     driver_id: Optional[str] = None
     company_name: str
     company_branch: Optional[str] = None
@@ -775,6 +779,8 @@ class TripScheduleResponse(BaseModel):
     updated_at: Optional[datetime] = None
     driver_response: Optional[str] = None
     driver_reason: Optional[str] = None
+    driver_response_two_way: Optional[str] = None
+    driver_reason_two_way: Optional[str] = None
     driver_response_at: Optional[datetime] = None
     status_updated_at: Optional[datetime] = None
     one_way_is_active: Optional[bool] = Field(None, alias='one_way_isActive')
@@ -821,7 +827,7 @@ class TripCreate(TripScheduleBase):
 
 class TripUpdate(BaseModel):
     company_id: Optional[str] = None
-    vehicle_id: Optional[int] = None
+    vehicle_id: Optional[str] = None
     company_name: Optional[str] = None
     company_branch: Optional[str] = None
     is_active: Optional[bool] = None
@@ -842,12 +848,19 @@ class DriverResponseUpdate(BaseModel):
     class Config:
         from_attributes = True
 
+class DriverReturnResponseUpdate(BaseModel):
+    driver_response_two_way: str = Field(..., pattern=r'^(accepted|declined)$')
+    driver_reason_two_way: Optional[str] = None        
+    
+    class Config:
+        from_attributes = True
+
 class TripResponse(BaseModel):
     id: int
     user_id: str
     agency_id: Optional[str] = None
     company_id: str
-    vehicle_id: Optional[int] = None
+    vehicle_id: Optional[str] = None
     company_name: str
     company_branch: Optional[str] = None
     is_active: bool

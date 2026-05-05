@@ -9,7 +9,11 @@ import os
 from .scheduler import start_scheduler, shutdown_scheduler
 import logging
 import requests
- 
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment variables
+load_dotenv(find_dotenv())
+
 # Import database and models
 from app.database import engine, Base, get_db
 from app import models, schemas
@@ -107,7 +111,8 @@ def get_cors_origins():
     """Get CORS origins from environment variable."""
     cors_origins_env = os.getenv("CORS_ORIGINS", "")
     if not cors_origins_env:
-        raise ValueError("CORS_ORIGINS environment variable must be set")
+        return []
+    
     return [origin.strip() for origin in cors_origins_env.split(",")]
 
 app.add_middleware(
@@ -124,6 +129,7 @@ app.include_router(drivers.router, prefix="/api/drivers", tags=["Drivers"])
 app.include_router(vehicles.router, prefix="/api/vehicles", tags=["Vehicles"])
 app.include_router(mobile_location_api.router, prefix="/api/mobile", tags=["Mobile Location"])
 app.include_router(trip_schedules.router, prefix="/api/trip-schedules", tags=["Trip Schedules"])
+app.include_router(trip_schedules.router, prefix="/api/trips", tags=["Trip Schedules"])
 app.include_router(company.router, prefix="/api/companies", tags=["Companies"])
 app.include_router(agency.router, prefix="/api/agency", tags=["Agency"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])

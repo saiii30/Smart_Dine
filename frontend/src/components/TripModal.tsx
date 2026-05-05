@@ -51,7 +51,7 @@ const labelClass =
   company_name: '',
   company_branch: '',
   schedules: [] as {
-  id?: number            
+  id?: string            
   start_date: string
   end_date: string
   starting_point: string
@@ -83,7 +83,7 @@ const labelClass =
   passenger_count: number
   driver_id?: string
   driver_name?: string
-  vehicle_id?: number
+  vehicle_id?: string
   vehicle_registration_number?: string
   trip_type: string
   notes?: string
@@ -93,7 +93,7 @@ const labelClass =
 
 })
 
- const [deletedScheduleIds, setDeletedScheduleIds] = useState<number[]>([])
+ const [deletedScheduleIds, setDeletedScheduleIds] = useState<string[]>([])
 
   const [companies, setCompanies] = useState<{ id: string; company_name: string; company_branch: string; agency_id: string }[]>([])
 
@@ -1196,7 +1196,7 @@ const selectClass =
                     value={schedule.vehicle_id || ''}
       // onChange={(e) => updateSchedule(index, 'vehicle_id', Number(e.target.value))}
       onChange={(e) => {
-  const vehicleId = Number(e.target.value)
+  const vehicleId = e.target.value
 
   const selectedVehicle = (vehicles[index] || []).find(v => v.id === vehicleId)
   const maxCapacity = selectedVehicle?.seating_capacity || 0
