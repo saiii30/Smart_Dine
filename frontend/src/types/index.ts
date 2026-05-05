@@ -1,5 +1,5 @@
 export interface User {
-  id: number
+  id: string
   email: string
   full_name: string
   company_name?: string
@@ -12,7 +12,7 @@ export interface User {
 export type VehicleType = 'Sedan' | 'SUV' | 'Van' | 'Bus' | 'Mini_Bus' | 'Hatchback'
 
 export interface Vehicle {
-  id: number
+  id: string
   user_id: string
   vehicle_type: string
   vehicle_brand: string
@@ -98,7 +98,7 @@ export interface Driver {
   previous_employer_experience?: string
   languages_spoken?: string
   shift_preference?: string
-  assigned_vehicle_id?: number
+  assigned_vehicle_id?: string
 
   notes?: string
   created_at: string
@@ -106,7 +106,7 @@ export interface Driver {
 }
 
 export interface Company {
-  id: number
+  id: string
   agency_id: string
   name: string
   address?: string
@@ -120,10 +120,10 @@ export interface Company {
 }
 
 export interface TripSchedule {
-  id: number
-  trip_id: number
+  id: string
+  trip_id: string
   
-  vehicle_id?: number
+  vehicle_id?: string
   driver_id?: string
   passenger_count: number
   notes?: string
@@ -200,7 +200,7 @@ export interface RoutePoint {
 }
 
 export interface Trip {
-  id: number
+  id: string
   user_id: string
   company_id: string
   address?: string

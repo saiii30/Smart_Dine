@@ -924,3 +924,71 @@ def update_driver_response(
         vehicle_registration_number=vehicle.vehicle_registration_number if vehicle else None,
         driver_name=driver.user.name if (driver and driver.user) else None
     )
+
+@router.put(
+    "/{trip_id}/driver-response-return",
+    response_model=schemas.TripScheduleResponse
+)
+def update_return_driver_response(
+    trip_id: str,
+    payload: schemas.DriverReturnResponseUpdate,
+    current_user: models.User = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Update driver response for return leg of a two-way trip"""
+    
+    # Check if current user is a driver
+    if not hasattr(current_user, 'driver') or not current_user.driver:
+        raise HTTPException(
+            status_code=403, 
+            detail="Only drivers can update trip responses"
+        )
+    
+    trip = _base_query(db).filter(
+        models.TripSchedule.id == trip_id,
+        models.TripSchedule.driver_id == current_user.driver.id
+    ).first()
+
+    if not trip:
+        raise HTTPException(
+            status_code=404, 
+            detail="Trip not found or not assigned to you"
+        )
+
+    # =========================
+    # UPDATE RETURN LEG
+    # =========================
+
+    trip.driver_response_two_way = payload.driver_response_two_way
+    trip.driver_reason_two_way = payload.driver_reason_two_way
+    trip.updated_at = datetime.utcnow()
+    trip.driver_response_at = datetime.utcnow()
+
+    # =========================
+    # STATUS LOGIC
+    # =========================
+
+    if (
+        trip.driver_response == "accepted" or
+        trip.driver_response_two_way == "accepted"
+    ):
+        trip.status = "ACTIVE"
+        trip.is_active = True
+
+    if (
+        trip.driver_response == "declined" and
+        trip.driver_response_two_way == "declined"
+    ):
+        trip.status = "INACTIVE"
+        trip.is_active = False
+
+    try:
+        db.commit()
+        db.refresh(trip)
+        return trip
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update trip response: {str(e)}"
+        )
