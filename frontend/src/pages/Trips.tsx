@@ -17,26 +17,33 @@ const Trips = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const debouncedSearch = useDebounce(searchQuery, 300)
-  const [fetchingTrips, setFetchingTrips] = useState(false)
+  const [fetchingTrips, setFetchingTrips] = useState(true)
   const [error, setError] = useState<string | null>(null)
-const [fetchingCompanies, setFetchingCompanies] = useState(false)
+  const [fetchingCompanies, setFetchingCompanies] = useState(true)
   const [deleteLoading, setDeleteLoading] = useState(false)
+   const [loading, setLoading] = useState(true)
   const [showConfirm, setShowConfirm] = useState(false)
-const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const { user } = useAuth()
   
-   const isSupervisor = user?.role === 'SUPERVISOR'
+  const isSupervisor = user?.role === 'SUPERVISOR'
   
-useEffect(() => {
-  const controller = new AbortController()
-
-  fetchTrips(controller.signal)
-  fetchCompanies(controller.signal)
-
-  return () => {
-    controller.abort()
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message })
+    setTimeout(() => setNotification(null), 5000)
   }
-}, [])
+  
+  useEffect(() => {
+    const controller = new AbortController()
+
+    fetchTrips(controller.signal)
+    fetchCompanies(controller.signal)
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
 
 const fetchTrips = async (signal?: AbortSignal) => {
   setFetchingTrips(true)
@@ -115,6 +122,7 @@ const fetchTrips = async (signal?: AbortSignal) => {
     })
     setError(null)
     setTrips(Object.values(tripMap))
+    showNotification('success', 'Trips loaded successfully')
   } catch (error : any) {
    
   // ✅ handle ALL cancel cases
@@ -127,6 +135,7 @@ const fetchTrips = async (signal?: AbortSignal) => {
 
   console.error('Failed to fetch trips:', error)
   setError('Failed to load trips. Please try again.')
+  showNotification('error', 'Failed to load trips. Please try again.')
 
   } finally {
     setFetchingTrips(false)
@@ -153,6 +162,7 @@ const fetchCompanies = async (signal?: AbortSignal) => {
 
     // ✅ CLEAR ERROR ON SUCCESS
     setError(null)
+    showNotification('success', 'Companies loaded successfully')
 
   } catch (error: any) {
 
@@ -161,8 +171,16 @@ const fetchCompanies = async (signal?: AbortSignal) => {
     console.error('Failed to fetch companies:', error)
 
     setError('Failed to load companies')
+    showNotification('error', 'Failed to load companies')
   } finally {
-    setFetchingCompanies(false)
+    const startTime = Date.now()
+    const elapsed = Date.now() - startTime
+    const minLoadingTime = 800 // minimum 800ms loading
+    
+    setTimeout(() => {
+      setFetchingCompanies(false)
+      setLoading(false)
+    }, Math.max(0, minLoadingTime - elapsed))
   }
 }
 
@@ -178,7 +196,7 @@ const fetchCompanies = async (signal?: AbortSignal) => {
     setIsModalOpen(true)
   }
 
-  const handleDeleteClick = (id: number) => {
+  const handleDeleteClick = (id: string) => {
   setDeleteId(id)
   setShowConfirm(true)
 }
@@ -191,6 +209,7 @@ const confirmDelete = async () => {
   try {
     await api.delete(`/trip-schedules/${deleteId}`)
     fetchTrips()
+    showNotification('success', 'Trip deleted successfully')
   } catch (error: any) {
   console.error('Failed to delete trip:', error)
 
@@ -198,6 +217,7 @@ const confirmDelete = async () => {
     error?.response?.data?.message ||
     'Failed to delete trip. Please try again.'
   )
+  showNotification('error', error?.response?.data?.message || 'Failed to delete trip. Please try again.')
 }finally {
     setDeleteLoading(false)
     setShowConfirm(false)
@@ -215,6 +235,7 @@ const confirmDelete = async () => {
   const handleModalSuccess = () => {
     fetchTrips()
     handleModalClose()
+    showNotification('success', editingTrip ? 'Trip updated successfully' : 'Trip created successfully')
   }
 
   // Filter trips based on search query
@@ -235,16 +256,37 @@ const filteredTrips = useMemo(() => {
 }, [trips, debouncedSearch, selectedCompany])
   
 
-  if (fetchingTrips) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 dark:border-primary-400"></div>
-      </div>
-    )
-  }
+ 
+
+   if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-300">Loading trips...</p>
+            </div>
+        )
+    }
 
   return (
     <div>
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 ${
+          notification.type === 'success' 
+            ? 'bg-green-100 text-green-700 border border-green-200' 
+            : 'bg-red-100 text-red-700 border border-red-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-4 text-gray-500 hover:text-gray-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
   <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
@@ -266,7 +308,7 @@ const filteredTrips = useMemo(() => {
   <option value="">All Companies</option>
 
   {fetchingCompanies ? (
-    <option>Loading companies...</option>
+    <option disabled>Loading companies...</option>
   ) : companies.length === 0 ? (
     <option disabled>No companies found</option>
   ) : (
