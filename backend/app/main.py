@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Depends, HTTPException, status, Query, API
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List
 import json
@@ -134,7 +135,19 @@ app.include_router(company.router, prefix="/api/companies", tags=["Companies"])
 app.include_router(agency.router, prefix="/api/agency", tags=["Agency"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])
- 
+
+# Mount static files for uploads directory
+# Use absolute path from backend directory
+backend_dir = os.path.dirname(os.path.dirname(__file__))
+uploads_dir = os.path.join(backend_dir, "uploads")
+print(f"Mounting static files from: {uploads_dir}")  # Debug log
+
+if os.path.exists(uploads_dir):
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+    print(f"Successfully mounted /uploads to {uploads_dir}")
+else:
+    print(f"Warning: Uploads directory not found at {uploads_dir}")
+
 # -------------------- Health --------------------
 @app.get("/")
 async def root():

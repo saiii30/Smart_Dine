@@ -81,7 +81,7 @@ const Register = () => {
           value={formData.parentId}
           onChange={handleChange}
           required
-          className="w-full p-3 border rounded"
+          className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
         >
           <option value="">Select Agency</option>
           {agencies.map(a => (
@@ -95,7 +95,7 @@ const Register = () => {
           name="fullName"
           placeholder="Full Name"
           required
-          className="w-full p-3 border rounded"
+           className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           value={formData.fullName}
           onChange={handleChange}
         />
@@ -105,7 +105,7 @@ const Register = () => {
           type="email"
           placeholder="Email"
           required
-          className="w-full p-3 border rounded"
+           className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           value={formData.email}
           onChange={handleChange}
         />
@@ -116,7 +116,7 @@ const Register = () => {
           maxLength={10}
           placeholder="Phone Number (10 digits)"
           required
-          className="w-full p-3 border rounded"
+           className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           value={formData.contactNumber}
           onChange={(e) => {
             const value = e.target.value.replace(/\D/g, '')
@@ -129,7 +129,7 @@ const Register = () => {
           type="password"
           placeholder="Password"
           required
-          className="w-full p-3 border rounded"
+           className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           value={formData.password}
           onChange={handleChange}
         />
@@ -137,7 +137,7 @@ const Register = () => {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-red-600 text-white p-3 rounded"
+          className="w-full bg-red-600 text-white p-3 rounded-lg"
         >
           {loading ? 'Creating account...' : 'SIGN UP'}
         </button>

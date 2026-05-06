@@ -34,19 +34,32 @@ export interface Vehicle {
   insurance_number?: string
   insurance_date?: string
   insurance_expiry?: string
-  insurance_copy?: string
 
   registration_date?: string
   registration_expiry?: string
-  registration_certificate?: string
-
-  pollution_certificate?: string
 
   fire_extinguisher_available: boolean
+  fire_extinguisher_expiry?: string
   first_aid_kit_available: boolean
+  first_aid_kit_expiry?: string
+  toolkit_available: boolean
+  spare_wheel_available: boolean
+  emergency_sticker_available: boolean
+  reflective_triangle_available: boolean
+  speed_governor_installed: boolean
+  torch_available?: boolean
+  umbrella_available?: boolean
   emergency_support_number?: string
 
+  permit_number?: string
+  permit_expiry?: string
+  fitness_certificate_date?: string
+  fitness_certificate_expiry?: string
+
+  insurance_copy?: string
   policy_certificate?: string
+  registration_certificate?: string
+  pollution_certificate?: string
 
   notes?: string
   service_expiry?: string
@@ -63,6 +76,7 @@ export interface Vehicle {
 export interface Driver {
   id: string
   user_id: string
+  employee_id?: string
   user: {
     name: string
     email?: string
@@ -82,6 +96,9 @@ export interface Driver {
   driver_photo?: string
   police_verification_certificate?: string
   medical_fitness_certificate?: string
+  personal_resume?: string
+  driving_license_document?: string
+  pan_card?: string
 
   verification_status?: string
   status?: string

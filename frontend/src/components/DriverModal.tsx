@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs'
 import { X, Upload, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react'
 import { Driver } from '../types'
 import { useAuth } from '../contexts/AuthContext'
+import FileUpload from './FileUpload'
 interface DriverModalProps {
   driver: Driver | null
   onClose: () => void
@@ -43,6 +44,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
 
   const [draft, setDraft] = useState<Record<string, any>>({
     full_name: '',
+    employee_id: '',
     phone_number: '',
     password: '',
     has_existing_password: false, // Track if driver has existing password
@@ -51,8 +53,12 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     gender: '',
     aadhar_number: '',
     aadhar_document_name: '',
+    pan_card_number: '',
+    pan_card_name: '',
     driving_license_number: '',
+    driving_license_document_name: '',
     license_expiry_date: '',
+    personal_resume_name: '',
     driver_photo_name: '',
     police_verification_certificate_name: '',
     medical_fitness_certificate_name: '',
@@ -75,11 +81,17 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
   // Track actual File objects for uploads (not saved to localStorage)
   const [files, setFiles] = useState<{
     aadhar_document?: File | null;
+    pan_card?: File | null;
+    driving_license_document?: File | null;
+    personal_resume?: File | null;
     driver_photo?: File | null;
     police_verification_certificate?: File | null;
     medical_fitness_certificate?: File | null
   }>({
     aadhar_document: null,
+    pan_card: null,
+    driving_license_document: null,
+    personal_resume: null,
     driver_photo: null,
     police_verification_certificate: null,
     medical_fitness_certificate: null
@@ -94,6 +106,13 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     onConfirm?: () => void;
     onClose?: () => void;
   }>({ isOpen: false, type: 'alert', title: '', message: '' });
+
+  // --- Submit Confirmation State ---
+  const [submitConfirmState, setSubmitConfirmState] = useState<{
+    isOpen: boolean;
+    isEditing: boolean;
+    driverName: string;
+  }>({ isOpen: false, isEditing: false, driverName: '' });
 
   const showAlert = (title: string, message: string, type: 'alert' | 'success' | 'error' = 'alert', onCloseCallback?: () => void) => {
     setAlertState({ isOpen: true, type, title, message, onConfirm: undefined, onClose: onCloseCallback });
@@ -122,19 +141,93 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     }
   }, [driver]);
 
+   const validateRow = (row: any, index: number) => {
+  const errors: string[] = [];
+
+  if (!row['Pincode']) {
+    errors.push(`Row ${index}: Pincode is missing`);
+  }
+
+   if (!row['State']) {
+    errors.push(`Row ${index}: State is missing`);
+  }
+
+  if(!row['City']) {
+    errors.push(`Row ${index}: City is missing`);
+  }
+
+  if(!row['Current Address'])
+  {
+    errors.push(`Row ${index}: Current Address is missing`);
+  }
+
+  if(!row['Emergency Contact Number'])
+  {
+    errors.push(`Row ${index}: Emergency Contact Number is missing`);
+  }
+
+  if(!row['Emergency Contact Name'])
+  {
+    errors.push(`Row ${index}: PUC Emergency Contact Name is missing`);
+  }
+
+
+  if(!row['License Expiry'])
+  {
+    errors.push(`Row ${index}: License Expiry is missing`)
+  }
+
+  if (!row['License Number']) {
+    errors.push(`Row ${index}: License Number is missing`);
+  }
+
+  if (!row['Gender']) {
+    errors.push(`Row ${index}: Gender is missing`);
+  }
+
+  if(!row['Date of Birth'])
+  {
+    errors.push(`Row ${index}: Date of Birth is missing`);
+  }
+
+  if (!row['Password']) {
+    errors.push(`Row ${index}: Password is missing`);
+  }
+
+  if(!row["Phone Number"])
+  {
+    errors.push(`Row ${index}: Phone Number is missing`);
+  }
+
+  if (!row['Blood Group']) {
+    errors.push(`Row ${index}: Blood Group is missing`);
+  }
+
+  if (!row['Full Name']) {
+    errors.push(`Row ${index}: Full Name is missing`);
+  }
+
+  return errors;
+};
+
   useEffect(() => {
     if (!driver) return;
     const d: any = driver as any;
     const mapped: Record<string, any> = {
       full_name: d.full_name || d.user?.name || '',
+      employee_id: d.employee_id || '',
       phone_number: d.phone_number || d.user?.contact_number || '',
       password: '', // Never load existing password for security
       date_of_birth: d.date_of_birth ? new Date(d.date_of_birth).toISOString().split('T')[0] : '',
       gender: d.gender || '',
       aadhar_number: d.aadhar_number || '',
       aadhar_document_name: d.aadhar_document || '',
+      pan_card_number: d.pan_card_number || '',
+      pan_card_name: d.pan_card || '',
       driving_license_number: d.driving_license_number || '',
+      driving_license_document_name: d.driving_license_document || '',
       license_expiry_date: d.license_expiry_date ? new Date(d.license_expiry_date).toISOString().split('T')[0] : '',
+      personal_resume_name: d.personal_resume || '',
       driver_photo_name: d.driver_photo || '',
       police_verification_certificate_name: d.police_verification_certificate || '',
       medical_fitness_certificate_name: d.medical_fitness_certificate || '',
@@ -237,7 +330,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
       'Full Name', 'Phone Number', 'Date of Birth', 'Gender', 'Aadhar Number',
       'License Number', 'License Expiry', 'Blood Group', 'Status', 'Shift Preference',
       'Current Address', 'City', 'State', 'Pincode', 'Emergency Contact Name', 'Emergency Contact Number',
-      'Previous Employer Experience', 'Languages Spoken' , 'Password'
+      'Previous Employer Experience', 'Languages Spoken', 'Password'
     ];
     const sampleRow = [
       'John Doe', '9876543210', '1990-01-01', 'Male', '123456789012',
@@ -302,7 +395,7 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
         if (!row['License Expiry']?.trim()) validationErrors.push(`Row ${rowNum}: License Expiry is required`);
       });
 
-     const allErrors: string[] = [];
+       const allErrors: string[] = [];
 
 jsonData.forEach((row, index) => {
   const rowErrors = validateRow(row, index + 2);
@@ -371,15 +464,15 @@ if (allErrors.length > 0) {
           ? message + '\n\nError Details:\n' + errorDetails.slice(0, 5).join('\n') + (errorDetails.length > 5 ? '\n...and more' : '')
           : message;
         
-        showAlert(
-          failCount > 0 ? 'Upload Completed with Errors' : 'Upload Successful', 
-          fullMessage, 
-          failCount > 0 ? 'error' : 'success', 
-          () => {
-            onSuccess();
-            onClose();
-          }
-        );
+      showAlert(
+        failCount > 0 ? 'Upload Completed with Errors' : 'Upload Successful', 
+        fullMessage, 
+        failCount > 0 ? 'error' : 'success', 
+        () => {
+          onSuccess();
+          onClose();
+        }
+      );
       });
     } catch (error) {
       console.error('Bulk upload error:', error);
@@ -399,6 +492,7 @@ if (allErrors.length > 0) {
   const clearDraft = () => {
     setDraft({
       full_name: '',
+      employee_id: '',
       phone_number: '',
       password: '', // Clear password when resetting draft
       has_existing_password: false,
@@ -407,8 +501,12 @@ if (allErrors.length > 0) {
       gender: '',
       aadhar_number: '',
       aadhar_document_name: '',
+      pan_card_number: '',
+      pan_card_name: '',
       driving_license_number: '',
+      driving_license_document_name: '',
       license_expiry_date: '',
+      personal_resume_name: '',
       driver_photo_name: '',
       police_verification_certificate_name: '',
       medical_fitness_certificate_name: '',
@@ -430,12 +528,7 @@ if (allErrors.length > 0) {
     try { localStorage.removeItem(DRAFT_KEY) } catch (e) { }
   };
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>, key: keyof typeof files, nameKey: keyof typeof draft) => {
-    const file = e.target.files?.[0] || null
-    setFiles(prev => ({ ...prev, [key]: file }))
-    saveDraft({ [nameKey]: file?.name || '' })
-  }
-
+  
   // Function to generate a secure random password
   const generatePassword = useCallback((length = 12) => {
     const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -514,6 +607,13 @@ if (allErrors.length > 0) {
       }
     }
     
+    // PAN card number validation (only validate if provided)
+    if (draft.pan_card_number?.trim()) {
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(draft.pan_card_number)) {
+        errors.pan_card_number = 'PAN card number must be in format: ABCDE1234F';
+      }
+    }
+    
     if (!draft.driving_license_number?.trim()) {
       errors.driving_license_number = 'Driving license number is required';
     }
@@ -589,6 +689,14 @@ if (allErrors.length > 0) {
         }
       }
       
+      // Check PAN card number uniqueness (only if provided)
+      if (draft.pan_card_number?.trim()) {
+        const panResponse = await api.get(`/drivers/check-pan/${draft.pan_card_number}`);
+        if (panResponse.data.exists && (!isEditing || panResponse.data.driver_id !== (driver as any)?.id)) {
+          errors.pan_card_number = 'PAN card number already exists';
+        }
+      }
+      
       // Check driving license uniqueness
       if (draft.driving_license_number?.trim()) {
         const licenseResponse = await api.get(`/drivers/check-license/${draft.driving_license_number}`);
@@ -621,6 +729,17 @@ if (allErrors.length > 0) {
       return;
     }
     
+    // Show confirmation dialog
+    setSubmitConfirmState({
+      isOpen: true,
+      isEditing,
+      driverName: draft.full_name || 'this driver'
+    });
+  };
+
+  const confirmSubmit = async () => {
+    setSubmitConfirmState({ isOpen: false, isEditing: false, driverName: '' });
+    
     try {
       const payload = new FormData();
 
@@ -631,6 +750,9 @@ if (allErrors.length > 0) {
       });
       // Add files to form data (only if provided)
       if (files.aadhar_document) payload.append('aadhar_document', files.aadhar_document);
+      if (files.pan_card) payload.append('pan_card', files.pan_card);
+      if (files.driving_license_document) payload.append('driving_license_document', files.driving_license_document);
+      if (files.personal_resume) payload.append('personal_resume', files.personal_resume);
       if (files.driver_photo) payload.append('driver_photo', files.driver_photo);
       if (files.police_verification_certificate) payload.append('police_verification_certificate', files.police_verification_certificate);
       if (files.medical_fitness_certificate) payload.append('medical_fitness_certificate', files.medical_fitness_certificate);
@@ -785,7 +907,7 @@ if (allErrors.length > 0) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 pt-2">
-          <div className="min-h-[360px]">
+          <div className="max-h-[60vh] overflow-y-auto pr-2">
             {activeTab === 'static-info' && (
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 animate-in fade-in duration-300">
                 <div className="space-y-4">
@@ -888,7 +1010,7 @@ if (allErrors.length > 0) {
                       <>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {draft.has_existing_password 
-                            ? 'Leave empty to keep current password, or enter new password to change it'
+                            ? 'Enter new password to change it'
                             : 'Set a password for this driver'
                           }
                         </p>
@@ -921,21 +1043,11 @@ if (allErrors.length > 0) {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <FieldLabel required>Blood Group</FieldLabel>
-                    <select className={`${inputStyle} ${validationErrors.blood_group ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.blood_group} onChange={e => saveDraft({ blood_group: e.target.value })}>
-                      <option value="">Select</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                    </select>
-                    {validationErrors.blood_group && (
-                      <p className="text-red-500 text-xs mt-1">{validationErrors.blood_group}</p>
-                    )}
+                    <FieldLabel optional>Employee ID</FieldLabel>
+                    <input
+  disabled={isReadOnly} type="text" placeholder="EMP-001" className={inputStyle} value={draft.employee_id} onChange={e => saveDraft({ employee_id: e.target.value })} />
                   </div>
+              
                   <div>
                     <FieldLabel >Languages Spoken</FieldLabel>
                     <input disabled={isReadOnly} type="text" placeholder="e.g. English, Tamil" className={inputStyle} value={draft.languages_spoken} onChange={e => saveDraft({ languages_spoken: e.target.value })} />
@@ -957,85 +1069,203 @@ if (allErrors.length > 0) {
                       <option>Suspended</option>
                     </select>
                   </div>
+                   <div>
+                    <FieldLabel required>Blood Group</FieldLabel>
+                    <select className={`${inputStyle} ${validationErrors.blood_group ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.blood_group} onChange={e => saveDraft({ blood_group: e.target.value })}>
+                      <option value="">Select</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                    {validationErrors.blood_group && (
+                      <p className="text-red-500 text-xs mt-1">{validationErrors.blood_group}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
              {activeTab === 'documents' && (
               <div className="grid grid-cols-2 gap-x-8 gap-y-6 animate-in fade-in duration-300">
+                
                 <div className="space-y-4">
-                  <div>
-                    <FieldLabel optional>Aadhar Number</FieldLabel>
-                    <input 
-                      disabled={isReadOnly} 
-                      type="text" 
-                      maxLength={12} 
-                      placeholder="12-digit Aadhar number" 
-                      className={`${inputStyle} ${validationErrors.aadhar_number ? 'border-red-500 focus:ring-red-500' : ''}`}
-                      value={draft.aadhar_number} 
-                      onChange={e => saveDraft({ aadhar_number: e.target.value.replace(/\D/g, '') })} 
-                    />
-                    {validationErrors.aadhar_number && (
-                      <p className="text-red-500 text-xs mt-1">{validationErrors.aadhar_number}</p>
-                    )}
+                  {/* Additional Identity Documents */}
+                  <div className="bg-orange-50 dark:bg-orange-900/10 p-4 rounded-xl border border-orange-100 dark:border-orange-900/30">
+                    <h4 className="text-sm font-semibold text-orange-600 mb-3 flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Additional Documents
+                    </h4>
+                    <div className="space-y-3">
+                     
+                      <div>
+                        <FileUpload
+                          file={files.driver_photo}
+                          fileName={draft.driver_photo_name}
+                          onFileChange={(file) => setFiles(prev => ({ ...prev, driver_photo: file }))}
+                          onFileNameChange={(name) => saveDraft({ driver_photo_name: name })}
+                          accept="image/*"
+                          disabled={isReadOnly}
+                          label="Driver Photo"
+                          optional
+                        />
+                      </div>
+                     
+                    </div>
                   </div>
-                  <div>
-                    <FieldLabel optional>Aadhar Document</FieldLabel>
-                    <input
-  disabled={isReadOnly} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'aadhar_document', 'aadhar_document_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
-                    {draft.aadhar_document_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.aadhar_document_name}</p>}
+                  {/* Identity Documents Group */}
+                  <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-900/30">
+                    <h4 className="text-sm font-semibold text-purple-600 mb-3 flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                      </svg>
+                      Identity Documents
+                    </h4>
+                    <div className="space-y-3">
+                      <div>
+                        <FieldLabel optional>Aadhar Number</FieldLabel>
+                        <input 
+                          disabled={isReadOnly} 
+                          type="text" 
+                          maxLength={12} 
+                          placeholder="12-digit Aadhar number" 
+                          className={`${inputStyle} ${validationErrors.aadhar_number ? 'border-red-500 focus:ring-red-500' : ''}`}
+                          value={draft.aadhar_number} 
+                          onChange={e => saveDraft({ aadhar_number: e.target.value.replace(/\D/g, '') })} 
+                        />
+                        {validationErrors.aadhar_number && (
+                          <p className="text-red-500 text-xs mt-1">{validationErrors.aadhar_number}</p>
+                        )}
+                      </div>
+                      <div>
+                        <FileUpload
+                          file={files.aadhar_document}
+                          fileName={draft.aadhar_document_name}
+                          onFileChange={(file) => setFiles(prev => ({ ...prev, aadhar_document: file }))}
+                          onFileNameChange={(name) => saveDraft({ aadhar_document_name: name })}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          disabled={isReadOnly}
+                          label="Aadhar Document"
+                          optional
+                        />
+                      </div>
+                      <div>
+                        <FieldLabel optional>PAN Card Number</FieldLabel>
+                        <input 
+                          disabled={isReadOnly} 
+                          type="text" 
+                          maxLength={10} 
+                          placeholder="10-digit PAN number (e.g., ABCDE1234F)" 
+                          className={`${inputStyle} ${validationErrors.pan_card_number ? 'border-red-500 focus:ring-red-500' : ''}`}
+                          value={draft.pan_card_number} 
+                          onChange={e => saveDraft({ pan_card_number: e.target.value.toUpperCase() })} 
+                        />
+                        {validationErrors.pan_card_number && (
+                          <p className="text-red-500 text-xs mt-1">{validationErrors.pan_card_number}</p>
+                        )}
+                      </div>
+                       <div>
+                        <FileUpload
+                          file={files.pan_card}
+                          fileName={draft.pan_card_name}
+                          onFileChange={(file) => setFiles(prev => ({ ...prev, pan_card: file }))}
+                          onFileNameChange={(name) => saveDraft({ pan_card_name: name })}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          disabled={isReadOnly}
+                          label="PAN Card Document"
+                          optional
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <FieldLabel required>Driving License Number</FieldLabel>
-                    <input 
-                      disabled={isReadOnly} 
-                      type="text" 
-                      className={`${inputStyle} ${validationErrors.driving_license_number ? 'border-red-500 focus:ring-red-500' : ''}`}
-                      value={draft.driving_license_number} 
-                      onChange={e => saveDraft({ driving_license_number: e.target.value })} 
-                    />
-                    {validationErrors.driving_license_number && (
-                      <p className="text-red-500 text-xs mt-1">{validationErrors.driving_license_number}</p>
-                    )}
-                  </div>
-                  <div>
-                    <FieldLabel required>License Expiry Date</FieldLabel>
-                    <input 
-                      disabled={isReadOnly} 
-                      type="date" 
-                      className={`${inputStyle} ${validationErrors.license_expiry_date ? 'border-red-500 focus:ring-red-500' : ''}`}
-                      value={draft.license_expiry_date} 
-                      onChange={e => saveDraft({ license_expiry_date: e.target.value })} 
-                    />
-                    {validationErrors.license_expiry_date && (
-                      <p className="text-red-500 text-xs mt-1">{validationErrors.license_expiry_date}</p>
-                    )}
-                  </div>
+                   
                 </div>
+
+                
                 <div className="space-y-4">
-                  <div>
-                    <FieldLabel optional>Driver Photo</FieldLabel>
-                    <input disabled={isReadOnly} type="file" accept="image/*" onChange={e => handleFile(e, 'driver_photo', 'driver_photo_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
-                    {draft.driver_photo_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.driver_photo_name}</p>}
+
+
+                  {/* Professional Documents Group */}
+                  <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                    <h4 className="text-sm font-semibold text-blue-600 mb-3 flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Professional Documents
+                    </h4>
+                    <div className="space-y-3">
+                      <div>
+                        <FieldLabel required>Driving License Number</FieldLabel>
+                        <input 
+                          disabled={isReadOnly} 
+                          type="text" 
+                          className={`${inputStyle} ${validationErrors.driving_license_number ? 'border-red-500 focus:ring-red-500' : ''}`}
+                          value={draft.driving_license_number} 
+                          onChange={e => saveDraft({ driving_license_number: e.target.value })} 
+                        />
+                        {validationErrors.driving_license_number && (
+                          <p className="text-red-500 text-xs mt-1">{validationErrors.driving_license_number}</p>
+                        )}
+                      </div>
+                      <div>
+                        <FieldLabel required>License Expiry Date</FieldLabel>
+                        <input 
+                          disabled={isReadOnly} 
+                          type="date" 
+                          className={`${inputStyle} ${validationErrors.license_expiry_date ? 'border-red-500 focus:ring-red-500' : ''}`}
+                          value={draft.license_expiry_date} 
+                          onChange={e => saveDraft({ license_expiry_date: e.target.value })} 
+                        />
+                        {validationErrors.license_expiry_date && (
+                          <p className="text-red-500 text-xs mt-1">{validationErrors.license_expiry_date}</p>
+                        )}
+                      </div>
+                      <div>
+                        <FileUpload
+                          file={files.driving_license_document}
+                          fileName={draft.driving_license_document_name}
+                          onFileChange={(file) => setFiles(prev => ({ ...prev, driving_license_document: file }))}
+                          onFileNameChange={(name) => saveDraft({ driving_license_document_name: name })}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          disabled={isReadOnly}
+                          label="Driving License Document"
+                          optional
+                        />
+                      </div>
+                      <div>
+                        <FileUpload
+                          file={files.medical_fitness_certificate}
+                          fileName={draft.medical_fitness_certificate_name}
+                          onFileChange={(file) => setFiles(prev => ({ ...prev, medical_fitness_certificate: file }))}
+                          onFileNameChange={(name) => saveDraft({ medical_fitness_certificate_name: name })}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          disabled={isReadOnly}
+                          label="Medical Fitness Certificate"
+                          optional
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div>
-                    <FieldLabel optional>Police Verification Certificate</FieldLabel>
-                    <input disabled={isReadOnly}   type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'police_verification_certificate', 'police_verification_certificate_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
-                    {draft.police_verification_certificate_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.police_verification_certificate_name}</p>}
+                    <FileUpload
+                      file={files.personal_resume}
+                      fileName={draft.personal_resume_name}
+                      onFileChange={(file) => setFiles(prev => ({ ...prev, personal_resume: file }))}
+                      onFileNameChange={(name) => saveDraft({ personal_resume_name: name })}
+                      accept=".pdf,.doc,.docx"
+                      disabled={isReadOnly}
+                      label="Personal Resume"
+                      optional
+                    />
                   </div>
-                  <div>
-                    <FieldLabel optional>Medical Fitness Certificate</FieldLabel>
-                    <input disabled={isReadOnly} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFile(e, 'medical_fitness_certificate', 'medical_fitness_certificate_name')} className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-200" />
-                    {draft.medical_fitness_certificate_name && <p className="text-xs text-gray-400 mt-2">Selected: {draft.medical_fitness_certificate_name}</p>}
-                  </div>
-                  <div>
-                    <FieldLabel required>Verification Status</FieldLabel>
-                    <select disabled={isReadOnly} className={inputStyle} value={draft.verification_status} onChange={e => saveDraft({ verification_status: e.target.value })}>
-                      <option>Pending</option>
-                      <option>Verified</option>
-                      <option>Rejected</option>
-                    </select>
-                  </div>
+                  
+              {/* Additional Documents */}
+                 
                 </div>
               </div>
             )}
@@ -1057,6 +1287,14 @@ if (allErrors.length > 0) {
                     {validationErrors.emergency_contact_number && (
                       <p className="text-red-500 text-xs mt-1">{validationErrors.emergency_contact_number}</p>
                     )}
+                  </div>
+                   <div>
+                    <FieldLabel required>Verification Status</FieldLabel>
+                    <select disabled={isReadOnly} className={inputStyle} value={draft.verification_status} onChange={e => saveDraft({ verification_status: e.target.value })}>
+                      <option>Pending</option>
+                      <option>Verified</option>
+                      <option>Rejected</option>
+                    </select>
                   </div>
                   <div>
                     <FieldLabel>Previous Employer Experience</FieldLabel>
@@ -1092,6 +1330,7 @@ if (allErrors.length > 0) {
                       <p className="text-red-500 text-xs mt-1">{validationErrors.pincode}</p>
                     )}
                   </div>
+                  
                 </div>
               </div>
             )}
@@ -1104,7 +1343,13 @@ if (allErrors.length > 0) {
             <button type="button" onClick={clearDraft} className="px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Clear Draft</button>
             )}
             {!isSupervisor && (
-            <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">Submit Record</button>
+            <button 
+              type="button" 
+              onClick={handleSubmit} 
+              className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95"
+            >
+              Submit Record
+            </button>
             )}
           </div>
 
@@ -1145,6 +1390,47 @@ if (allErrors.length > 0) {
                   Close
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submit Confirmation Modal */}
+      {submitConfirmState.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                <svg className="text-blue-600 dark:text-blue-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4"></path>
+                  <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                Confirm {submitConfirmState.isEditing ? 'Update' : 'Creation'}
+              </h3>
+            </div>
+            
+            <p className="text-gray-600 dark:text-gray-300 mb-6 text-sm leading-relaxed whitespace-pre-line pl-1">
+              Are you sure you want to {submitConfirmState.isEditing ? 'update' : 'create'} the record for <span className="font-semibold">{submitConfirmState.driverName}</span>? 
+              {submitConfirmState.isEditing 
+                ? ' This will modify the existing driver information.' 
+                : ' This will add a new driver to the system.'}
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setSubmitConfirmState({ isOpen: false, isEditing: false, driverName: '' })}
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmSubmit}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg shadow-blue-500/30 transition-colors"
+              >
+                {submitConfirmState.isEditing ? 'Update' : 'Create'}
+              </button>
             </div>
           </div>
         </div>

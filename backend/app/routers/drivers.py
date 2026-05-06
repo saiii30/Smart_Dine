@@ -1,6 +1,7 @@
 from typing import List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Form, File, UploadFile
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 from app.database import get_db
 from app import models, schemas, auth
 import shutil
@@ -30,15 +31,20 @@ def map_driver_response(driver, user):
             password_hash=user.password_hash  # Include password hash to indicate if password exists
         ),
         agency_id=driver.agency_id,
+        employee_id=driver.employee_id,
         date_of_birth=driver.date_of_birth,
         gender=driver.gender,
         blood_group=driver.blood_group,
         aadhar_number=driver.aadhar_number,
+        pan_card_number=driver.pan_card_number,
         driving_license_number=driver.driving_license_number,
         license_expiry_date=driver.license_expiry_date,
         
         # Documents
         aadhar_document=driver.aadhar_document,
+        pan_card=driver.pan_card,
+        driving_license_document=driver.driving_license_document,
+        personal_resume=driver.personal_resume,
         driver_photo=driver.driver_photo,
         police_verification_certificate=driver.police_verification_certificate,
         medical_fitness_certificate=driver.medical_fitness_certificate,
@@ -77,7 +83,16 @@ def save_upload_file(upload_file: UploadFile, destination_folder: str) -> str:
         return file_path
     finally:
         upload_file.file.close()
- 
+
+def delete_old_file(file_path: str) -> None:
+    """Delete an old file if it exists"""
+    if file_path:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            logger.error(f"Error deleting file {file_path}: {e}")
+
 def validate_phone_number(phone: str) -> str:
     """Validate and clean phone number."""
     if not phone:
@@ -101,6 +116,7 @@ def validate_phone_number(phone: str) -> str:
 @router.post("/", response_model=schemas.DriverResponse, status_code=status.HTTP_201_CREATED)
 async def create_driver(
     full_name: str = Form(...),
+    employee_id: Optional[str] = Form(None),
     phone_number: str = Form(...),
     driving_license_number: str = Form(...),
     license_expiry_date: str = Form(...),
@@ -110,6 +126,7 @@ async def create_driver(
     gender: Optional[str] = Form(None),
     blood_group: Optional[str] = Form(None),
     aadhar_number: Optional[str] = Form(None),
+    pan_card_number: Optional[str] = Form(None),
    
     verification_status: str = Form('Pending'),
     status: str = Form('Active'),
@@ -129,6 +146,9 @@ async def create_driver(
     notes: Optional[str] = Form(None),
    
     aadhar_document: Optional[UploadFile] = File(None),
+    pan_card: Optional[UploadFile] = File(None),
+    driving_license_document: Optional[UploadFile] = File(None),
+    personal_resume: Optional[UploadFile] = File(None),
     driver_photo: Optional[UploadFile] = File(None),
     police_verification_certificate: Optional[UploadFile] = File(None),
     medical_fitness_certificate: Optional[UploadFile] = File(None),
@@ -188,13 +208,22 @@ async def create_driver(
     # Handle file uploads with error handling
     upload_dir = "uploads/drivers"
     aadhar_path = None
+    pan_card_path = None
+    driving_license_doc_path = None
+    personal_resume_path = None
     photo_path = None
     police_path = None
     medical_path = None
-   
+    
     try:
         if aadhar_document:
             aadhar_path = save_upload_file(aadhar_document, upload_dir)
+        if pan_card:
+            pan_card_path = save_upload_file(pan_card, upload_dir)
+        if driving_license_document:
+            driving_license_doc_path = save_upload_file(driving_license_document, upload_dir)
+        if personal_resume:
+            personal_resume_path = save_upload_file(personal_resume, upload_dir)
         if driver_photo:
             photo_path = save_upload_file(driver_photo, upload_dir)
         if police_verification_certificate:
@@ -204,7 +233,7 @@ async def create_driver(
     except Exception as e:
         logger.error(f"File upload failed: {str(e)}")
         # Clean up any uploaded files if one fails
-        for path in [aadhar_path, photo_path, police_path, medical_path]:
+        for path in [aadhar_path, pan_card_path, driving_license_doc_path, personal_resume_path, photo_path, police_path, medical_path]:
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
@@ -243,12 +272,14 @@ async def create_driver(
         new_driver = models.Driver(
             id=new_user_id,
             agency_id=agency_id,
+            employee_id=employee_id,
             driving_license_number=driving_license_number,
             license_expiry_date=parsed_license_expiry,
             date_of_birth=parse_date(date_of_birth),
             gender=gender,
             blood_group=blood_group,
             aadhar_number=aadhar_number,
+            pan_card_number=pan_card_number,
             verification_status=verification_status,
             status=status,
             current_address=current_address,
@@ -263,6 +294,9 @@ async def create_driver(
             assigned_vehicle_id=v_id,
             notes=notes,
             aadhar_document=aadhar_path,
+            pan_card=pan_card_path,
+            driving_license_document=driving_license_doc_path,
+            personal_resume=personal_resume_path,
             driver_photo=photo_path,
             police_verification_certificate=police_path,
             medical_fitness_certificate=medical_path
@@ -384,6 +418,7 @@ def read_driver(
 async def update_driver(
     driver_id: str, 
     full_name: Optional[str] = Form(None),
+    employee_id: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     driving_license_number: Optional[str] = Form(None),
     license_expiry_date: Optional[str] = Form(None),
@@ -394,6 +429,7 @@ async def update_driver(
     gender: Optional[str] = Form(None),
     blood_group: Optional[str] = Form(None),
     aadhar_number: Optional[str] = Form(None),
+    pan_card_number: Optional[str] = Form(None),
    
     verification_status: Optional[str] = Form(None),
     status: Optional[str] = Form(None),
@@ -413,6 +449,9 @@ async def update_driver(
     notes: Optional[str] = Form(None),
    
     aadhar_document: Optional[UploadFile] = File(None),
+    pan_card: Optional[UploadFile] = File(None),
+    driving_license_document: Optional[UploadFile] = File(None),
+    personal_resume: Optional[UploadFile] = File(None),
     driver_photo: Optional[UploadFile] = File(None),
     police_verification_certificate: Optional[UploadFile] = File(None),
     medical_fitness_certificate: Optional[UploadFile] = File(None),
@@ -459,6 +498,7 @@ async def update_driver(
         logger.info(f"Password updated for driver {driver_id}")
  
     # Update Driver fields
+    if employee_id: db_driver.employee_id = employee_id
     if driving_license_number: db_driver.driving_license_number = driving_license_number
     if license_expiry_date:
         d = parse_date(license_expiry_date)
@@ -468,6 +508,7 @@ async def update_driver(
     if gender: db_driver.gender = gender
     if blood_group: db_driver.blood_group = blood_group
     if aadhar_number: db_driver.aadhar_number = aadhar_number
+    if pan_card_number: db_driver.pan_card_number = pan_card_number
    
     if verification_status: db_driver.verification_status = verification_status
     if status: db_driver.status = status
@@ -491,6 +532,9 @@ async def update_driver(
     # Files
     upload_dir = "uploads/drivers"
     if aadhar_document: db_driver.aadhar_document = save_upload_file(aadhar_document, upload_dir)
+    if pan_card: db_driver.pan_card = save_upload_file(pan_card, upload_dir)
+    if driving_license_document: db_driver.driving_license_document = save_upload_file(driving_license_document, upload_dir)
+    if personal_resume: db_driver.personal_resume = save_upload_file(personal_resume, upload_dir)
     if driver_photo: db_driver.driver_photo = save_upload_file(driver_photo, upload_dir)
     if police_verification_certificate: db_driver.police_verification_certificate = save_upload_file(police_verification_certificate, upload_dir)
     if medical_fitness_certificate: db_driver.medical_fitness_certificate = save_upload_file(medical_fitness_certificate, upload_dir)
@@ -498,113 +542,104 @@ async def update_driver(
     db.commit()
     db.refresh(db_driver)
     db.refresh(db_user)
-   
+    
     return map_driver_response(db_driver, db_user)
 
 @router.delete("/{driver_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_driver(
-    driver_id: str, # str
+    driver_id: str,
+    current_user: models.User = Depends(auth.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    logger.info(f"Delete request for driver {driver_id} (auth temporarily disabled)")
-    
     try:
-        # Test database connection
-        try:
-            from sqlalchemy import text
-            db.execute(text("SELECT 1"))
-            logger.info("Database connection OK")
-        except Exception as db_error:
-            logger.error(f"Database connection failed: {str(db_error)}")
-            raise HTTPException(status_code=500, detail=f"Database connection error: {str(db_error)}")
+        # Get the driver to delete
+        db_driver = db.query(models.Driver).filter(
+            models.Driver.id == driver_id
+        ).first()
         
-        # Test if driver exists first
-        try:
-            driver_test = db.query(models.Driver).filter(models.Driver.id == driver_id).first()
-            if not driver_test:
-                logger.error(f"Driver {driver_id} not found")
-                raise HTTPException(status_code=404, detail="Driver not found")
-            logger.info(f"Driver {driver_id} found")
-        except Exception as query_error:
-            logger.error(f"Driver query failed: {str(query_error)}")
-            raise HTTPException(status_code=500, detail=f"Driver query error: {str(query_error)}")
+        if not db_driver:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Driver not found"
+            )
         
-        # Test user query
-        try:
-            user_test = db.query(models.User).filter(models.User.id == driver_id).first()
-            if not user_test:
-                logger.error(f"User {driver_id} not found")
-                raise HTTPException(status_code=404, detail="User not found")
-            logger.info(f"User {driver_id} found")
-        except Exception as user_query_error:
-            logger.error(f"User query failed: {str(user_query_error)}")
-            raise HTTPException(status_code=500, detail=f"User query error: {str(user_query_error)}")
+        # Check permissions - restrict to same agency for all users including super_admin
+        if db_driver.agency_id != current_user.agency_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to delete this driver"
+            )
         
-        # Try the deletion using raw SQL to avoid ORM issues
-        try:
-            logger.info("Starting deletion process...")
-            from sqlalchemy import text
-            
-            # Delete using raw SQL to avoid ORM schema issues
-            logger.info("Deleting driver record with raw SQL...")
-            db.execute(text("DELETE FROM drivers WHERE id = :driver_id"), {"driver_id": driver_id})
-            
-            logger.info("Deleting user record with raw SQL...")
-            db.execute(text("DELETE FROM users WHERE id = :driver_id"), {"driver_id": driver_id})
-            
-            logger.info("Committing transaction...")
-            db.commit()
-            
-            logger.info(f"Successfully deleted driver {driver_id}")
-            return None
-            
-        except Exception as delete_error:
-            db.rollback()
-            logger.error(f"Deletion failed: {str(delete_error)}")
-            
-            # Check constraints without problematic queries
-            logger.info("Checking basic constraints...")
-            
-            try:
-                associated_trips = db.query(models.TripSchedule).filter(
-                    models.TripSchedule.driver_id == driver_id
-                ).count()
-                logger.info(f"Driver trips: {associated_trips}")
-            except Exception as trips_error:
-                logger.error(f"Trip query failed: {str(trips_error)}")
-                associated_trips = -1
-            
-            try:
-                vehicles = db.query(models.Vehicle).filter(
-                    models.Vehicle.user_id == driver_id
-                ).count()
-                logger.info(f"User vehicles: {vehicles}")
-            except Exception as vehicles_error:
-                logger.error(f"Vehicle query failed: {str(vehicles_error)}")
-                vehicles = -1
-            
-            try:
-                user_trips = db.query(models.TripSchedule).filter(
-                    models.TripSchedule.user_id == driver_id
-                ).count()
-                logger.info(f"User trips: {user_trips}")
-            except Exception as user_trips_error:
-                logger.error(f"User trips query failed: {str(user_trips_error)}")
-                user_trips = -1
-            
-            error_detail = f"Deletion failed. Trips: {associated_trips}, Vehicles: {vehicles}, User trips: {user_trips}. Error: {str(delete_error)}"
-            logger.error(error_detail)
-            raise HTTPException(status_code=500, detail=error_detail)
-
+        # Delete associated files
+        if db_driver.aadhar_document:
+            delete_old_file(db_driver.aadhar_document)
+        if db_driver.pan_card:
+            delete_old_file(db_driver.pan_card)
+        if db_driver.driving_license_document:
+            delete_old_file(db_driver.driving_license_document)
+        if db_driver.personal_resume:
+            delete_old_file(db_driver.personal_resume)
+        if db_driver.driver_photo:
+            delete_old_file(db_driver.driver_photo)
+        if db_driver.police_verification_certificate:
+            delete_old_file(db_driver.police_verification_certificate)
+        if db_driver.medical_fitness_certificate:
+            delete_old_file(db_driver.medical_fitness_certificate)
+        
+        # Check for associated trip schedules
+        associated_trips = db.query(models.TripSchedule).filter(
+            models.TripSchedule.driver_id == driver_id
+        ).all()
+        
+        if associated_trips:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete driver: It is associated with {len(associated_trips)} trip(s). Please reassign or delete the trips first."
+            )
+        
+        # Check for assigned vehicles
+        assigned_vehicles = db.query(models.Vehicle).filter(
+            models.Vehicle.assigned_driver_id == driver_id
+        ).all()
+        
+        if assigned_vehicles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete driver: It is assigned to {len(assigned_vehicles)} vehicle(s). Please reassign the vehicles first."
+            )
+        
+        # Delete the driver and associated user
+        # First delete the driver record
+        db.delete(db_driver)
+        
+        # Then delete the associated user record
+        db_user = db.query(models.User).filter(
+            models.User.id == driver_id
+        ).first()
+        
+        if db_user:
+            db.delete(db_user)
+        
+        db.commit()
+        
+        return {"message": "Driver deleted successfully"}
+        
     except HTTPException:
-        raise  # Re-raise HTTP exceptions as-is
-    except Exception as e:
-        logger.error(f"Unexpected error deleting driver {driver_id}: {str(e)}", exc_info=True)
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"Integrity error deleting driver {driver_id}: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete driver: It has associated records (trips, vehicles, or other dependencies). Please remove these associations first."
         )
-
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting driver {driver_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting driver: {str(e)}"
+        )
 
 @router.get("/check-phone/{phone_number}")
 def check_phone_number(
@@ -653,6 +688,31 @@ def check_aadhar_number(
         return {"exists": True, "driver_id": existing_driver.id, "message": "Aadhar number already exists"}
     
     return {"exists": False, "message": "Aadhar number available"}
+
+@router.get("/check-pan/{pan_card_number}")
+def check_pan_number(
+    pan_card_number: str,
+    db: Session = Depends(get_db)
+):
+    """Check if PAN card number is already in use"""
+    # Clean and validate PAN number
+    if not pan_card_number:
+        return {"exists": False, "message": "PAN card number not provided"}
+    
+    # Basic PAN validation (format: ABCDE1234F)
+    pan_pattern = re.compile(r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$')
+    if not pan_pattern.match(pan_card_number.upper()):
+        return {"exists": True, "message": "Invalid PAN card number format"}
+    
+    # Check if PAN number exists in drivers table
+    existing_driver = db.query(models.Driver).filter(
+        models.Driver.pan_card_number == pan_card_number.upper()
+    ).first()
+    
+    if existing_driver:
+        return {"exists": True, "driver_id": existing_driver.id, "message": "PAN card number already exists"}
+    
+    return {"exists": False, "message": "PAN card number available"}
 
 # list available drivers within a specific time range
 @router.get("/available/drivers", response_model=List[schemas.DriverResponse])

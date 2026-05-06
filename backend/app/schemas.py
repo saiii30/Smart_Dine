@@ -327,6 +327,7 @@ class DriverUpdate(BaseModel):
     gender: Optional[str] = None
     blood_group: Optional[str] = None
     aadhar_number: Optional[str] = None
+    pan_card_number: Optional[str] = None
     driving_license_number: Optional[str] = None
     license_expiry_date: Optional[datetime] = None
     
@@ -354,16 +355,21 @@ class DriverResponse(BaseModel):
     id: str
     user: Optional[UserBase] = None
     agency_id: Optional[str] = None
+    employee_id: Optional[str] = None
     date_of_birth: Optional[datetime] = None
     gender: Optional[str] = None
     blood_group: Optional[str] = None
     aadhar_number: Optional[str] = None
- 
+    pan_card_number: Optional[str] = None
+
     driving_license_number: Optional[str] = None
     license_expiry_date: Optional[datetime] = None
     
     # Documents
     aadhar_document: Optional[str] = None
+    pan_card: Optional[str] = None
+    driving_license_document: Optional[str] = None
+    personal_resume: Optional[str] = None
     driver_photo: Optional[str] = None
     police_verification_certificate: Optional[str] = None
     medical_fitness_certificate: Optional[str] = None

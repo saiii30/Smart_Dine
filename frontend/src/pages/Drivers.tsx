@@ -1,9 +1,10 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { api } from '../api/api'
 import { Plus, Edit, Trash2, User, Search } from 'lucide-react'
-import { Driver } from '../types'
+import { Driver, TripSchedule } from '../types'
 import DriverModal from '../components/DriverModal'
 import DriverViewModal from '../components/DriverViewModal'
+import DeleteModal from '../components/DeleteModal'
 import { useAuth } from '../contexts/AuthContext'
 
 const DRIVER_STATUS = {
@@ -31,6 +32,11 @@ const Drivers = () => {
   const [viewingDriver, setViewingDriver] = useState<Driver | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [driverToDelete, setDriverToDelete] = useState<Driver | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [trips, setTrips] = useState<TripSchedule[]>([])
+  const [hoveredDriverId, setHoveredDriverId] = useState<string | null>(null)
   const debounceTimeoutRef = useRef<number>()
 
   // Debounce search input
@@ -52,6 +58,7 @@ const Drivers = () => {
  
   useEffect(() => {
     fetchDrivers()
+    fetchTrips()
   }, [])
  
   const fetchDrivers = async () => {
@@ -62,6 +69,16 @@ const Drivers = () => {
       console.error('Failed to fetch drivers:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchTrips = async () => {
+    try {
+      const response = await api.get('/trips/')
+      setTrips(response.data)
+    } catch (error) {
+      console.error('Failed to fetch trips:', error)
+      setTrips([])
     }
   }
 
@@ -76,17 +93,24 @@ const Drivers = () => {
     setIsModalOpen(true)
   }
  
-  const handleDelete = async (id: string) => {
-    const driverToDelete = drivers.find(d => d.id === id)
-    const driverName = driverToDelete?.user?.name || 'this driver'
-    if (!window.confirm(`Are you sure you want to delete ${driverName}? This action cannot be undone.`)) return
+  const handleDeleteClick = (driver: Driver) => {
+    setDriverToDelete(driver)
+    setIsDeleteModalOpen(true)
+  }
 
+  const handleDeleteConfirm = async () => {
+    if (!driverToDelete) return
+
+    setIsDeleting(true)
+    
     // Optimistic update - remove driver from UI immediately
     const previousDrivers = [...drivers]
-    setDrivers(drivers.filter(driver => driver.id !== id))
+    setDrivers(drivers.filter(driver => driver.id !== driverToDelete.id))
 
     try {
-      await api.delete(`/drivers/${id}`)
+      await api.delete(`/drivers/${driverToDelete.id}`)
+      setIsDeleteModalOpen(false)
+      setDriverToDelete(null)
     } catch (error: any) {
       // Rollback on error
       setDrivers(previousDrivers)
@@ -111,7 +135,14 @@ const Drivers = () => {
       }
       
       alert(errorMessage)
+    } finally {
+      setIsDeleting(false)
     }
+  }
+
+  const handleDeleteCancel = () => {
+    setIsDeleteModalOpen(false)
+    setDriverToDelete(null)
   }
  
   const handleModalClose = () => {
@@ -134,6 +165,17 @@ const Drivers = () => {
     setViewingDriver(null)
   }
  
+  // Memoized driver trips calculation
+  const getDriverTrips = useCallback((driverId: string): TripSchedule[] => {
+    if (!trips || !Array.isArray(trips)) return []
+    return trips.filter(trip => trip.driver_id === driverId)
+  }, [trips])
+
+  const canDeleteDriver = useCallback((driverId: string): boolean => {
+    const driverTrips = getDriverTrips(driverId)
+    return driverTrips.length === 0
+  }, [getDriverTrips])
+
   // Filter drivers based on search query (driver name and phone number)
   const filteredDrivers = useMemo(() => {
     if (!debouncedSearchQuery.trim()) {
@@ -289,14 +331,37 @@ const Drivers = () => {
                       Edit
                     </button>
 
-                    <button
-                      onClick={() => handleDelete(driver.id)}
-                      aria-label={`Delete driver ${driver.user?.name || 'record'}`}
-                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                    <div
+                      className="relative"
+                      onMouseEnter={() => setHoveredDriverId(driver.id)}
+                      onMouseLeave={() => setHoveredDriverId(null)}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </button>
+                      <button
+                        onClick={() => handleDeleteClick(driver)}
+                        disabled={!canDeleteDriver(driver.id)}
+                        aria-label={`Delete driver ${driver.user?.name || 'record'}`}
+                        className={`flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          canDeleteDriver(driver.id)
+                            ? 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
+                            : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+                        }`}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </button>
+                      
+                      {/* Enhanced tooltip */}
+                      {!canDeleteDriver(driver.id) && hoveredDriverId === driver.id && (
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm rounded-lg shadow-lg whitespace-nowrap z-10">
+                          <div className="text-xs font-medium">
+                            Cannot delete: Driver has {getDriverTrips(driver.id).length} associated trip(s)
+                          </div>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                            <div className="border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
 
@@ -321,9 +386,18 @@ const Drivers = () => {
           onClose={handleViewModalClose}
         />
       )}
+
+      {isDeleteModalOpen && (
+        <DeleteModal
+          title="Confirm Delete"
+          message={`Are you sure you want to delete ${driverToDelete?.user?.name || 'this driver'}? This action cannot be undone.`}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+          loading={isDeleting}
+        />
+      )}
     </div>
   )
 }
  
 export default Drivers
- 

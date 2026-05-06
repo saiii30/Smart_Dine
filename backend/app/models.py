@@ -99,7 +99,20 @@ class Vehicle(Base):
     
     # Safety Equipment
     fire_extinguisher_available = Column(Boolean, default=False)
+    fire_extinguisher_expiry = Column(DateTime(timezone=True), nullable=True)
     first_aid_kit_available = Column(Boolean, default=False)
+    first_aid_kit_expiry = Column(DateTime(timezone=True), nullable=True)
+    toolkit_available = Column(Boolean, default=False)
+    spare_wheel_available = Column(Boolean, default=False)
+    emergency_sticker_available = Column(Boolean, default=False)
+    
+    # Compliance & Documentation
+    permit_number = Column(String, nullable=True)
+    permit_expiry = Column(DateTime(timezone=True), nullable=True)
+    fitness_certificate_date = Column(DateTime(timezone=True), nullable=True)
+    fitness_certificate_expiry = Column(DateTime(timezone=True), nullable=True)
+    speed_governor_installed = Column(Boolean, default=False)
+    reflective_triangle_available = Column(Boolean, default=False)
     
     # Contact Information
     emergency_support_number = Column(String, nullable=True)
@@ -156,6 +169,9 @@ class Driver(Base):
     id = Column(String, ForeignKey("users.id"), primary_key=True)
     agency_id = Column(String, ForeignKey("agencies.id"), nullable=True, index=True)
     
+    # Employee Information
+    employee_id = Column(String, unique=True, nullable=True)
+    
     # Personal Details (Specific to Driver profile, if not in User)
     date_of_birth = Column(DateTime(timezone=True), nullable=True)
     gender = Column(String, nullable=True)
@@ -163,11 +179,15 @@ class Driver(Base):
     
     # Identification
     aadhar_number = Column(String, unique=True, nullable=True)
+    pan_card_number = Column(String, unique=True, nullable=True)
     driving_license_number = Column(String, unique=True, nullable=False)
     license_expiry_date = Column(DateTime(timezone=True), nullable=False)
     
     # Documents (Paths)
     aadhar_document = Column(String, nullable=True)
+    pan_card = Column(String, nullable=True)
+    driving_license_document = Column(String, nullable=True)
+    personal_resume = Column(String, nullable=True)
     driver_photo = Column(String, nullable=True)
     police_verification_certificate = Column(String, nullable=True)
     medical_fitness_certificate = Column(String, nullable=True)

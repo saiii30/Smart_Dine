@@ -36,6 +36,53 @@ const customScrollbarStyles = `
 const DriverViewModal = ({ driver, onClose }: DriverViewModalProps) => {
   if (!driver) return null
 
+  const handleViewDocument = (documentName: string) => {
+    if (!documentName || documentName.trim() === '') return
+    
+    // Get the base URL from environment
+    const baseUrl = import.meta.env.VITE_BACKEND_URL
+    if (!baseUrl) return
+    
+    // Extract just the filename from the full path (e.g., "uploads/drivers/filename.ext" -> "filename.ext")
+    const filename = documentName.split(/[\/\\]/).pop() || documentName
+    
+    // Create the document URL using the uploads static file serving
+    const documentUrl = `${baseUrl}/uploads/drivers/${filename}`
+    
+    // Debug logging
+    console.log('Document viewing details:', {
+      originalDocumentName: documentName,
+      extractedFilename: filename,
+      baseUrl,
+      finalUrl: documentUrl
+    })
+    
+    // Open document in a new tab
+    const newWindow = window.open(documentUrl, '_blank')
+    if (newWindow) {
+      newWindow.focus()
+    } else {
+      console.error('Failed to open document window. URL:', documentUrl)
+    }
+  }
+
+  
+  const DocumentRow = ({ label, documentName }: { label: string; documentName: string }) => {
+    if (!documentName || documentName.trim() === '') return null
+    
+    return (
+      <div className="flex justify-between items-center py-2">
+        <span className="text-gray-600 dark:text-gray-400 font-medium">{label}:</span>
+        <button
+          onClick={() => handleViewDocument(documentName)}
+          className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
+        >
+          View
+        </button>
+      </div>
+    )
+  }
+
   return (
     <>
       <style>{customScrollbarStyles}</style>
@@ -62,11 +109,6 @@ const DriverViewModal = ({ driver, onClose }: DriverViewModalProps) => {
           <div className="flex justify-between items-center py-2">
             <span className="text-gray-600 dark:text-gray-400 font-medium">Phone Number:</span>
             <span className="text-gray-900 dark:text-white font-medium">{driver.user.contact_number}</span>
-          </div>
-
-          <div className="flex justify-between items-center py-2">
-            <span className="text-gray-600 dark:text-gray-400 font-medium">Password:</span>
-            <span className="text-gray-900 dark:text-white font-medium">{"\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"}</span>
           </div>
 
           <div className="flex justify-between items-center py-2">
@@ -115,7 +157,7 @@ const DriverViewModal = ({ driver, onClose }: DriverViewModalProps) => {
             </span>
           </div>
 
-          {/* Additional Details */}
+          {/* Additional Details - Only show if field has value */}
           {driver.driving_license_number && (
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600 dark:text-gray-400 font-medium">License Number:</span>
@@ -215,6 +257,77 @@ const DriverViewModal = ({ driver, onClose }: DriverViewModalProps) => {
               <span className="text-gray-900 dark:text-white font-medium">{driver.user.email}</span>
             </div>
           )}
+
+          {driver.employee_id && driver.employee_id.trim() !== '' && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Employee ID:</span>
+              <span className="text-gray-900 dark:text-white font-medium">{driver.employee_id}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center py-2">
+            <span className="text-gray-600 dark:text-gray-400 font-medium">Active Status:</span>
+            <span className={`px-2 py-1 text-xs font-medium rounded ${
+              driver.is_active
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+            }`}>
+              {driver.is_active ? 'Active' : 'Inactive'}
+            </span>
+          </div>
+
+          {driver.created_at && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Created At:</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {new Date(driver.created_at).toLocaleDateString('en-GB')}
+              </span>
+            </div>
+          )}
+
+          {driver.updated_at && driver.updated_at.trim() !== '' && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Updated At:</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {new Date(driver.updated_at).toLocaleDateString('en-GB')}
+              </span>
+            </div>
+          )}
+
+          {/* Documents Section */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Documents</h3>
+            <div className="space-y-2">
+              <DocumentRow 
+                label="Medical Fitness Certificate" 
+                documentName={driver.medical_fitness_certificate || ''} 
+              />
+              <DocumentRow 
+                label="Personal Resume" 
+                documentName={driver.personal_resume || ''} 
+              />
+              <DocumentRow 
+                label="Aadhar Document" 
+                documentName={driver.aadhar_document || ''} 
+              />
+              <DocumentRow 
+                label="Driving License Document" 
+                documentName={driver.driving_license_document || ''} 
+              />
+              <DocumentRow 
+                label="PAN Card" 
+                documentName={driver.pan_card || ''} 
+              />
+              <DocumentRow 
+                label="Driver Photo" 
+                documentName={driver.driver_photo || ''} 
+              />
+              <DocumentRow 
+                label="Police Verification Certificate" 
+                documentName={driver.police_verification_certificate || ''} 
+              />
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
