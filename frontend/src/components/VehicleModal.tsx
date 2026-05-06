@@ -86,6 +86,13 @@ const isSupervisor = user?.role === 'SUPERVISOR';
     onClose?: () => void;
   }>({ isOpen: false, type: 'alert', title: '', message: '' });
 
+  // --- Submit Confirmation State ---
+  const [submitConfirmState, setSubmitConfirmState] = useState<{
+    isOpen: boolean;
+    isEditing: boolean;
+    vehicleName: string;
+  }>({ isOpen: false, isEditing: false, vehicleName: '' });
+
   const [validationErrors] = useState<Record<string, string>>({});
 
   const showAlert = (title: string, message: string, type: 'alert' | 'success' | 'error' = 'alert', onCloseCallback?: () => void) => {
@@ -413,6 +420,17 @@ const isSupervisor = user?.role === 'SUPERVISOR';
       return;
     }
     
+    // Show confirmation dialog
+    setSubmitConfirmState({
+      isOpen: true,
+      isEditing: !!vehicle,
+      vehicleName: `${draft.vehicle_registration_number} (${draft.vehicle_brand} ${draft.vehicle_model})` || 'this vehicle'
+    });
+  };
+
+  const confirmSubmit = async () => {
+    setSubmitConfirmState({ isOpen: false, isEditing: false, vehicleName: '' });
+    
     try {
       // Build FormData to match backend Form/File expectations
       const formData = new FormData();
@@ -567,7 +585,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
         </div>
 
         <form 
-  onSubmit={!isSupervisor ? handleSubmit : undefined} 
+  onSubmit={undefined} 
   className="p-8 pt-2"
 >
   <fieldset disabled={isSupervisor}>
@@ -771,7 +789,11 @@ const isSupervisor = user?.role === 'SUPERVISOR';
               Clear Draft
             </button>
             {!isSupervisor && (
-  <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">
+  <button 
+    type="button" 
+    onClick={handleSubmit} 
+    className="px-8 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95"
+  >
     Submit Record
   </button>
 )}
@@ -816,6 +838,47 @@ const isSupervisor = user?.role === 'SUPERVISOR';
                   Close
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submit Confirmation Modal */}
+      {submitConfirmState.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100 dark:border-gray-700 transform transition-all scale-100">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                <svg className="text-blue-600 dark:text-blue-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4"></path>
+                  <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                Confirm {submitConfirmState.isEditing ? 'Update' : 'Creation'}
+              </h3>
+            </div>
+            
+            <p className="text-gray-600 dark:text-gray-300 mb-6 text-sm leading-relaxed whitespace-pre-line pl-1">
+              Are you sure you want to {submitConfirmState.isEditing ? 'update' : 'create'} the record for <span className="font-semibold">{submitConfirmState.vehicleName}</span>? 
+              {submitConfirmState.isEditing 
+                ? ' This will modify the existing vehicle information.' 
+                : ' This will add a new vehicle to the system.'}
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setSubmitConfirmState({ isOpen: false, isEditing: false, vehicleName: '' })}
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmSubmit}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg shadow-blue-500/30 transition-colors"
+              >
+                {submitConfirmState.isEditing ? 'Update' : 'Create'}
+              </button>
             </div>
           </div>
         </div>
