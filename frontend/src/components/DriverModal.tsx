@@ -161,19 +161,89 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
     saveDraft({ password: '', showPassword: false, has_existing_password: !!(driver as any)?.user?.password_hash, password_modified: false });
   }, [driver?.id]);
     // --- Handlers ---
+
+      const validateRow = (row: any, index: number) => {
+  const errors: string[] = [];
+
+  if (!row['Pincode']) {
+    errors.push(`Row ${index}: Pincode is missing`);
+  }
+
+   if (!row['State']) {
+    errors.push(`Row ${index}: State is missing`);
+  }
+
+  if(!row['City']) {
+    errors.push(`Row ${index}: City is missing`);
+  }
+
+  if(!row['Current Address'])
+  {
+    errors.push(`Row ${index}: Current Address is missing`);
+  }
+
+  if(!row['Emergency Contact Number'])
+  {
+    errors.push(`Row ${index}: Emergency Contact Number is missing`);
+  }
+
+  if(!row['Emergency Contact Name'])
+  {
+    errors.push(`Row ${index}: PUC Emergency Contact Name is missing`);
+  }
+
+
+  if(!row['License Expiry'])
+  {
+    errors.push(`Row ${index}: License Expiry is missing`)
+  }
+
+  if (!row['License Number']) {
+    errors.push(`Row ${index}: License Number is missing`);
+  }
+
+  if (!row['Gender']) {
+    errors.push(`Row ${index}: Gender is missing`);
+  }
+
+  if(!row['Date of Birth'])
+  {
+    errors.push(`Row ${index}: Date of Birth is missing`);
+  }
+
+  if (!row['Password']) {
+    errors.push(`Row ${index}: Password is missing`);
+  }
+
+  if(!row["Phone Number"])
+  {
+    errors.push(`Row ${index}: Phone Number is missing`);
+  }
+
+  if (!row['Blood Group']) {
+    errors.push(`Row ${index}: Blood Group is missing`);
+  }
+
+  if (!row['Full Name']) {
+    errors.push(`Row ${index}: Full Name is missing`);
+  }
+
+  return errors;
+};
+
   
   const downloadTemplate = async () => {
     const headers = [
       'Full Name', 'Phone Number', 'Date of Birth', 'Gender', 'Aadhar Number',
       'License Number', 'License Expiry', 'Blood Group', 'Status', 'Shift Preference',
       'Current Address', 'City', 'State', 'Pincode', 'Emergency Contact Name', 'Emergency Contact Number',
-      'Previous Employer Experience', 'Languages Spoken'
+      'Previous Employer Experience', 'Languages Spoken' , 'Password'
     ];
     const sampleRow = [
       'John Doe', '9876543210', '1990-01-01', 'Male', '123456789012',
       'DL1234567890', '2030-12-31', 'O+', 'Active', 'Morning',
       '123 Main St', 'Chennai', 'Tamil Nadu', '600001', 'Jane Doe', '9876543211',
-      '2 years at ABC Transport', 'English, Tamil'
+      '2 years at ABC Transport', 'English, Tamil', '********'
     ];
 
     const workbook = new ExcelJS.Workbook();
@@ -232,10 +302,22 @@ const DriverModal = ({ driver, onClose, onSuccess }: DriverModalProps) => {
         if (!row['License Expiry']?.trim()) validationErrors.push(`Row ${rowNum}: License Expiry is required`);
       });
 
-      if (validationErrors.length > 0) {
-        showAlert('Validation Errors', validationErrors.slice(0, 10).join('\n') + (validationErrors.length > 10 ? '\n...and more' : ''), 'error');
-        return;
-      }
+     const allErrors: string[] = [];
+
+jsonData.forEach((row, index) => {
+  const rowErrors = validateRow(row, index + 2);
+  allErrors.push(...rowErrors);
+});
+
+// ✅ NEW CLEAN ALERT
+if (allErrors.length > 0) {
+  showAlert(
+    'Validation Error',
+    `Total Errors: ${allErrors.length}\n\nFirst 5 Errors:\n${allErrors.slice(0, 5).join('\n')}`,
+    'error'
+  );
+  return;
+}
 
       showConfirm('Confirm Upload', `Found ${jsonData.length} records. Proceed with upload?`, async () => {
         let successCount = 0;

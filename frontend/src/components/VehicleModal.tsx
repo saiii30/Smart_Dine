@@ -206,7 +206,7 @@ const isSupervisor = user?.role === 'SUPERVISOR';
     const headers = [
       'Registration Number', 'Brand', 'Model', 'Type', 'Status', 'Fuel Type', 
       'RC Number', 'Registration Expiry', 'Service Expiry', 'PUC Expiry', 
-      'Insurance Expiry', 'Year', 'Seating Capacity', 'GPS ID'
+      'Insurance Expiry', 'Year', 'Seating Capacity', 'GPS ID','Insurance Number','Insurance Date','Registration Date', 
     ];
     const sampleRow = [
       'TN01AB1234', 'Toyota', 'Innova', 'SUV', 'Active', 'Diesel', 
@@ -220,6 +220,71 @@ const isSupervisor = user?.role === 'SUPERVISOR';
     worksheet.addRow(sampleRow);
     await workbook.xlsx.writeFile('Vehicle_Upload_Template.xlsx');
   };
+
+  const validateRow = (row: any, index: number) => {
+  const errors: string[] = [];
+
+  if (!row['Registration Number']) {
+    errors.push(`Row ${index}: Registration Number is missing`);
+  }
+
+  if(!row['Type']) {
+    errors.push(`Row ${index}: Type is missing`);
+  }
+
+  if(!row['Insurance Expiry'])
+  {
+    errors.push(`Row ${index}: Insurance Expiry is missing`);
+  }
+
+  if(!row['Fuel Type'])
+  {
+    errors.push(`Row ${index}: Fuel Type is missing`);
+  }
+
+  if(!row['PUC Expiry'])
+  {
+    errors.push(`Row ${index}: PUC Expiry is missing`);
+  }
+
+
+  if(!row['Status'])
+  {
+    errors.push(`Row ${index}: Status is missing`)
+  }
+
+  if (!row['Brand']) {
+    errors.push(`Row ${index}: Brand is missing`);
+  }
+
+  if (!row['Model']) {
+    errors.push(`Row ${index}: Model is missing`);
+  }
+
+  if(!row['RC Number'])
+  {
+    errors.push(`Row ${index}: RC Number is missing`);
+  }
+
+  if (!row['Registration Date']) {
+    errors.push(`Row ${index}: Registration Date is missing`);
+  }
+
+  if(!row["Registration Expiry"])
+  {
+    errors.push(`Row ${index}: Registration Expiry is missing`);
+  }
+
+  if (!row['Insurance Number']) {
+    errors.push(`Row ${index}: Insurance Number is missing`);
+  }
+
+  if (!row['Insurance Date']) {
+    errors.push(`Row ${index}: Insurance Date is missing`);
+  }
+
+  return errors;
+};
 
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -261,6 +326,25 @@ const isSupervisor = user?.role === 'SUPERVISOR';
         return;
       }
 
+      // 🔴 Validate all rows before upload
+// 🔴 Validate all rows before upload
+const allErrors: string[] = [];
+
+jsonData.forEach((row, index) => {
+  const rowErrors = validateRow(row, index + 2);
+  allErrors.push(...rowErrors);
+});
+
+// ✅ NEW CLEAN ALERT
+if (allErrors.length > 0) {
+  showAlert(
+    'Validation Error',
+    `Total Errors: ${allErrors.length}\n\nFirst 5 Errors:\n${allErrors.slice(0, 5).join('\n')}`,
+    'error'
+  );
+  return;
+}
+
       showConfirm('Confirm Upload', `Found ${jsonData.length} records. Proceed with upload?`, async () => {
         let successCount = 0;
         let failCount = 0;
@@ -284,6 +368,18 @@ const isSupervisor = user?.role === 'SUPERVISOR';
             formData.append('manufacturing_year', String(row['Year'] || new Date().getFullYear()));
             formData.append('seating_capacity', String(row['Seating Capacity'] || 4));
             if(row['GPS ID']) formData.append('gps_device_id', row['GPS ID']);
+
+            if (row['Registration Date']) {
+  formData.append('registration_date', row['Registration Date']);
+}
+
+if (row['Insurance Number']) {
+  formData.append('insurance_number', row['Insurance Number']);
+}
+
+if (row['Insurance Date']) {
+  formData.append('insurance_date', row['Insurance Date']);
+}
 
             await api.post('/vehicles/', formData);
             successCount++;
