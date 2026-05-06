@@ -79,7 +79,7 @@ def process_vehicle_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
     
     # Convert string dates to datetime objects
     date_fields = ['insurance_date', 'insurance_expiry', 'registration_date', 
-                  'registration_expiry', 'puc_expiry', 'insurance_renewal_date', 'service_expiry']
+                  'registration_expiry', 'puc_expiry', 'insurance_renewal_date', 'service_expiry', 'first_aid_kit_expiry', 'fire_extinguisher_expiry', 'permit_expiry', 'fitness_certificate_date', 'fitness_certificate_expiry']
     
     for field in date_fields:
         if field in data and isinstance(data[field], str):
@@ -93,7 +93,7 @@ def process_vehicle_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
                 data[field] = None
     
     # Convert string booleans to actual booleans
-    bool_fields = ['fire_extinguisher_available', 'first_aid_kit_available', 'is_active']
+    bool_fields = ['fire_extinguisher_available', 'first_aid_kit_available', 'toolkit_available', 'spare_wheel_available', 'emergency_sticker_available', 'speed_governor_installed', 'reflective_triangle_available', 'is_active']
     for field in bool_fields:
         if field in data:
             if isinstance(data[field], str):

@@ -31,15 +31,20 @@ def map_driver_response(driver, user):
             password_hash=user.password_hash  # Include password hash to indicate if password exists
         ),
         agency_id=driver.agency_id,
+        employee_id=driver.employee_id,
         date_of_birth=driver.date_of_birth,
         gender=driver.gender,
         blood_group=driver.blood_group,
         aadhar_number=driver.aadhar_number,
+        pan_card_number=driver.pan_card_number,
         driving_license_number=driver.driving_license_number,
         license_expiry_date=driver.license_expiry_date,
         
         # Documents
         aadhar_document=driver.aadhar_document,
+        pan_card=driver.pan_card,
+        driving_license_document=driver.driving_license_document,
+        personal_resume=driver.personal_resume,
         driver_photo=driver.driver_photo,
         police_verification_certificate=driver.police_verification_certificate,
         medical_fitness_certificate=driver.medical_fitness_certificate,
@@ -111,6 +116,7 @@ def validate_phone_number(phone: str) -> str:
 @router.post("/", response_model=schemas.DriverResponse, status_code=status.HTTP_201_CREATED)
 async def create_driver(
     full_name: str = Form(...),
+    employee_id: Optional[str] = Form(None),
     phone_number: str = Form(...),
     driving_license_number: str = Form(...),
     license_expiry_date: str = Form(...),
@@ -120,6 +126,7 @@ async def create_driver(
     gender: Optional[str] = Form(None),
     blood_group: Optional[str] = Form(None),
     aadhar_number: Optional[str] = Form(None),
+    pan_card_number: Optional[str] = Form(None),
    
     verification_status: str = Form('Pending'),
     status: str = Form('Active'),
@@ -139,6 +146,9 @@ async def create_driver(
     notes: Optional[str] = Form(None),
    
     aadhar_document: Optional[UploadFile] = File(None),
+    pan_card: Optional[UploadFile] = File(None),
+    driving_license_document: Optional[UploadFile] = File(None),
+    personal_resume: Optional[UploadFile] = File(None),
     driver_photo: Optional[UploadFile] = File(None),
     police_verification_certificate: Optional[UploadFile] = File(None),
     medical_fitness_certificate: Optional[UploadFile] = File(None),
@@ -198,13 +208,22 @@ async def create_driver(
     # Handle file uploads with error handling
     upload_dir = "uploads/drivers"
     aadhar_path = None
+    pan_card_path = None
+    driving_license_doc_path = None
+    personal_resume_path = None
     photo_path = None
     police_path = None
     medical_path = None
-   
+    
     try:
         if aadhar_document:
             aadhar_path = save_upload_file(aadhar_document, upload_dir)
+        if pan_card:
+            pan_card_path = save_upload_file(pan_card, upload_dir)
+        if driving_license_document:
+            driving_license_doc_path = save_upload_file(driving_license_document, upload_dir)
+        if personal_resume:
+            personal_resume_path = save_upload_file(personal_resume, upload_dir)
         if driver_photo:
             photo_path = save_upload_file(driver_photo, upload_dir)
         if police_verification_certificate:
@@ -214,7 +233,7 @@ async def create_driver(
     except Exception as e:
         logger.error(f"File upload failed: {str(e)}")
         # Clean up any uploaded files if one fails
-        for path in [aadhar_path, photo_path, police_path, medical_path]:
+        for path in [aadhar_path, pan_card_path, driving_license_doc_path, personal_resume_path, photo_path, police_path, medical_path]:
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
@@ -253,12 +272,14 @@ async def create_driver(
         new_driver = models.Driver(
             id=new_user_id,
             agency_id=agency_id,
+            employee_id=employee_id,
             driving_license_number=driving_license_number,
             license_expiry_date=parsed_license_expiry,
             date_of_birth=parse_date(date_of_birth),
             gender=gender,
             blood_group=blood_group,
             aadhar_number=aadhar_number,
+            pan_card_number=pan_card_number,
             verification_status=verification_status,
             status=status,
             current_address=current_address,
@@ -273,6 +294,9 @@ async def create_driver(
             assigned_vehicle_id=v_id,
             notes=notes,
             aadhar_document=aadhar_path,
+            pan_card=pan_card_path,
+            driving_license_document=driving_license_doc_path,
+            personal_resume=personal_resume_path,
             driver_photo=photo_path,
             police_verification_certificate=police_path,
             medical_fitness_certificate=medical_path
@@ -394,6 +418,7 @@ def read_driver(
 async def update_driver(
     driver_id: str, 
     full_name: Optional[str] = Form(None),
+    employee_id: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     driving_license_number: Optional[str] = Form(None),
     license_expiry_date: Optional[str] = Form(None),
@@ -404,6 +429,7 @@ async def update_driver(
     gender: Optional[str] = Form(None),
     blood_group: Optional[str] = Form(None),
     aadhar_number: Optional[str] = Form(None),
+    pan_card_number: Optional[str] = Form(None),
    
     verification_status: Optional[str] = Form(None),
     status: Optional[str] = Form(None),
@@ -423,6 +449,9 @@ async def update_driver(
     notes: Optional[str] = Form(None),
    
     aadhar_document: Optional[UploadFile] = File(None),
+    pan_card: Optional[UploadFile] = File(None),
+    driving_license_document: Optional[UploadFile] = File(None),
+    personal_resume: Optional[UploadFile] = File(None),
     driver_photo: Optional[UploadFile] = File(None),
     police_verification_certificate: Optional[UploadFile] = File(None),
     medical_fitness_certificate: Optional[UploadFile] = File(None),
@@ -469,6 +498,7 @@ async def update_driver(
         logger.info(f"Password updated for driver {driver_id}")
  
     # Update Driver fields
+    if employee_id: db_driver.employee_id = employee_id
     if driving_license_number: db_driver.driving_license_number = driving_license_number
     if license_expiry_date:
         d = parse_date(license_expiry_date)
@@ -478,6 +508,7 @@ async def update_driver(
     if gender: db_driver.gender = gender
     if blood_group: db_driver.blood_group = blood_group
     if aadhar_number: db_driver.aadhar_number = aadhar_number
+    if pan_card_number: db_driver.pan_card_number = pan_card_number
    
     if verification_status: db_driver.verification_status = verification_status
     if status: db_driver.status = status
@@ -501,6 +532,9 @@ async def update_driver(
     # Files
     upload_dir = "uploads/drivers"
     if aadhar_document: db_driver.aadhar_document = save_upload_file(aadhar_document, upload_dir)
+    if pan_card: db_driver.pan_card = save_upload_file(pan_card, upload_dir)
+    if driving_license_document: db_driver.driving_license_document = save_upload_file(driving_license_document, upload_dir)
+    if personal_resume: db_driver.personal_resume = save_upload_file(personal_resume, upload_dir)
     if driver_photo: db_driver.driver_photo = save_upload_file(driver_photo, upload_dir)
     if police_verification_certificate: db_driver.police_verification_certificate = save_upload_file(police_verification_certificate, upload_dir)
     if medical_fitness_certificate: db_driver.medical_fitness_certificate = save_upload_file(medical_fitness_certificate, upload_dir)
@@ -539,6 +573,12 @@ def delete_driver(
         # Delete associated files
         if db_driver.aadhar_document:
             delete_old_file(db_driver.aadhar_document)
+        if db_driver.pan_card:
+            delete_old_file(db_driver.pan_card)
+        if db_driver.driving_license_document:
+            delete_old_file(db_driver.driving_license_document)
+        if db_driver.personal_resume:
+            delete_old_file(db_driver.personal_resume)
         if db_driver.driver_photo:
             delete_old_file(db_driver.driver_photo)
         if db_driver.police_verification_certificate:
@@ -648,6 +688,31 @@ def check_aadhar_number(
         return {"exists": True, "driver_id": existing_driver.id, "message": "Aadhar number already exists"}
     
     return {"exists": False, "message": "Aadhar number available"}
+
+@router.get("/check-pan/{pan_card_number}")
+def check_pan_number(
+    pan_card_number: str,
+    db: Session = Depends(get_db)
+):
+    """Check if PAN card number is already in use"""
+    # Clean and validate PAN number
+    if not pan_card_number:
+        return {"exists": False, "message": "PAN card number not provided"}
+    
+    # Basic PAN validation (format: ABCDE1234F)
+    pan_pattern = re.compile(r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$')
+    if not pan_pattern.match(pan_card_number.upper()):
+        return {"exists": True, "message": "Invalid PAN card number format"}
+    
+    # Check if PAN number exists in drivers table
+    existing_driver = db.query(models.Driver).filter(
+        models.Driver.pan_card_number == pan_card_number.upper()
+    ).first()
+    
+    if existing_driver:
+        return {"exists": True, "driver_id": existing_driver.id, "message": "PAN card number already exists"}
+    
+    return {"exists": False, "message": "PAN card number available"}
 
 # list available drivers within a specific time range
 @router.get("/available/drivers", response_model=List[schemas.DriverResponse])

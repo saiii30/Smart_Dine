@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { Vehicle } from '../types'
+import { api } from '../api/api'
 
 interface VehicleViewModalProps {
   vehicle: Vehicle | null
@@ -35,6 +36,33 @@ const customScrollbarStyles = `
 
 const VehicleViewModal = ({ vehicle, onClose }: VehicleViewModalProps) => {
   if (!vehicle) return null
+
+  const handleViewDocument = async (documentType: string) => {
+    if (vehicle && vehicle.id && documentType && documentType.trim() !== '') {
+      try {
+        // Use the authenticated API client to fetch the document
+        const response = await api.get(`/vehicles/${vehicle.id}/documents/${documentType}`, {
+          responseType: 'blob' // Important for file downloads
+        })
+        
+        // Create a blob URL and open in new tab
+        const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/pdf' })
+        const url = window.URL.createObjectURL(blob)
+        window.open(url, '_blank')
+        
+        // Clean up the blob URL after a short delay
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url)
+        }, 1000)
+      } catch (error) {
+        console.error('Error viewing document:', error)
+        // Fallback to direct window.open if API fails
+        const baseUrl = window.location.origin
+        const fullUrl = `${baseUrl}/api/vehicles/${vehicle.id}/documents/${documentType}`
+        window.open(fullUrl, '_blank')
+      }
+    }
+  }
 
   return (
     <>
@@ -213,13 +241,7 @@ const VehicleViewModal = ({ vehicle, onClose }: VehicleViewModalProps) => {
             </div>
           )}
 
-          {vehicle.pollution_certificate && vehicle.pollution_certificate.trim() !== '' && (
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600 dark:text-gray-400 font-medium">Pollution Certificate:</span>
-              <span className="text-gray-900 dark:text-white font-medium">{vehicle.pollution_certificate}</span>
-            </div>
-          )}
-
+          
           {vehicle.fire_extinguisher_available !== undefined && (
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600 dark:text-gray-400 font-medium">Fire Extinguisher Available:</span>
@@ -229,6 +251,15 @@ const VehicleViewModal = ({ vehicle, onClose }: VehicleViewModalProps) => {
                   : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
               }`}>
                 {vehicle.fire_extinguisher_available ? 'Yes' : 'No'}
+              </span>
+            </div>
+          )}
+
+          {vehicle.fire_extinguisher_expiry && vehicle.fire_extinguisher_expiry.trim() !== '' && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Fire Extinguisher Expiry:</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {new Date(vehicle.fire_extinguisher_expiry).toLocaleDateString('en-GB')}
               </span>
             </div>
           )}
@@ -246,10 +277,144 @@ const VehicleViewModal = ({ vehicle, onClose }: VehicleViewModalProps) => {
             </div>
           )}
 
+          {vehicle.first_aid_kit_expiry && vehicle.first_aid_kit_expiry.trim() !== '' && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">First Aid Kit Expiry:</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {new Date(vehicle.first_aid_kit_expiry).toLocaleDateString('en-GB')}
+              </span>
+            </div>
+          )}
+
+          {vehicle.toolkit_available !== undefined && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Toolkit Available:</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                vehicle.toolkit_available 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+              }`}>
+                {vehicle.toolkit_available ? 'Yes' : 'No'}
+              </span>
+            </div>
+          )}
+
+          {vehicle.spare_wheel_available !== undefined && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Spare Wheel Available:</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                vehicle.spare_wheel_available 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+              }`}>
+                {vehicle.spare_wheel_available ? 'Yes' : 'No'}
+              </span>
+            </div>
+          )}
+
+          {vehicle.emergency_sticker_available !== undefined && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Emergency Contact Stickers:</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                vehicle.emergency_sticker_available 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+              }`}>
+                {vehicle.emergency_sticker_available ? 'Yes' : 'No'}
+              </span>
+            </div>
+          )}
+
+          {vehicle.reflective_triangle_available !== undefined && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Reflective Triangle:</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                vehicle.reflective_triangle_available 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+              }`}>
+                {vehicle.reflective_triangle_available ? 'Yes' : 'No'}
+              </span>
+            </div>
+          )}
+
+          {vehicle.torch_available !== undefined && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Torch Available:</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                vehicle.torch_available 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+              }`}>
+                {vehicle.torch_available ? 'Yes' : 'No'}
+              </span>
+            </div>
+          )}
+
+          {vehicle.umbrella_available !== undefined && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Umbrella Available:</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                vehicle.umbrella_available 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+              }`}>
+                {vehicle.umbrella_available ? 'Yes' : 'No'}
+              </span>
+            </div>
+          )}
+
+          {vehicle.speed_governor_installed !== undefined && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Speed Governor Installed:</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                vehicle.speed_governor_installed 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+              }`}>
+                {vehicle.speed_governor_installed ? 'Yes' : 'No'}
+              </span>
+            </div>
+          )}
+
           {vehicle.emergency_support_number && vehicle.emergency_support_number.trim() !== '' && (
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600 dark:text-gray-400 font-medium">Emergency Support Number:</span>
               <span className="text-gray-900 dark:text-white font-medium">{vehicle.emergency_support_number}</span>
+            </div>
+          )}
+
+          {vehicle.permit_number && vehicle.permit_number.trim() !== '' && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Permit Number:</span>
+              <span className="text-gray-900 dark:text-white font-medium">{vehicle.permit_number}</span>
+            </div>
+          )}
+
+          {vehicle.permit_expiry && vehicle.permit_expiry.trim() !== '' && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Permit Expiry:</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {new Date(vehicle.permit_expiry).toLocaleDateString('en-GB')}
+              </span>
+            </div>
+          )}
+
+          {vehicle.fitness_certificate_date && vehicle.fitness_certificate_date.trim() !== '' && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Fitness Certificate Date:</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {new Date(vehicle.fitness_certificate_date).toLocaleDateString('en-GB')}
+              </span>
+            </div>
+          )}
+
+          {vehicle.fitness_certificate_expiry && vehicle.fitness_certificate_expiry.trim() !== '' && (
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600 dark:text-gray-400 font-medium">Fitness Certificate Expiry:</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {new Date(vehicle.fitness_certificate_expiry).toLocaleDateString('en-GB')}
+              </span>
             </div>
           )}
 
@@ -285,6 +450,62 @@ const VehicleViewModal = ({ vehicle, onClose }: VehicleViewModalProps) => {
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600 dark:text-gray-400 font-medium">Notes:</span>
               <span className="text-gray-900 dark:text-white font-medium">{vehicle.notes}</span>
+            </div>
+          )}
+
+          {/* Documents Section */}
+          {(vehicle.pollution_certificate || vehicle.insurance_copy || vehicle.policy_certificate || vehicle.registration_certificate) && (
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Documents</h3>
+              <div className="space-y-3">
+                {vehicle.pollution_certificate && vehicle.pollution_certificate.trim() !== '' && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">Pollution Certificate:</span>
+                    <button
+                      onClick={() => handleViewDocument('pollution')}
+                      className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      View
+                    </button>
+                  </div>
+                )}
+
+                {vehicle.insurance_copy && vehicle.insurance_copy.trim() !== '' && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">Insurance Copy:</span>
+                    <button
+                      onClick={() => handleViewDocument('insurance')}
+                      className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      View
+                    </button>
+                  </div>
+                )}
+
+                {vehicle.policy_certificate && vehicle.policy_certificate.trim() !== '' && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">Policy Certificate:</span>
+                    <button
+                      onClick={() => handleViewDocument('policy')}
+                      className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      View
+                    </button>
+                  </div>
+                )}
+
+                {vehicle.registration_certificate && vehicle.registration_certificate.trim() !== '' && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">Registration Certificate:</span>
+                    <button
+                      onClick={() => handleViewDocument('registration')}
+                      className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      View
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
