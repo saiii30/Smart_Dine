@@ -330,6 +330,71 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
     await workbook.xlsx.writeFile('Vehicle_Upload_Template.xlsx');
   };
 
+  const validateRow = (row: any, index: number) => {
+  const errors: string[] = [];
+
+  if (!row['Registration Number']) {
+    errors.push(`Row ${index}: Registration Number is missing`);
+  }
+
+  if(!row['Type']) {
+    errors.push(`Row ${index}: Type is missing`);
+  }
+
+  if(!row['Insurance Expiry'])
+  {
+    errors.push(`Row ${index}: Insurance Expiry is missing`);
+  }
+
+  if(!row['Fuel Type'])
+  {
+    errors.push(`Row ${index}: Fuel Type is missing`);
+  }
+
+  if(!row['PUC Expiry'])
+  {
+    errors.push(`Row ${index}: PUC Expiry is missing`);
+  }
+
+
+  if(!row['Status'])
+  {
+    errors.push(`Row ${index}: Status is missing`)
+  }
+
+  if (!row['Brand']) {
+    errors.push(`Row ${index}: Brand is missing`);
+  }
+
+  if (!row['Model']) {
+    errors.push(`Row ${index}: Model is missing`);
+  }
+
+  if(!row['RC Number'])
+  {
+    errors.push(`Row ${index}: RC Number is missing`);
+  }
+
+  if (!row['Registration Date']) {
+    errors.push(`Row ${index}: Registration Date is missing`);
+  }
+
+  if(!row["Registration Expiry"])
+  {
+    errors.push(`Row ${index}: Registration Expiry is missing`);
+  }
+
+  if (!row['Insurance Number']) {
+    errors.push(`Row ${index}: Insurance Number is missing`);
+  }
+
+  if (!row['Insurance Date']) {
+    errors.push(`Row ${index}: Insurance Date is missing`);
+  }
+
+  return errors;
+};
+
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -414,6 +479,18 @@ if (allErrors.length > 0) {
             if (row['GPS ID']) formData.append('gps_device_id', row['GPS ID']);
 
               if (row['Registration Date']) {
+  formData.append('registration_date', row['Registration Date']);
+}
+
+if (row['Insurance Number']) {
+  formData.append('insurance_number', row['Insurance Number']);
+}
+
+if (row['Insurance Date']) {
+  formData.append('insurance_date', row['Insurance Date']);
+}
+
+            if (row['Registration Date']) {
   formData.append('registration_date', row['Registration Date']);
 }
 

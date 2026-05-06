@@ -151,6 +151,14 @@ const [form, setForm] = useState({
         }
         break;
 
+      case "password":
+        if (!value && isBlur) {
+          error = "Password is required";
+        } else if (value && value.length < 6) {
+          error = "Password must be at least 6 characters";
+        }
+        break;
+
       default:
         break;
     }
@@ -183,7 +191,9 @@ const [form, setForm] = useState({
         form.contact_phone &&
         !errors.contact_phone &&
         form.contact_email &&
-        !errors.contact_email
+        !errors.contact_email &&
+        form.password &&
+        !errors.password
       );
     }
 

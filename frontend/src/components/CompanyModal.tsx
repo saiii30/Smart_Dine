@@ -341,11 +341,17 @@ export default function CompanyModal({
                       <div className="flex gap-3">
                         <input
                         readOnly={isReadOnly}
-                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-gray-700 dark:text-white"
+                          className={`w-full px-3 py-2 border rounded-lg bg-transparent dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                        errors.password ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                      }`}
                           value={form.password}
                         
                            placeholder="Generate or type password"
-                            onChange={(e) => setForm({ ...form, password: e.target.value })}
+                            onChange={(e) => {
+                              setForm({ ...form, password: e.target.value });
+                              validateField("password", e.target.value);
+                            }}
+                            onBlur={(e) => validateField("password", e.target.value, true)}
                         />
                         <button
                           type="button"
@@ -355,6 +361,7 @@ export default function CompanyModal({
                           Generate
                         </button>
                       </div>
+                      {errors.password && <p className="text-red-500 text-xs">{errors.password}</p>}
                     </div>
                   )}
                 </div>
