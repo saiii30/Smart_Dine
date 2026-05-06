@@ -344,7 +344,8 @@ export default function CompanyModal({
                           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-gray-700 dark:text-white"
                           value={form.password}
                         
-                          placeholder="Click Generate to create password"
+                           placeholder="Generate or type password"
+                            onChange={(e) => setForm({ ...form, password: e.target.value })}
                         />
                         <button
                           type="button"
