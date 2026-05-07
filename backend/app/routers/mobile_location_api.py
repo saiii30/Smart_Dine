@@ -13,10 +13,10 @@ from datetime import datetime, timezone
 router = APIRouter(tags=["Mobile Location"])
  
 # =========================
-# POST - SIMPLE UPSERT LOCATION
+# POST - CREATE NEW LOCATION RECORD
 # =========================
 @router.post("/location", response_model=dict)
-def upsert_location_mobile(
+def create_location(
     driver_id: str = Form(...),
     trip_id: str = Form(...),
     agency_id: str = Form(...),
@@ -28,14 +28,13 @@ def upsert_location_mobile(
     end_date: Optional[str] = Form(None),
     is_active: Optional[bool] = Form(True),
     company_id: Optional[str] = Form(None),
-    location_id: Optional[int] = Form(None),  # For targeted updates
     db: Session = Depends(get_db)
 ):
     """
-    Simple upsert location - store what frontend sends
+    Create a new location record - returns location_id for future updates
     """
     try:
-        print(f" Received location data:")
+        print(f" Creating new location record:")
         print(f"  driver_id: {driver_id}")
         print(f"  trip_id: {trip_id}")
         print(f"  agency_id: {agency_id}")
@@ -43,83 +42,135 @@ def upsert_location_mobile(
         print(f"  longitude: {longitude}")
         print(f"  accuracy: {accuracy}")
         print(f"  speed: {speed}")
-        print(f"  location_id: {location_id}")  # Debug logging
        
-        # inside upsert_location_mobile
+        # Parse date fields if provided
+        parsed_start_date = None
         if start_date:
             try:
-                start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+                parsed_start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
             except ValueError:
-                start_date = None
+                parsed_start_date = None
  
+        parsed_end_date = None
         if end_date:
             try:
-               
-                end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+                parsed_end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
             except ValueError:
-                end_date = None
+                parsed_end_date = None
 
-
-                # Check if location_id is provided for targeted update
-        if location_id:
-            # Targeted update: find by both driver_id AND location_id
-            existing_location = db.query(models.DriverLocation).filter(
-                models.DriverLocation.id == location_id,
-                models.DriverLocation.driver_id == driver_id
-            ).first()
-            
-            if not existing_location:
-                raise HTTPException(404, f"Location with ID {location_id} not found for driver {driver_id}")
-        else:
-            # Find existing location by driver/trip (original behavior)
-            existing_location = db.query(models.DriverLocation).filter(
-                models.DriverLocation.driver_id == driver_id,
-                models.DriverLocation.trip_id == trip_id
-            ).first()
-       
-        if existing_location:
-            # Update existing record
-            existing_location.latitude = latitude
-            existing_location.longitude = longitude
-            existing_location.accuracy = accuracy
-            existing_location.speed = speed
-            existing_location.agency_id = agency_id  # Update agency_id
-            existing_location.timestamp = datetime.now(timezone.utc)
-            db.commit()
-            message = "Location updated"
-            location_id = existing_location.id
-        else:
-            # Create new record
-            new_location = models.DriverLocation(
-                driver_id=driver_id,
-                trip_id=trip_id,
-                agency_id=agency_id,
-                company_id=company_id,
-                latitude=latitude,
-                longitude=longitude,
-                accuracy=accuracy,
-                speed=speed,
-                start_date=start_date,
-                end_date=end_date,
-                is_active=True,
-                timestamp=datetime.now(timezone.utc)
-            )
-            db.add(new_location)
-            db.commit()
-            db.refresh(new_location)  # Get the ID
-            message = "Location created"
-            location_id = new_location.id
+        # Create new location record
+        new_location = models.DriverLocation(
+            driver_id=driver_id,
+            trip_id=trip_id,
+            agency_id=agency_id,
+            company_id=company_id,
+            latitude=latitude,
+            longitude=longitude,
+            accuracy=accuracy,
+            speed=speed,
+            start_date=parsed_start_date,
+            end_date=parsed_end_date,
+            is_active=is_active,
+            timestamp=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_location)
+        db.commit()
+        db.refresh(new_location)  # Get the generated ID
  
         return {
             "status": "success",
-            "message": message,
+            "message": "Location created successfully",
             "driver_id": driver_id,
             "trip_id": trip_id,
-            "location_id": location_id,
+            "location_id": new_location.id,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
        
     except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Database error: {str(e)}")
+
+# =========================
+# PUT - UPDATE LOCATION RECORD BY ID
+# =========================
+@router.put("/location/{location_id}", response_model=dict)
+def update_location(
+    location_id: int,
+    driver_id: str = Form(...),  # Verify ownership
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    accuracy: Optional[float] = Form(None),
+    speed: Optional[float] = Form(None),
+    start_date: Optional[str] = Form(None),
+    end_date: Optional[str] = Form(None),
+    is_active: Optional[bool] = Form(None),
+    agency_id: Optional[str] = Form(None),
+    company_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Update an existing location record by location_id
+    Requires driver_id for security verification
+    """
+    try:
+        print(f" Updating location record {location_id} for driver {driver_id}")
+        
+        # Find the location record and verify driver ownership
+        existing_location = db.query(models.DriverLocation).filter(
+            models.DriverLocation.id == location_id,
+            models.DriverLocation.driver_id == driver_id
+        ).first()
+        
+        if not existing_location:
+            raise HTTPException(404, f"Location with ID {location_id} not found for driver {driver_id}")
+        
+        # Update only provided fields
+        if latitude is not None:
+            existing_location.latitude = latitude
+        if longitude is not None:
+            existing_location.longitude = longitude
+        if accuracy is not None:
+            existing_location.accuracy = accuracy
+        if speed is not None:
+            existing_location.speed = speed
+        if is_active is not None:
+            existing_location.is_active = is_active
+        if agency_id is not None:
+            existing_location.agency_id = agency_id
+        if company_id is not None:
+            existing_location.company_id = company_id
+            
+        # Parse date fields if provided
+        if start_date:
+            try:
+                existing_location.start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            except ValueError:
+                existing_location.start_date = None
+                
+        if end_date:
+            try:
+                existing_location.end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            except ValueError:
+                existing_location.end_date = None
+        
+        # Always update timestamp on modification
+        existing_location.timestamp = datetime.now(timezone.utc)
+        
+        db.commit()
+ 
+        return {
+            "status": "success",
+            "message": "Location updated successfully",
+            "driver_id": driver_id,
+            "location_id": location_id,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+       
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
         raise HTTPException(500, f"Database error: {str(e)}")
  
 # =========================

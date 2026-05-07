@@ -244,6 +244,7 @@ class Company(Base):
     trip_schedules = relationship("TripSchedule", back_populates="company", cascade="all, delete-orphan")
     agency = relationship("Agency", back_populates="companies")
     driver_locations = relationship("DriverLocation", back_populates="company")
+    billing_settings = relationship("BillingSettings", back_populates="company", cascade="all, delete-orphan")
 
 class Agency(Base):
     __tablename__ = "agencies"
@@ -266,6 +267,7 @@ class Agency(Base):
     companies = relationship("Company", back_populates="agency", cascade="all, delete-orphan")
     trip_schedules = relationship("TripSchedule", back_populates="agency", cascade="all, delete-orphan")
     notification_acknowledgements = relationship("NotificationAcknowledgement", back_populates="agency", cascade="all, delete-orphan")
+    billing_settings = relationship("BillingSettings", back_populates="agency", cascade="all, delete-orphan")
 
 class TripSchedule(Base):
     __tablename__ = "trip_schedules"
@@ -342,6 +344,28 @@ class NotificationAcknowledgement(Base):
     # Relationships
     user = relationship("User", back_populates="notification_acknowledgements")
     agency = relationship("Agency", back_populates="notification_acknowledgements")
+    
+    class Config:
+        from_attributes = True
+
+
+class BillingSettings(Base):
+    __tablename__ = "billing_settings"
+    
+    id = Column(String, primary_key=True, index=True, default=generate_uuid)
+    agency_id = Column(String, ForeignKey('agencies.id'), nullable=False, index=True)
+    company_id = Column(String, ForeignKey('companies.id'), nullable=True, index=True)
+    vehicle_model = Column(String, nullable=False)
+    vehicle_name = Column(String, nullable=False)
+    price = Column(Float, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    agency = relationship("Agency", back_populates="billing_settings")
+    company = relationship("Company", back_populates="billing_settings")
     
     class Config:
         from_attributes = True

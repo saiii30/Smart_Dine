@@ -29,7 +29,8 @@ from app.routers import (
     company,
     agency,
     trip_schedules,
-    notifications
+    notifications,
+    billing_settings
 )
  
 # Create database tables
@@ -148,6 +149,8 @@ if os.path.exists(uploads_dir):
 else:
     print(f"Warning: Uploads directory not found at {uploads_dir}")
 
+app.include_router(billing_settings.router, prefix="/api", tags=["Billing Settings"])
+ 
 # -------------------- Health --------------------
 @app.get("/")
 async def root():
