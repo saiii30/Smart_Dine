@@ -46,7 +46,8 @@ const VehicleViewModal = ({ vehicle, onClose }: VehicleViewModalProps) => {
         })
         
         // Create a blob URL and open in new tab
-        const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/pdf' })
+        const contentType = typeof response.headers['content-type'] === 'string' ? response.headers['content-type'] : 'application/pdf'
+        const blob = new Blob([response.data], { type: contentType })
         const url = window.URL.createObjectURL(blob)
         window.open(url, '_blank')
         
