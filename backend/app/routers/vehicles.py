@@ -93,7 +93,7 @@ def process_vehicle_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
                 data[field] = None
     
     # Convert string booleans to actual booleans
-    bool_fields = ['fire_extinguisher_available', 'first_aid_kit_available', 'toolkit_available', 'spare_wheel_available', 'emergency_sticker_available', 'speed_governor_installed', 'reflective_triangle_available', 'is_active']
+    bool_fields = ['fire_extinguisher_available', 'first_aid_kit_available', 'toolkit_available', 'spare_wheel_available', 'emergency_sticker_available', 'speed_governor_installed', 'reflective_triangle_available', 'torch_available', 'umbrella_available', 'is_active']
     for field in bool_fields:
         if field in data:
             if isinstance(data[field], str):
