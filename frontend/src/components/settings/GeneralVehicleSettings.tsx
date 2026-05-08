@@ -103,17 +103,19 @@ const GeneralVehicleSettings = ({
       </div>
 
       {/* TABLE HEADER */}
-      <div className={`grid gap-3 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg
-  ${showSeatingCapacity ? 'grid-cols-7' : 'grid-cols-6'}
-`}>
-        <div>Select</div>
-        <div>Vehicle Brand</div>
-        <div>Vehicle Name</div>
-        <div>Vehicle Type</div>
-        <div>Price</div>
-        <div>Seating Capacity</div>
-        <div>Actions</div>
-      </div>
+   <div className="grid grid-cols-7 gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg">
+      <div>Select</div>
+  <div>Vehicle Brand</div>
+  <div>Vehicle Name</div>
+  <div>Vehicle Type</div>
+  <div>Price</div>
+
+  {showSeatingCapacity && (
+  <div>Seating Capacity</div>
+)}
+
+  <div>Actions</div>
+</div>
 
       {/* ROWS */}
       <div className="space-y-3">
@@ -206,13 +208,16 @@ const GeneralVehicleSettings = ({
                     </div>
                   </div>
 
+
+                  {/* <div className="grid grid-cols-7 gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg"> */}
+
                   {/* TABLE HEADER */}
-                  <div className="grid grid-cols-6 gap-12 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg">
+                <div className="grid grid-cols-6 gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg">
                     <div>Vehicle Brand</div>
                     <div>Vehicle Name</div>
                     <div>Vehicle Type</div>
                     <div>Price</div>
-                    <div>Seating Capacity</div>
+                    {showSeatingCapacity && <div>Seating Capacity</div>}
                     <div>Actions</div>
                   </div>
 
@@ -260,7 +265,9 @@ const CompanyVehicleRow = ({
 showSeatingCapacity: boolean
 }) => {
   return (
-    <div className={`grid gap-3 items-center border p-3 rounded-lg bg-white ${showSeatingCapacity ? 'grid-cols-7' : 'grid-cols-6'}`}>
+    <div className={`grid gap-3 items-center border p-3 rounded-lg bg-white ${
+  showSeatingCapacity ? 'grid-cols-7' : 'grid-cols-6'
+}`}>
       {/* BRAND */}
       <div>
         <select

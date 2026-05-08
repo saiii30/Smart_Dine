@@ -163,7 +163,7 @@ const VehicleBillingRow = ({
       type="number"
       placeholder="Seating Capacity"
       value={row.seatingCapacity || ''}
-      disabled={true}
+      disabled
       className="w-full border rounded-lg px-3 py-2 bg-gray-50"
     />
   </div>
