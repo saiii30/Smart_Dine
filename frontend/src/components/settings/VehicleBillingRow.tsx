@@ -155,7 +155,6 @@ const VehicleBillingRow = ({
         />
       </div>
 
-      {/* SEATING CAPACITY */}
     {/* SEATING CAPACITY */}
 {showSeatingCapacity && (
   <div>

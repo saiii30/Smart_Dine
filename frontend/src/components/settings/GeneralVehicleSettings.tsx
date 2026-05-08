@@ -212,12 +212,14 @@ const GeneralVehicleSettings = ({
                   {/* <div className="grid grid-cols-7 gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg"> */}
 
                   {/* TABLE HEADER */}
-                <div className="grid grid-cols-6 gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg">
+                <div className="grid grid-cols-6 gap-7 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg">
                     <div>Vehicle Brand</div>
                     <div>Vehicle Name</div>
                     <div>Vehicle Type</div>
                     <div>Price</div>
-                    {showSeatingCapacity && <div>Seating Capacity</div>}
+                     {showSeatingCapacity && (
+  <div>Seating Capacity</div>
+)}
                     <div>Actions</div>
                   </div>
 
@@ -265,9 +267,7 @@ const CompanyVehicleRow = ({
 showSeatingCapacity: boolean
 }) => {
   return (
-    <div className={`grid gap-3 items-center border p-3 rounded-lg bg-white ${
-  showSeatingCapacity ? 'grid-cols-7' : 'grid-cols-6'
-}`}>
+    <div className="grid grid-cols-6 gap-1 items-center border p-3 rounded-lg bg-white">
       {/* BRAND */}
       <div>
         <select
@@ -420,17 +420,27 @@ showSeatingCapacity: boolean
       </div>
 
       {/* SEATING CAPACITY */}
-      {showSeatingCapacity && (
+    {/* <div className={showSeatingCapacity ? '' : 'invisible'}>
+  <input
+    type="number"
+    value={vehicle.seatingCapacity || ''}
+    disabled
+    className="w-full border rounded-lg px-3 py-2 bg-gray-50"
+  />
+</div> */}
+
+{showSeatingCapacity && (
   <div>
     <input
       type="number"
       placeholder="Seating Capacity"
       value={vehicle.seatingCapacity || ''}
-      disabled={true}
+      disabled
       className="w-full border rounded-lg px-3 py-2 bg-gray-50"
     />
   </div>
 )}
+
 
       {/* DELETE */}
       <div className="flex items-center justify-center">
