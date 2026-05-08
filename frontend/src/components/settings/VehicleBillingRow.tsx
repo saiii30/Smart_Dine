@@ -28,7 +28,11 @@ const VehicleBillingRow = ({
   showSeatingCapacity = false
 }: VehicleBillingRowProps) => {
   return (
-    <div className="grid grid-cols-7 gap-3 items-center border p-3 rounded-lg">
+   <div
+  className={`grid gap-3 items-center border p-3 rounded-lg ${
+    showSeatingCapacity ? 'grid-cols-7' : 'grid-cols-6'
+  }`}
+>
       {/* CHECKBOX */}
       <div>
         <input

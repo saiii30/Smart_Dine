@@ -103,7 +103,11 @@ const GeneralVehicleSettings = ({
       </div>
 
       {/* TABLE HEADER */}
-   <div className="grid grid-cols-7 gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg">
+<div
+  className={`grid gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg ${
+    showSeatingCapacity ? 'grid-cols-7' : 'grid-cols-6'
+  }`}
+>
       <div>Select</div>
   <div>Vehicle Brand</div>
   <div>Vehicle Name</div>
@@ -212,7 +216,11 @@ const GeneralVehicleSettings = ({
                   {/* <div className="grid grid-cols-7 gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg"> */}
 
                   {/* TABLE HEADER */}
-                <div className="grid grid-cols-6 gap-7 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg">
+                <div
+  className={`grid gap-7 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg ${
+    showSeatingCapacity ? 'grid-cols-6' : 'grid-cols-5'
+  }`}
+>
                     <div>Vehicle Brand</div>
                     <div>Vehicle Name</div>
                     <div>Vehicle Type</div>
@@ -267,7 +275,11 @@ const CompanyVehicleRow = ({
 showSeatingCapacity: boolean
 }) => {
   return (
-    <div className="grid grid-cols-6 gap-1 items-center border p-3 rounded-lg bg-white">
+<div
+  className={`grid gap-1 items-center border p-3 rounded-lg bg-white ${
+    showSeatingCapacity ? 'grid-cols-6' : 'grid-cols-5'
+  }`}
+>
       {/* BRAND */}
       <div>
         <select
@@ -443,7 +455,7 @@ showSeatingCapacity: boolean
 
 
       {/* DELETE */}
-      <div className="flex items-center justify-center">
+      <div className="w-full px-3 py-2">
         <button
           onClick={() =>
             handleDeleteCompanyVehicle(
