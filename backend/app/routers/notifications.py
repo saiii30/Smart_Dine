@@ -161,6 +161,44 @@ def get_vehicle_notifications(db: Session, agency_id: Optional[str] = None, user
                     'entity_name': vehicle.vehicle_registration_number,
                     'document_type': 'Service Due'
                 })
+        
+        # Check permit expiry
+        if vehicle.permit_expiry:
+            days_remaining = calculate_days_remaining(vehicle.permit_expiry)
+            severity = determine_severity(days_remaining)
+            
+            if severity:
+                notifications.append({
+                    'id': f"vehicle_permit_{vehicle.id}",
+                    'type': 'vehicle',
+                    'title': 'Permit Expiry',
+                    'description': f'Vehicle {vehicle.vehicle_registration_number} permit is expiring',
+                    'expiry_date': vehicle.permit_expiry,
+                    'days_remaining': days_remaining,
+                    'severity': severity,
+                    'entity_id': str(vehicle.id),
+                    'entity_name': vehicle.vehicle_registration_number,
+                    'document_type': 'Permit Expiry'
+                })
+        
+        # Check fitness certificate expiry
+        if vehicle.fitness_certificate_expiry:
+            days_remaining = calculate_days_remaining(vehicle.fitness_certificate_expiry)
+            severity = determine_severity(days_remaining)
+            
+            if severity:
+                notifications.append({
+                    'id': f"vehicle_fitness_{vehicle.id}",
+                    'type': 'vehicle',
+                    'title': 'Fitness Certificate Expiry',
+                    'description': f'Vehicle {vehicle.vehicle_registration_number} fitness certificate is expiring',
+                    'expiry_date': vehicle.fitness_certificate_expiry,
+                    'days_remaining': days_remaining,
+                    'severity': severity,
+                    'entity_id': str(vehicle.id),
+                    'entity_name': vehicle.vehicle_registration_number,
+                    'document_type': 'Fitness Certificate Expiry'
+                })
     
     return notifications
 

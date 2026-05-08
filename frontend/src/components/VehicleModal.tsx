@@ -219,6 +219,8 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
       fitness_certificate_expiry: '',
       speed_governor_installed: false,
       reflective_triangle_available: false,
+      torch_available: false,
+      umbrella_available: false,
       emergency_support_number: '',
       rc_number: '',
       registration_date: '',
@@ -1101,33 +1103,6 @@ if (row['Insurance Date']) {
                   </div>
 
                   <div className="space-y-4">
-                    {/* Safety Equipment Group */}
-                    <div className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30">
-                      <h4 className="text-sm font-semibold text-green-600 mb-3 flex items-center">
-                        <ShieldCheck size={16} className="mr-2" />
-                        Safety Equipment
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
-                          <span className="text-sm font-medium text-green-600">First Aid Kit</span>
-                          <input type="checkbox" className="w-5 h-5 accent-green-600" checked={draft.first_aid_kit_available} onChange={e => saveDraft({ first_aid_kit_available: e.target.checked })} />
-                        </div>
-                        {draft.first_aid_kit_available && (
-                          <div className="bg-yellow-50 dark:bg-yellow-900/10 p-3 rounded-lg border border-yellow-100 dark:border-yellow-900/30">
-                            <FieldLabel required><span className="text-yellow-600">First Aid Kit Expiry</span></FieldLabel>
-                            <input required type="date" className={`${inputStyle} ${validationErrors.first_aid_kit_expiry ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.first_aid_kit_expiry} onChange={e => saveDraft({ first_aid_kit_expiry: e.target.value })} />
-                            {validationErrors.first_aid_kit_expiry && (
-                              <p className="text-red-500 text-xs mt-1">{validationErrors.first_aid_kit_expiry}</p>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
-                          <span className="text-sm font-medium text-green-600">Toolkit</span>
-                          <input type="checkbox" className="w-5 h-5 accent-green-600" checked={draft.toolkit_available} onChange={e => saveDraft({ toolkit_available: e.target.checked })} />
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Compliance Dates Group */}
                     <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30">
                       <h4 className="text-sm font-semibold text-red-600 mb-3 flex items-center">

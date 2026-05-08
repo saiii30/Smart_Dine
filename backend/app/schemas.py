@@ -250,7 +250,22 @@ class VehicleResponse(BaseModel):
     
     # Safety Equipment
     fire_extinguisher_available: bool = False
+    fire_extinguisher_expiry: Optional[datetime] = None
     first_aid_kit_available: bool = False
+    first_aid_kit_expiry: Optional[datetime] = None
+    toolkit_available: bool = False
+    spare_wheel_available: bool = False
+    emergency_sticker_available: bool = False
+    
+    # Compliance & Documentation
+    permit_number: Optional[str] = None
+    permit_expiry: Optional[datetime] = None
+    fitness_certificate_date: Optional[datetime] = None
+    fitness_certificate_expiry: Optional[datetime] = None
+    speed_governor_installed: bool = False
+    reflective_triangle_available: bool = False
+    torch_available: bool = False
+    umbrella_available: bool = False
     
     # Contact Information
     emergency_support_number: Optional[str] = None

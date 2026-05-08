@@ -113,6 +113,8 @@ class Vehicle(Base):
     fitness_certificate_expiry = Column(DateTime(timezone=True), nullable=True)
     speed_governor_installed = Column(Boolean, default=False)
     reflective_triangle_available = Column(Boolean, default=False)
+    torch_available = Column(Boolean, default=False)
+    umbrella_available = Column(Boolean, default=False)
     
     # Contact Information
     emergency_support_number = Column(String, nullable=True)
