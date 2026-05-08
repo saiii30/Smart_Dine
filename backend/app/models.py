@@ -162,7 +162,16 @@ class DriverLocation(Base):
     trip_schedules = relationship("TripSchedule", back_populates="location_updates")
     company = relationship("Company", back_populates="driver_locations")
  
+class VehicleList(Base):
+    __tablename__ = "vehicle_list"
 
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_brand = Column(String, nullable=False)
+    vehicle_name = Column(String, nullable=False)
+    vehicle_type = Column(String, nullable=False)
+    fuel_type = Column(String, nullable=False)
+    seating_capacity = Column(Integer, nullable=False)
+    
 class Driver(Base):
     __tablename__ = "drivers"
     

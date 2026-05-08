@@ -1,20 +1,65 @@
-import { Settings as SettingsIcon, Calendar, FileText, User } from 'lucide-react'
+import { Settings as SettingsIcon } from 'lucide-react'
 import { useSettings } from '../contexts/SettingsContext'
+import { useEffect, useState } from 'react'
+import axios from 'axios'
+import ExpirySettings from '../components/settings/ExpirySettings'
+import GeneralVehicleSettings from '../components/settings/GeneralVehicleSettings'
+
+interface VehicleBillingRow {
+  id: number
+  selected: boolean
+  brand: string
+  car: string
+  vehicleType: string
+  price: string
+  seatingCapacity?: string
+}
+
+interface CompanyBilling {
+  id: number
+  companyName: string
+  vehicles: VehicleBillingRow[]
+}
 
 const Settings = () => {
   const { expirySettings, updateExpirySettings, saveSettings, isLoading } = useSettings()
+  const [activeTab, setActiveTab] = useState('settings')
+  const [vehicleList, setVehicleList] = useState<any[]>([])
   
   const documentTypes = [
     { id: 'driving_license', name: 'License', category: 'driver' },
     { id: 'insurance', name: 'Insurance', category: 'vehicle' },
     { id: 'puc_certificate', name: 'PUC Certificate', category: 'vehicle' },
     { id: 'registration_certificate', name: 'Registration', category: 'vehicle' },
-    { id: 'permit_expiry', name: 'Permit Expiry', category: 'vehicle' },
-    { id: 'fitness_certificate_expiry', name: 'Fitness Certificate Expiry', category: 'vehicle' },
     { id: 'service_due', name: 'Service Due', category: 'vehicle' },
   ]
 
+ 
+
+   const [vehicleRows, setVehicleRows] = useState<
+  VehicleBillingRow[]
+>([
+  {
+    id: 1,
+    selected: false,
+    brand: '',
+    car: '',
+    vehicleType: '',
+    price: '',
+    seatingCapacity: ''
+  }
+])
+
+  
   const dayOptions = [1, 5, 10, 20, 30]
+  const [editingId, setEditingId] = useState<number | null>(null)
+
+   
+   const [companies, setCompanies] = useState<CompanyBilling[]>([])
+
+const [copiedVehicles, setCopiedVehicles] = useState<
+  VehicleBillingRow[]
+>([])
 
   const handleDocumentDayChange = (documentId: string, days: number) => {
     const updatedDocumentExpiryDays = {
@@ -33,6 +78,218 @@ const Settings = () => {
     // Trigger notification count update
     window.dispatchEvent(new CustomEvent('notificationUpdate'))
   }
+
+  const [companiesList, setCompaniesList] = useState<{ id: string; company_name: string; company_branch: string; agency_id: string }[]>([])
+
+  useEffect(() => {
+  const agencyId = localStorage.getItem('selectedAgencyId')
+  if (!agencyId) return
+
+  const fetchCompanies = async () => {
+    try {
+
+      const token = localStorage.getItem('token')
+    const headers = {
+      Authorization: `Bearer ${token}`,
+    }
+
+      const res = await axios.get(`http://127.0.0.1:8000/api/companies/trip/dropdown/?agency_id=${agencyId}`,
+        {headers}
+      )
+      setCompaniesList(res.data) // [{id, company_name}]
+    } catch (err) {
+      
+      console.error('Failed to fetch companies', err)
+      
+    }
+  }
+
+  fetchCompanies()
+}, [])
+
+
+ 
+   const handleAddRow = () => {
+    setVehicleRows([
+      ...vehicleRows,
+      {
+        id: Date.now(),
+        selected: false,
+        brand: '',
+        car: '',
+        vehicleType: '',
+        price: '',
+        seatingCapacity: ''
+      }
+    ])
+  }
+
+
+  useEffect(() => {
+  fetchVehicleList()
+}, [])
+
+const fetchVehicleList = async () => {
+  try {
+    const response = await fetch(
+      'http://127.0.0.1:8000/api/vehicle-list'
+    )
+
+    const data = await response.json()
+
+    setVehicleList(data)
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const brands = [
+  ...new Set(
+    vehicleList.map(vehicle => vehicle.vehicle_brand)
+  )
+]
+  const handleAddCompany = () => {
+  setCompanies(prev => [
+    ...prev,
+    {
+      id: Date.now(),
+      companyName: '',
+      vehicles: []
+    }
+  ])
+}
+
+
+
+const handleAddVehicleToCompany = (
+  companyId: number
+) => {
+  setCompanies(prev =>
+    prev.map(company =>
+      company.id === companyId
+        ? {
+            ...company,
+            vehicles: [
+              ...company.vehicles,
+              {
+                id: Date.now(),
+                selected: false,
+                brand: '',
+                car: '',
+                vehicleType: '',
+                price: '',
+                seatingCapacity: ''
+              }
+            ]
+          }
+        : company
+    )
+  )
+}
+
+const handlePasteVehicles = (
+  companyId: number
+) => {
+  setCompanies(prev =>
+    prev.map(company => {
+      if (company.id !== companyId) {
+        return company
+      }
+
+      // already existing vehicles
+      const existingVehicles = company.vehicles
+
+      // remove duplicates
+      const uniqueVehicles = copiedVehicles.filter(
+        copiedVehicle =>
+          !existingVehicles.some(
+            existingVehicle =>
+              existingVehicle.brand === copiedVehicle.brand &&
+              existingVehicle.car === copiedVehicle.car &&
+              existingVehicle.vehicleType === copiedVehicle.vehicleType 
+          )
+      )
+
+      return {
+        ...company,
+        vehicles: [
+          ...existingVehicles,
+          ...uniqueVehicles.map(vehicle => ({
+            ...vehicle,
+            id: Date.now() + Math.random(),
+            selected: false
+          }))
+        ]
+      }
+    })
+  )
+}
+
+const handleCompanyVehicleChange = (
+  companyId: number,
+  vehicleId: number,
+  field: keyof VehicleBillingRow,
+  value: string
+) => {
+  setCompanies(prev =>
+    prev.map(company =>
+      company.id === companyId
+        ? {
+            ...company,
+            vehicles: company.vehicles.map(vehicle =>
+              vehicle.id === vehicleId
+                ? {
+                    ...vehicle,
+                    [field]: value
+                  }
+                : vehicle
+            )
+          }
+        : company
+    )
+  )
+}
+
+   // UPDATE ROW
+  const handleChange = (
+    id: number,
+    field: keyof VehicleBillingRow,
+    value: string | boolean
+  ) => {
+    setVehicleRows(prev =>
+      prev.map(row =>
+        row.id === id ? { ...row, [field]: value } : row
+      )
+    )
+  }
+
+  // DELETE ROW
+  const handleDelete = (id: number) => {
+    setVehicleRows(prev => prev.filter(row => row.id !== id))
+  }
+
+  
+const handleDeleteCompanyVehicle = (
+  companyId: number,
+  vehicleId: number
+) => {
+  setCompanies(prev =>
+    prev.map(company => {
+      if (company.id === companyId) {
+        return {
+          ...company,
+          vehicles: company.vehicles.filter(
+            vehicle => vehicle.id !== vehicleId
+          )
+        }
+      }
+
+      return company
+    })
+  )
+}
+
+ 
 
   const handleDocumentTypeToggle = (documentId: string) => {
     const currentTypes = expirySettings.selectedDocumentTypes
@@ -55,6 +312,32 @@ const Settings = () => {
     }
   }
 
+  const handleDeleteCompany = (
+  companyId: number
+) => {
+  setCompanies(prev =>
+    prev.filter(
+      company => company.id !== companyId
+    )
+  )
+}
+
+const handleCompanyChange = (
+  companyId: number,
+  companyName: string
+) => {
+  setCompanies(prev =>
+    prev.map(company =>
+      company.id === companyId
+        ? {
+            ...company,
+            companyName: companyName
+          }
+        : company
+    )
+  )
+}
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center space-x-3 mb-8">
@@ -62,243 +345,93 @@ const Settings = () => {
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
       </div>
 
-      <div className="space-y-4">
-        {/* Expiry Alert Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <div className="flex items-center space-x-2 mb-5">
-            <Calendar className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Expiry Alert Settings</h2>
-          </div>
+      {/* TABS */}
+      <div className="flex gap-3 mb-6">
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`px-4 py-2 rounded-lg font-medium ${
+            activeTab === 'settings'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200'
+          }`}
+        >
+          Settings
+        </button>
 
-          {/* Alert Days Filter */}
-          <div className="mb-5">
-            <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">
-              Default Alert Before (Days)
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {dayOptions.map((days) => (
-                <button
-                  key={days}
-                  onClick={() => {
-                    updateExpirySettings({ globalExpiryDays: days })
-                    // Trigger notification count update
-                    window.dispatchEvent(new CustomEvent('notificationUpdate'))
-                  }}
-                  className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-all ${
-                    expirySettings.globalExpiryDays === days
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                      : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                  }`}
-                >
-                  {days} days
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Default alert period for documents without specific settings
-            </p>
-          </div>
+        <button
+          onClick={() => setActiveTab('common')}
+          className={`px-4 py-2 rounded-lg font-medium ${
+            activeTab === 'common'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200'
+          }`}
+        >
+          General Vehicle Settings
+        </button>
 
-          {/* Entity Type Toggle */}
-          <div className="mb-5">
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-gray-900 dark:text-white">
-                Alert Types
-              </label>
-              {expirySettings.selectedDocumentTypes.length > 0 && (
-                <button
-                  onClick={handleClearSelection}
-                  className="text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Clear Selection
-                </button>
-              )}
-            </div>
-            <div className="space-y-2">
-              {/* Vehicle Documents Section */}
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50">
-                  <div className="flex items-center space-x-3">
-                    <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        Vehicle Documents
-                      </span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Insurance, PUC, Registration, Permit, Fitness certificates
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      updateExpirySettings({ vehicleNotificationsEnabled: !expirySettings.vehicleNotificationsEnabled })
-                      // Trigger notification count update
-                      window.dispatchEvent(new CustomEvent('notificationUpdate'))
-                    }}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      expirySettings.vehicleNotificationsEnabled ? 'bg-blue-600' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                        expirySettings.vehicleNotificationsEnabled ? 'translate-x-5' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-                
-                {/* Vehicle Document Types */}
-                {expirySettings.vehicleNotificationsEnabled && (
-                  <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                    <div className="space-y-3">
-                      {documentTypes.filter(doc => doc.category === 'vehicle').map((docType) => (
-                        <div key={docType.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                {docType.name}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => handleDocumentTypeToggle(docType.id)}
-                              className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-                                expirySettings.selectedDocumentTypes.includes(docType.id) ? 'bg-blue-600' : 'bg-gray-300'
-                              }`}
-                            >
-                              <span
-                                className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${
-                                  expirySettings.selectedDocumentTypes.includes(docType.id) ? 'translate-x-3.5' : 'translate-x-0.5'
-                                }`}
-                              />
-                            </button>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Alert before:</span>
-                            <div className="flex flex-wrap gap-1">
-                              {dayOptions.map((days) => (
-                                <button
-                                  key={days}
-                                  onClick={() => handleDocumentDayChange(docType.id, days)}
-                                  className={`px-2 py-1 text-xs rounded border transition-all ${
-                                    (expirySettings.documentExpiryDays || {})[docType.id] === days
-                                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-                                  }`}
-                                >
-                                  {days}d
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Driver Documents Section */}
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50">
-                  <div className="flex items-center space-x-3">
-                    <User className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        Driver Documents
-                      </span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        License
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      updateExpirySettings({ driverNotificationsEnabled: !expirySettings.driverNotificationsEnabled })
-                      // Trigger notification count update
-                      window.dispatchEvent(new CustomEvent('notificationUpdate'))
-                    }}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      expirySettings.driverNotificationsEnabled ? 'bg-green-600' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                        expirySettings.driverNotificationsEnabled ? 'translate-x-5' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-                
-                {/* Driver Document Types */}
-                {expirySettings.driverNotificationsEnabled && (
-                  <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                    <div className="space-y-3">
-                      {documentTypes.filter(doc => doc.category === 'driver').map((docType) => (
-                        <div key={docType.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                {docType.name}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => handleDocumentTypeToggle(docType.id)}
-                              className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-                                expirySettings.selectedDocumentTypes.includes(docType.id) ? 'bg-green-600' : 'bg-gray-300'
-                              }`}
-                            >
-                              <span
-                                className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${
-                                  expirySettings.selectedDocumentTypes.includes(docType.id) ? 'translate-x-3.5' : 'translate-x-0.5'
-                                }`}
-                              />
-                            </button>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Alert before:</span>
-                            <div className="flex flex-wrap gap-1">
-                              {dayOptions.map((days) => (
-                                <button
-                                  key={days}
-                                  onClick={() => handleDocumentDayChange(docType.id, days)}
-                                  className={`px-2 py-1 text-xs rounded border transition-all ${
-                                    (expirySettings.documentExpiryDays || {})[docType.id] === days
-                                      ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-                                  }`}
-                                >
-                                  {days}d
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Save Button */}
-        <div className="flex justify-end">
-          <button
-            onClick={handleSaveSettings}
-            disabled={isLoading}
-            className={`px-5 py-2 rounded-md font-medium text-white transition-colors ${
-              isLoading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
-            }`}
-          >
-            {isLoading ? 'Saving...' : 'Save Settings'}
-          </button>
-        </div>
+        
       </div>
+
+
+      {
+        activeTab === 'settings' && (
+          <div className="space-y-4">
+            <ExpirySettings
+              expirySettings={expirySettings}
+              dayOptions={dayOptions}
+              documentTypes={documentTypes}
+              updateExpirySettings={updateExpirySettings}
+              handleDocumentDayChange={handleDocumentDayChange}
+              handleClearSelection={handleClearSelection}
+              handleDocumentTypeToggle={handleDocumentTypeToggle}
+            />
+
+            {/* Save Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveSettings}
+                disabled={isLoading}
+                className={`px-5 py-2 rounded-md font-medium text-white transition-colors ${
+                  isLoading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                }`}
+              >
+                {isLoading ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+       {/* COMMON SETTINGS TAB */}
+      {activeTab === 'common' && (
+        <GeneralVehicleSettings
+          vehicleRows={vehicleRows}
+          brands={brands}
+          vehicleList={vehicleList}
+          editingId={editingId}
+          handleChange={handleChange}
+          handleDelete={handleDelete}
+          handleAddRow={handleAddRow}
+          setCopiedVehicles={setCopiedVehicles}
+          companies={companies}
+          companiesList={companiesList}
+          handleAddCompany={handleAddCompany}
+          handleAddVehicleToCompany={handleAddVehicleToCompany}
+          handleDeleteCompany={handleDeleteCompany}
+          handlePasteVehicles={handlePasteVehicles}
+          handleCompanyVehicleChange={handleCompanyVehicleChange}
+          handleDeleteCompanyVehicle={handleDeleteCompanyVehicle}
+          handleCompanyChange={handleCompanyChange}
+        />
+      )}
+
+
+  
+
+
+
     </div>
   )
 }

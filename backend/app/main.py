@@ -30,7 +30,7 @@ from app.routers import (
     agency,
     trip_schedules,
     notifications,
-    billing_settings
+    vehicle_list
 )
  
 # Create database tables
@@ -136,6 +136,7 @@ app.include_router(company.router, prefix="/api/companies", tags=["Companies"])
 app.include_router(agency.router, prefix="/api/agency", tags=["Agency"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])
+app.include_router(vehicle_list.router, prefix="/api", tags=["Vehicle List"])
 
 # Mount static files for uploads directory
 # Use absolute path from backend directory
@@ -149,8 +150,6 @@ if os.path.exists(uploads_dir):
 else:
     print(f"Warning: Uploads directory not found at {uploads_dir}")
 
-app.include_router(billing_settings.router, prefix="/api", tags=["Billing Settings"])
- 
 # -------------------- Health --------------------
 @app.get("/")
 async def root():
