@@ -17,7 +17,7 @@ const Trips = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const debouncedSearch = useDebounce(searchQuery, 300)
-  const [fetchingTrips, setFetchingTrips] = useState(true)
+  const [_fetchingTrips, setFetchingTrips] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchingCompanies, setFetchingCompanies] = useState(true)
   const [deleteLoading, setDeleteLoading] = useState(false)
