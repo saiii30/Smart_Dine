@@ -9,6 +9,8 @@ const Settings = () => {
     { id: 'insurance', name: 'Insurance', category: 'vehicle' },
     { id: 'puc_certificate', name: 'PUC Certificate', category: 'vehicle' },
     { id: 'registration_certificate', name: 'Registration', category: 'vehicle' },
+    { id: 'permit_expiry', name: 'Permit Expiry', category: 'vehicle' },
+    { id: 'fitness_certificate_expiry', name: 'Fitness Certificate Expiry', category: 'vehicle' },
     { id: 'service_due', name: 'Service Due', category: 'vehicle' },
   ]
 
@@ -123,7 +125,7 @@ const Settings = () => {
                         Vehicle Documents
                       </span>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Insurance, PUC, Registration certificates
+                        Insurance, PUC, Registration, Permit, Fitness certificates
                       </p>
                     </div>
                   </div>

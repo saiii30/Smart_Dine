@@ -40,6 +40,8 @@ const Layout = () => {
         'insurance': 'insurance',
         'puc_certificate': 'puc certificate',
         'registration_certificate': 'registration certificate',
+        'permit_expiry': 'permit expiry',
+        'fitness_certificate_expiry': 'fitness certificate expiry',
         'service_due': 'service due'
       }
 
