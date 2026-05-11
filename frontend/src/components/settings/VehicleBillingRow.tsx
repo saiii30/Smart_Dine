@@ -148,7 +148,22 @@ const VehicleBillingRow = ({
       </div>
 
       {/* PRICE */}
-      <div>
+      
+
+    {/* SEATING CAPACITY */}
+{showSeatingCapacity && (
+  <div>
+    <input
+      type="number"
+      placeholder="Seating Capacity"
+      value={row.seatingCapacity || ''}
+      disabled
+      className="w-full border rounded-lg px-3 py-2 bg-gray-50"
+    />
+  </div>
+)}
+
+<div>
         <input
           type="number"
           placeholder="Price"
@@ -164,19 +179,6 @@ const VehicleBillingRow = ({
           className="w-full border rounded-lg px-3 py-2"
         />
       </div>
-
-    {/* SEATING CAPACITY */}
-{showSeatingCapacity && (
-  <div>
-    <input
-      type="number"
-      placeholder="Seating Capacity"
-      value={row.seatingCapacity || ''}
-      disabled
-      className="w-full border rounded-lg px-3 py-2 bg-gray-50"
-    />
-  </div>
-)}
 
       {/* ACTIONS */}
       <div className="flex items-center gap-2">

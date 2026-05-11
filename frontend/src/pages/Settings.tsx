@@ -716,7 +716,7 @@ const handleCompanyChange = (
               : 'bg-gray-200'
           }`}
         >
-          Settings
+          Notification Settings
         </button>
 
         <button
@@ -727,7 +727,7 @@ const handleCompanyChange = (
               : 'bg-gray-200'
           }`}
         >
-          General Vehicle Settings
+          Billing Settings
         </button>
 
         

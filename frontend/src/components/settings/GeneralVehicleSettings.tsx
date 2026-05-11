@@ -1,5 +1,6 @@
 import { Car, Plus, Copy, Building2, Trash2, Clipboard } from 'lucide-react'
 import VehicleBillingRow from './VehicleBillingRow'
+import { Save } from 'lucide-react'
 import { useState } from 'react'
 
 interface VehicleBillingRowType {
@@ -98,7 +99,7 @@ const GeneralVehicleSettings = ({
   onClick={handleSaveBillingSettings}
   className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg"
 >
-  Save
+   <Save className="h-4 w-4" />
 </button>
 
           <button
@@ -123,11 +124,12 @@ const GeneralVehicleSettings = ({
   <div>Vehicle Brand</div>
   <div>Vehicle Name</div>
   <div>Vehicle Type</div>
-  <div>Price</div>
-
-  {showSeatingCapacity && (
+   {showSeatingCapacity && (
   <div>Seating Capacity</div>
 )}
+  <div>Price</div>
+
+ 
 
   <div>Actions</div>
 </div>
@@ -208,9 +210,9 @@ const GeneralVehicleSettings = ({
 
                       <button
                         onClick={() => handleDeleteCompany(company.id)}
-                        className="p-2 rounded bg-red-100 hover:bg-red-200"
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg"
                       >
-                        <Trash2 className="h-4 w-4 text-red-700" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
 
                       {/* PASTE */}
@@ -235,10 +237,11 @@ const GeneralVehicleSettings = ({
                     <div>Vehicle Brand</div>
                     <div>Vehicle Name</div>
                     <div>Vehicle Type</div>
-                    <div>Price</div>
+                    
                      {showSeatingCapacity && (
   <div>Seating Capacity</div>
 )}
+                    <div>Price</div>
                     <div>Actions</div>
                   </div>
 
@@ -431,6 +434,18 @@ showSeatingCapacity: boolean
         </select>
       </div>
 
+      {showSeatingCapacity && (
+  <div>
+    <input
+      type="number"
+      placeholder="Seating Capacity"
+      value={vehicle.seatingCapacity || ''}
+      disabled
+      className="w-full border rounded-lg px-3 py-2 bg-gray-50"
+    />
+  </div>
+)}
+
       {/* PRICE */}
       <div>
         <input
@@ -459,17 +474,7 @@ showSeatingCapacity: boolean
   />
 </div> */}
 
-{showSeatingCapacity && (
-  <div>
-    <input
-      type="number"
-      placeholder="Seating Capacity"
-      value={vehicle.seatingCapacity || ''}
-      disabled
-      className="w-full border rounded-lg px-3 py-2 bg-gray-50"
-    />
-  </div>
-)}
+
 
 
       {/* DELETE */}
