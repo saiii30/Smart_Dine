@@ -1,4 +1,5 @@
 import { Trash2 } from 'lucide-react'
+import { useTheme } from '../../contexts/ThemeContext'
 
 interface VehicleBillingRowProps {
   row: {
@@ -28,9 +29,13 @@ const VehicleBillingRow = ({
   handleDelete,
   showSeatingCapacity = false
 }: VehicleBillingRowProps) => {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
   return (
    <div
   className={`grid gap-3 items-center border p-3 rounded-lg ${
+    isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+  } ${
     showSeatingCapacity ? 'grid-cols-7' : 'grid-cols-6'
   }`}
 >
@@ -43,7 +48,7 @@ const VehicleBillingRow = ({
             const checked = e.target.checked
             handleChange(row.id, 'selected', checked)
           }}
-          className="w-4 h-4"
+          className={`w-4 h-4 ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
         />
       </div>
 
@@ -56,11 +61,15 @@ const VehicleBillingRow = ({
             handleChange(row.id, 'car', '')
             handleChange(row.id, 'vehicleType', '')
           }}
-          className="w-full border rounded-lg px-3 py-2"
+          className={`w-full border rounded-lg px-3 py-2 ${
+            isDark 
+              ? 'bg-gray-800 border-gray-600 text-white' 
+              : 'bg-white border-gray-300 text-gray-900'
+          }`}
         >
-          <option value="">Select Brand</option>
+          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>Select Brand</option>
           {brands.map((brand, index) => (
-            <option key={index} value={brand}>
+            <option key={index} value={brand} className={isDark ? 'bg-gray-800' : 'bg-white'}>
               {brand}
             </option>
           ))}
@@ -99,9 +108,13 @@ const VehicleBillingRow = ({
               matchedVehicle?.seating_capacity?.toString() || ''
             )
           }}
-          className="w-full border rounded-lg px-3 py-2"
+          className={`w-full border rounded-lg px-3 py-2 ${
+            isDark 
+              ? 'bg-gray-800 border-gray-600 text-white' 
+              : 'bg-white border-gray-300 text-gray-900'
+          }`}
         >
-          <option value="">Select Vehicle</option>
+          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>Select Vehicle</option>
           {vehicleList
             .filter(
               vehicle =>
@@ -111,6 +124,7 @@ const VehicleBillingRow = ({
               <option
                 key={vehicle.id}
                 value={vehicle.vehicle_name}
+                className={isDark ? 'bg-gray-800' : 'bg-white'}
               >
                 {vehicle.vehicle_name} - {vehicle.fuel_type}
               </option>
@@ -129,9 +143,13 @@ const VehicleBillingRow = ({
               e.target.value
             )
           }}
-          className="w-full border rounded-lg px-3 py-2"
+          className={`w-full border rounded-lg px-3 py-2 ${
+            isDark 
+              ? 'bg-gray-800 border-gray-600 text-white' 
+              : 'bg-white border-gray-300 text-gray-900'
+          }`}
         >
-          <option value="">Vehicle Type</option>
+          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>Vehicle Type</option>
           {[
             ...new Set(
               vehicleList.map(vehicle => vehicle.vehicle_type)
@@ -140,6 +158,7 @@ const VehicleBillingRow = ({
             <option
               key={index}
               value={vehicleType}
+              className={isDark ? 'bg-gray-800' : 'bg-white'}
             >
               {vehicleType}
             </option>
@@ -158,7 +177,11 @@ const VehicleBillingRow = ({
       placeholder="Seating Capacity"
       value={row.seatingCapacity || ''}
       disabled
-      className="w-full border rounded-lg px-3 py-2 bg-gray-50"
+      className={`w-full border rounded-lg px-3 py-2 ${
+        isDark 
+          ? 'bg-gray-700 border-gray-600 text-gray-300' 
+          : 'bg-gray-50 border-gray-300 text-gray-900'
+      }`}
     />
   </div>
 )}
@@ -176,7 +199,11 @@ const VehicleBillingRow = ({
               e.target.value
             )
           }
-          className="w-full border rounded-lg px-3 py-2"
+          className={`w-full border rounded-lg px-3 py-2 ${
+            isDark 
+              ? 'bg-gray-800 border-gray-600 text-white' 
+              : 'bg-white border-gray-300 text-gray-900'
+          }`}
         />
       </div>
 
@@ -184,9 +211,13 @@ const VehicleBillingRow = ({
       <div className="flex items-center gap-2">
         <button
           onClick={() => handleDelete(row.id)}
-          className="p-2 rounded bg-red-100 hover:bg-red-200"
+          className={`p-2 rounded ${
+            isDark 
+              ? 'bg-red-900 hover:bg-red-800 text-red-300' 
+              : 'bg-red-100 hover:bg-red-200 text-red-700'
+          }`}
         >
-          <Trash2 className="h-4 w-4 text-red-700" />
+          <Trash2 className={`h-4 w-4 ${isDark ? 'text-red-300' : 'text-red-700'}`} />
         </button>
       </div>
     </div>

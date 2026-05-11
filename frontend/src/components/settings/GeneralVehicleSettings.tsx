@@ -2,6 +2,7 @@ import { Car, Plus, Copy, Building2, Trash2, Clipboard } from 'lucide-react'
 import VehicleBillingRow from './VehicleBillingRow'
 import { Save } from 'lucide-react'
 import { useState } from 'react'
+import { useTheme } from '../../contexts/ThemeContext'
 
 interface VehicleBillingRowType {
   id: number
@@ -56,15 +57,17 @@ const GeneralVehicleSettings = ({
   handleDeleteCompanyVehicle,
   handleCompanyChange
 }: GeneralVehicleSettingsProps) => {
-
+  const { theme } = useTheme()
   const [showSeatingCapacity, setShowSeatingCapacity] = useState(false)
+  
+  const isDark = theme === 'dark'
   return (
-    <div className="bg-white rounded-xl shadow border p-6">
+    <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl shadow border p-6`}>
       <div className="flex items-center justify-between mb-5">
         {/* LEFT SIDE */}
         <div className="flex items-center gap-2">
-          <Car className="h-5 w-5 text-blue-600" />
-          <h2 className="text-xl font-semibold">
+          <Car className={`h-5 w-5 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+          <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
             General Vehicle Settings
           </h2>
         </div>
@@ -72,11 +75,12 @@ const GeneralVehicleSettings = ({
         {/* RIGHT SIDE BUTTONS */}
         <div className="flex items-center gap-3">
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
   <input
     type="checkbox"
     checked={showSeatingCapacity}
     onChange={(e) => setShowSeatingCapacity(e.target.checked)}
+    className={`w-4 h-4 ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
   />
   Seating Capacity
 </label>
@@ -116,7 +120,9 @@ const GeneralVehicleSettings = ({
 
       {/* TABLE HEADER */}
 <div
-  className={`grid gap-2 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg ${
+  className={`grid gap-2 mb-3 font-semibold text-sm p-3 rounded-lg ${
+    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+  } ${
     showSeatingCapacity ? 'grid-cols-7' : 'grid-cols-6'
   }`}
 >
@@ -152,8 +158,8 @@ const GeneralVehicleSettings = ({
         {companies.length > 0 && (
           <div className="mt-18">
             <div className="flex items-center gap-2 mb-5">
-              <Building2 className="h-5 w-5 text-green-600" />
-              <h2 className="text-xl font-semibold">
+              <Building2 className={`h-5 w-5 ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+              <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 Company Wise Billing
               </h2>
             </div>
@@ -162,7 +168,9 @@ const GeneralVehicleSettings = ({
               {companies.map(company => (
                 <div
                   key={company.id}
-                  className="border rounded-xl p-5 bg-gray-50"
+                  className={`border rounded-xl p-5 ${
+                    isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'
+                  }`}
                 >
                   {/* TOP */}
                   <div className="flex items-center justify-between mb-4">
@@ -183,9 +191,13 @@ const GeneralVehicleSettings = ({
 
                         handleCompanyChange(company.id, selectedCompanyId)
                       }}
-                      className="border rounded-lg px-3 py-2 w-64"
+                      className={`border rounded-lg px-3 py-2 w-64 ${
+                        isDark 
+                          ? 'bg-gray-800 border-gray-600 text-white' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
                     >
-                      <option value="">
+                      <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>
                         Select Company
                       </option>
 
@@ -193,6 +205,7 @@ const GeneralVehicleSettings = ({
                         <option
                           key={companyName.id}
                           value={companyName.id}
+                          className={isDark ? 'bg-gray-800' : 'bg-white'}
                         >
                           {companyName.company_name}
                         </option>
@@ -230,7 +243,9 @@ const GeneralVehicleSettings = ({
 
                   {/* TABLE HEADER */}
                 <div
-  className={`grid gap-7 mb-3 font-semibold text-sm bg-gray-100 p-3 rounded-lg ${
+  className={`grid gap-7 mb-3 font-semibold text-sm p-3 rounded-lg ${
+    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+  } ${
     showSeatingCapacity ? 'grid-cols-6' : 'grid-cols-5'
   }`}
 >
@@ -257,6 +272,7 @@ const GeneralVehicleSettings = ({
                         handleCompanyVehicleChange={handleCompanyVehicleChange}
                         handleDeleteCompanyVehicle={handleDeleteCompanyVehicle}
                         showSeatingCapacity={showSeatingCapacity}
+                        isDark={isDark}
                       />
                     ))}
                   </div>
@@ -278,7 +294,8 @@ const CompanyVehicleRow = ({
   vehicleList,
   handleCompanyVehicleChange,
   handleDeleteCompanyVehicle,
-  showSeatingCapacity
+  showSeatingCapacity,
+  isDark
 }: {
   vehicle: any
   company: any
@@ -287,10 +304,13 @@ const CompanyVehicleRow = ({
   handleCompanyVehicleChange: (companyId: number, vehicleId: number, field: any, value: string) => void
   handleDeleteCompanyVehicle: (companyId: number, vehicleId: number) => void
 showSeatingCapacity: boolean
+isDark: boolean
 }) => {
   return (
 <div
-  className={`grid gap-1 items-center border p-3 rounded-lg bg-white ${
+  className={`grid gap-1 items-center border p-3 rounded-lg ${
+    isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+  } ${
     showSeatingCapacity ? 'grid-cols-6' : 'grid-cols-5'
   }`}
 >
@@ -320,9 +340,13 @@ showSeatingCapacity: boolean
               ''
             )
           }}
-          className="w-full border rounded-lg px-3 py-2"
+          className={`w-full border rounded-lg px-3 py-2 ${
+            isDark 
+              ? 'bg-gray-800 border-gray-600 text-white' 
+              : 'bg-white border-gray-300 text-gray-900'
+          }`}
         >
-          <option value="">
+          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>
             Select Brand
           </option>
 
@@ -330,6 +354,7 @@ showSeatingCapacity: boolean
             <option
               key={index}
               value={brand}
+              className={isDark ? 'bg-gray-800' : 'bg-white'}
             >
               {brand}
             </option>
@@ -379,9 +404,13 @@ showSeatingCapacity: boolean
               matchedVehicle?.seating_capacity?.toString() || ''
             )
           }}
-          className="w-full border rounded-lg px-3 py-2"
+          className={`w-full border rounded-lg px-3 py-2 ${
+            isDark 
+              ? 'bg-gray-800 border-gray-600 text-white' 
+              : 'bg-white border-gray-300 text-gray-900'
+          }`}
         >
-          <option value="">
+          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>
             Select Vehicle
           </option>
 
@@ -392,7 +421,7 @@ showSeatingCapacity: boolean
                 vehicle.brand
             )
             .map(item => (
-              <option value={item.vehicle_name} key={item.id}>
+              <option value={item.vehicle_name} key={item.id} className={isDark ? 'bg-gray-800' : 'bg-white'}>
                 {item.vehicle_name} - {item.fuel_type}
               </option>
             ))}
@@ -411,9 +440,13 @@ showSeatingCapacity: boolean
               e.target.value
             )
           }}
-          className="w-full border rounded-lg px-3 py-2"
+          className={`w-full border rounded-lg px-3 py-2 ${
+            isDark 
+              ? 'bg-gray-800 border-gray-600 text-white' 
+              : 'bg-white border-gray-300 text-gray-900'
+          }`}
         >
-          <option value="">
+          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>
             Vehicle Type
           </option>
 
@@ -427,6 +460,7 @@ showSeatingCapacity: boolean
             <option
               key={index}
               value={vehicleType}
+              className={isDark ? 'bg-gray-800' : 'bg-white'}
             >
               {vehicleType}
             </option>
@@ -441,7 +475,11 @@ showSeatingCapacity: boolean
       placeholder="Seating Capacity"
       value={vehicle.seatingCapacity || ''}
       disabled
-      className="w-full border rounded-lg px-3 py-2 bg-gray-50"
+      className={`w-full border rounded-lg px-3 py-2 ${
+        isDark 
+          ? 'bg-gray-700 border-gray-600 text-gray-300' 
+          : 'bg-gray-50 border-gray-300 text-gray-900'
+      }`}
     />
   </div>
 )}
@@ -460,7 +498,11 @@ showSeatingCapacity: boolean
               e.target.value
             )
           }
-          className="w-full border rounded-lg px-3 py-2"
+          className={`w-full border rounded-lg px-3 py-2 ${
+            isDark 
+              ? 'bg-gray-800 border-gray-600 text-white' 
+              : 'bg-white border-gray-300 text-gray-900'
+          }`}
         />
       </div>
 
@@ -486,9 +528,13 @@ showSeatingCapacity: boolean
               vehicle.id
             )
           }
-          className="p-2 rounded bg-red-100 hover:bg-red-200"
+          className={`p-2 rounded ${
+            isDark 
+              ? 'bg-red-900 hover:bg-red-800 text-red-300' 
+              : 'bg-red-100 hover:bg-red-200 text-red-700'
+          }`}
         >
-          <Trash2 className="h-4 w-4 text-red-700" />
+          <Trash2 className={`h-4 w-4 ${isDark ? 'text-red-300' : 'text-red-700'}`} />
         </button>
       </div>
     </div>
