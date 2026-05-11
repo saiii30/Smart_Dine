@@ -2,6 +2,7 @@ import { Car, Plus, Copy, Building2, Trash2, Clipboard } from 'lucide-react'
 import VehicleBillingRow from './VehicleBillingRow'
 import { Save } from 'lucide-react'
 import { useState } from 'react'
+import { Settings } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 
 interface VehicleBillingRowType {
@@ -73,9 +74,91 @@ const GeneralVehicleSettings = ({
         </div>
 
         {/* RIGHT SIDE BUTTONS */}
-        <div className="flex items-center gap-3">
+        <div className="relative group">
+  
+  {/* MAIN SETTINGS BUTTON */}
+  <button
+    className="
+      flex items-center justify-center
+      w-12 h-12 rounded-full
+      bg-blue-600 hover:bg-blue-700
+      text-white shadow-lg
+      transition-all duration-300
+    "
+  >
+    <Settings
+      className="
+        h-5 w-5
+        transition-transform duration-500
+        group-hover:rotate-180
+      "
+    />
+  </button>
 
-          <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+  
+  {/* TOOLBAR */}
+<div
+  className="
+    absolute right-0 bottom-14
+    opacity-0 invisible
+    group-hover:opacity-100
+    group-hover:visible
+    transition-all duration-300
+    flex flex-row gap-3
+    bg-white dark:bg-gray-800
+    border border-gray-200 dark:border-gray-700
+    shadow-2xl rounded-2xl p-3
+    z-50
+    scale-95 group-hover:scale-100
+  "
+>
+    
+    {/* ADD COMPANY */}
+    <button
+      onClick={handleAddCompany}
+      title="Add Company"
+      className="
+        p-3 rounded-xl
+        bg-green-600 hover:bg-green-700
+        text-white
+        hover:scale-110
+        transition
+      "
+    >
+      <Building2 className="h-4 w-4" />
+    </button>
+
+    {/* ADD VEHICLE */}
+    <button
+      onClick={handleAddRow}
+      title="Add Vehicle"
+      className="
+        p-3 rounded-xl
+        bg-blue-600 hover:bg-blue-700
+        text-white
+        hover:scale-110
+        transition
+      "
+    >
+      <Plus className="h-4 w-4" />
+    </button>
+
+    {/* SAVE */}
+    <button
+      onClick={handleSaveBillingSettings}
+      title="Save"
+      className="
+        p-3 rounded-xl
+        bg-purple-600 hover:bg-purple-700
+        text-white
+        hover:scale-110
+        transition
+      "
+    >
+      <Save className="h-4 w-4" />
+    </button>
+
+    {/* <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
   <input
     type="checkbox"
     checked={showSeatingCapacity}
@@ -83,39 +166,28 @@ const GeneralVehicleSettings = ({
     className={`w-4 h-4 ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
   />
   Seating Capacity
-</label>
+</label> */}
 
-          <button
-            onClick={handleAddCompany}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
-          >
-            <Building2 className="h-4 w-4" />
-          </button>
-
-          <button
-            onClick={handleAddRow}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-
-          <button
-  onClick={handleSaveBillingSettings}
-  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg"
->
-   <Save className="h-4 w-4" />
-</button>
-
-          <button
-            onClick={() => {
-              const selectedVehicles = vehicleRows.filter(row => row.selected)
-              setCopiedVehicles(selectedVehicles)
-            }}
-            className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg"
-          >
-            <Copy className="h-4 w-4" />
-          </button>
-        </div>
+    {/* COPY */}
+    <button
+      onClick={() => {
+        const selectedVehicles = vehicleRows.filter(row => row.selected)
+        setCopiedVehicles(selectedVehicles)
+      }}
+      title="Copy Vehicles"
+      className="
+        p-3 rounded-xl
+        bg-yellow-500 hover:bg-yellow-600
+        text-white
+        hover:scale-110
+        transition
+      "
+    >
+      <Copy className="h-4 w-4" />
+    </button>
+  </div>
+</div>
+       
       </div>
 
       {/* TABLE HEADER */}
@@ -212,30 +284,90 @@ const GeneralVehicleSettings = ({
                       ))}
                     </select>
 
-                    <div className="flex items-center gap-2">
-                      {/* ADD VEHICLE */}
-                      <button
-                        onClick={() => handleAddVehicleToCompany(company.id)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
+                    <div className="relative group">
+  
+  {/* MAIN SETTINGS BUTTON */}
+  <button
+    className="
+      flex items-center justify-center
+      w-10 h-10 rounded-full
+      bg-blue-600 hover:bg-blue-700
+      text-white shadow-lg
+      transition-all duration-300
+    "
+  >
+    <Settings
+      className="
+        h-4 w-4
+        transition-transform duration-500
+        group-hover:rotate-180
+      "
+    />
+  </button>
 
-                      <button
-                        onClick={() => handleDeleteCompany(company.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+  {/* TOOLBAR */}
+  <div
+    className="
+      absolute right-0 bottom-12
+      opacity-0 invisible
+      group-hover:opacity-100
+      group-hover:visible
+      transition-all duration-300
+      flex flex-row gap-2
+      bg-white dark:bg-gray-800
+      border border-gray-200 dark:border-gray-700
+      shadow-2xl rounded-2xl p-2
+      z-50
+      scale-95 group-hover:scale-100
+    "
+  >
+    
+    {/* ADD VEHICLE */}
+    <button
+      onClick={() => handleAddVehicleToCompany(company.id)}
+      title="Add Vehicle"
+      className="
+        p-2 rounded-xl
+        bg-blue-600 hover:bg-blue-700
+        text-white
+        hover:scale-110
+        transition
+      "
+    >
+      <Plus className="h-4 w-4" />
+    </button>
 
-                      {/* PASTE */}
-                      <button
-                        onClick={() => handlePasteVehicles(company.id)}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg"
-                      >
-                        <Clipboard className="h-4 w-4" />
-                      </button>
-                    </div>
+    {/* DELETE COMPANY */}
+    <button
+      onClick={() => handleDeleteCompany(company.id)}
+      title="Delete Company"
+      className="
+        p-2 rounded-xl
+        bg-red-600 hover:bg-red-700
+        text-white
+        hover:scale-110
+        transition
+      "
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+
+    {/* PASTE */}
+    <button
+      onClick={() => handlePasteVehicles(company.id)}
+      title="Paste Vehicles"
+      className="
+        p-2 rounded-xl
+        bg-green-600 hover:bg-green-700
+        text-white
+        hover:scale-110
+        transition
+      "
+    >
+      <Clipboard className="h-4 w-4" />
+    </button>
+  </div>
+</div>
                   </div>
 
 
