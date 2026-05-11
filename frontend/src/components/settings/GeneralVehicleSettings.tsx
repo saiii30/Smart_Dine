@@ -10,9 +10,12 @@ interface VehicleBillingRowType {
   vehicleType: string
   price: string
   seatingCapacity?: string
+  checked: boolean
+  fuelType: string
 }
 
 interface GeneralVehicleSettingsProps {
+  handleSaveBillingSettings: () => void
   vehicleRows: VehicleBillingRowType[]
   brands: string[]
   vehicleList: any[]
@@ -40,6 +43,7 @@ const GeneralVehicleSettings = ({
   handleChange,
   handleDelete,
   handleAddRow,
+  handleSaveBillingSettings,
   setCopiedVehicles,
   companies,
   companiesList,
@@ -89,6 +93,13 @@ const GeneralVehicleSettings = ({
           >
             <Plus className="h-4 w-4" />
           </button>
+
+          <button
+  onClick={handleSaveBillingSettings}
+  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg"
+>
+  Save
+</button>
 
           <button
             onClick={() => {
@@ -350,6 +361,13 @@ showSeatingCapacity: boolean
               'vehicleType',
               matchedVehicle?.vehicle_type || ''
             )
+
+            handleCompanyVehicleChange(
+  company.id,
+  vehicle.id,
+  'fuelType',
+  matchedVehicle?.fuel_type || ''
+)
 
             handleCompanyVehicleChange(
               company.id,

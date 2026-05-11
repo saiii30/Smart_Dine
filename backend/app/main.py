@@ -30,6 +30,7 @@ from app.routers import (
     agency,
     trip_schedules,
     notifications,
+    billing_settings,
     vehicle_list
 )
  
@@ -137,6 +138,7 @@ app.include_router(agency.router, prefix="/api/agency", tags=["Agency"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(locations.router, prefix="/api/locations", tags=["Locations"])
 app.include_router(vehicle_list.router, prefix="/api", tags=["Vehicle List"])
+app.include_router(billing_settings.router, prefix="/api", tags=["Billing Settings"])
 
 # Mount static files for uploads directory
 # Use absolute path from backend directory

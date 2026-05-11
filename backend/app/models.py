@@ -363,16 +363,66 @@ class NotificationAcknowledgement(Base):
 class BillingSettings(Base):
     __tablename__ = "billing_settings"
     
-    id = Column(String, primary_key=True, index=True, default=generate_uuid)
-    agency_id = Column(String, ForeignKey('agencies.id'), nullable=False, index=True)
-    company_id = Column(String, ForeignKey('companies.id'), nullable=True, index=True)
-    vehicle_model = Column(String, nullable=False)
-    vehicle_name = Column(String, nullable=False)
-    price = Column(Float, nullable=False)
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    id = Column(
+        String,
+        primary_key=True,
+        index=True,
+        default=generate_uuid
+    )
+
+    agency_id = Column(
+        String,
+        ForeignKey('agencies.id'),
+        nullable=False,
+        index=True
+    )
+
+    company_id = Column(
+        String,
+        ForeignKey('companies.id'),
+        nullable=True,
+        index=True
+    )
+
+    vehicle_brand = Column(
+        String,
+        nullable=False
+    )
+
+    vehicle_name = Column(
+        String,
+        nullable=False
+    )
+
+    vehicle_type = Column(
+        String,
+        nullable=False
+    )
+
+    fuel_type = Column(
+        String,
+        nullable=True
+    )
+
+    seating_capacity = Column(
+        Integer,
+        nullable=True
+    )
+
+    price = Column(
+        Float,
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        onupdate=func.now()
+    )
     
     # Relationships
     agency = relationship("Agency", back_populates="billing_settings")

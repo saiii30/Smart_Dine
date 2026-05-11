@@ -7,10 +7,13 @@ import GeneralVehicleSettings from '../components/settings/GeneralVehicleSetting
 
 interface VehicleBillingRow {
   id: number
+   backendId?: string
   selected: boolean
   brand: string
   car: string
   vehicleType: string
+  fuelType: string
+  checked: boolean
   price: string
   seatingCapacity?: string
 }
@@ -41,10 +44,12 @@ const Settings = () => {
 >([
   {
     id: 1,
+    checked: false,
     selected: false,
     brand: '',
     car: '',
     vehicleType: '',
+    fuelType: '',
     price: '',
     seatingCapacity: ''
   }
@@ -107,6 +112,98 @@ const [copiedVehicles, setCopiedVehicles] = useState<
   fetchCompanies()
 }, [])
 
+useEffect(() => {
+  fetchBillingSettings()
+}, [])
+
+
+const fetchBillingSettings = async () => {
+  try {
+    const agencyId =
+      localStorage.getItem('selectedAgencyId')
+
+    const token = localStorage.getItem('token')
+
+    const response = await axios.get(
+      `http://127.0.0.1:8000/api/billing-settings/agency/${agencyId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    const data = response.data
+
+    // COMMON VEHICLES
+    const commonVehicles = data.filter(
+      (item: any) => !item.company_id
+    )
+
+    setVehicleRows(
+      commonVehicles.map((item: any) => ({
+        id: Date.now() + Math.random(),
+        backendId: item.id,
+        selected: false,
+        checked: false,
+        brand: item.vehicle_brand,
+        car: item.vehicle_name,
+        vehicleType: item.vehicle_type,
+        fuelType: item.fuel_type,
+        price: String(item.price),
+        seatingCapacity: String(
+          item.seating_capacity
+        )
+      }))
+    )
+
+    // COMPANY VEHICLES
+    const companyVehicles = data.filter(
+      (item: any) => item.company_id
+    )
+
+    const groupedCompanies: any[] = []
+
+    companyVehicles.forEach((item: any) => {
+      const existingCompany =
+        groupedCompanies.find(
+          company =>
+            company.companyName ===
+            item.company_id
+        )
+
+      const vehicle = {
+        id: Date.now() + Math.random(),
+        backendId: item.id,
+        selected: false,
+        checked: false,
+        brand: item.vehicle_brand,
+        car: item.vehicle_name,
+        vehicleType: item.vehicle_type,
+        fuelType: item.fuel_type,
+        price: String(item.price),
+        seatingCapacity: String(
+          item.seating_capacity
+        )
+      }
+
+      if (existingCompany) {
+        existingCompany.vehicles.push(vehicle)
+      } else {
+        groupedCompanies.push({
+          id: Date.now() + Math.random(),
+          companyName: item.company_id,
+          vehicles: [vehicle]
+        })
+      }
+    })
+
+    setCompanies(groupedCompanies)
+  } catch (error) {
+    console.error(error)
+  }
+}
+
 
  
    const handleAddRow = () => {
@@ -118,8 +215,10 @@ const [copiedVehicles, setCopiedVehicles] = useState<
         brand: '',
         car: '',
         vehicleType: '',
+        fuelType: '',
         price: '',
-        seatingCapacity: ''
+        seatingCapacity: '',
+        checked: false
       }
     ])
   }
@@ -173,12 +272,15 @@ const handleAddVehicleToCompany = (
               ...company.vehicles,
               {
                 id: Date.now(),
+                 backendId: undefined,
                 selected: false,
                 brand: '',
                 car: '',
                 vehicleType: '',
+                fuelType: '',
                 price: '',
-                seatingCapacity: ''
+                seatingCapacity: '',
+                checked: false
               }
             ]
           }
@@ -217,6 +319,7 @@ const handlePasteVehicles = (
           ...uniqueVehicles.map(vehicle => ({
             ...vehicle,
             id: Date.now() + Math.random(),
+            backendId: undefined,
             selected: false
           }))
         ]
@@ -264,31 +367,99 @@ const handleCompanyVehicleChange = (
   }
 
   // DELETE ROW
-  const handleDelete = (id: number) => {
-    setVehicleRows(prev => prev.filter(row => row.id !== id))
+  const handleDelete = async (
+  id: number
+) => {
+  try {
+    const row = vehicleRows.find(
+      item => item.id === id
+    )
+
+    if (row?.backendId) {
+      const agencyId =
+        localStorage.getItem(
+          'selectedAgencyId'
+        )
+
+      const formData = new FormData()
+
+      formData.append(
+        'agency_id',
+        agencyId || ''
+      )
+
+      await axios.delete(
+        `http://127.0.0.1:8000/api/billing-settings/${row.backendId}`,
+        {
+          data: formData
+        }
+      )
+    }
+
+    setVehicleRows(prev =>
+      prev.filter(row => row.id !== id)
+    )
+  } catch (error) {
+    console.error(error)
+    alert('Delete Failed')
   }
+}
 
   
-const handleDeleteCompanyVehicle = (
+const handleDeleteCompanyVehicle = async (
   companyId: number,
   vehicleId: number
 ) => {
-  setCompanies(prev =>
-    prev.map(company => {
-      if (company.id === companyId) {
-        return {
-          ...company,
-          vehicles: company.vehicles.filter(
-            vehicle => vehicle.id !== vehicleId
-          )
+  try {
+    const company = companies.find(
+      c => c.id === companyId
+    )
+
+    const vehicle = company?.vehicles.find(
+      v => v.id === vehicleId
+    )
+
+    if (vehicle?.backendId) {
+      const agencyId =
+        localStorage.getItem(
+          'selectedAgencyId'
+        )
+
+      const formData = new FormData()
+
+      formData.append(
+        'agency_id',
+        agencyId || ''
+      )
+
+      await axios.delete(
+        `http://127.0.0.1:8000/api/billing-settings/${vehicle.backendId}`,
+        {
+          data: formData
         }
-      }
+      )
+    }
 
-      return company
-    })
-  )
+    setCompanies(prev =>
+      prev.map(company => {
+        if (company.id === companyId) {
+          return {
+            ...company,
+            vehicles: company.vehicles.filter(
+              vehicle =>
+                vehicle.id !== vehicleId
+            )
+          }
+        }
+
+        return company
+      })
+    )
+  } catch (error) {
+    console.error(error)
+    alert('Delete Failed')
+  }
 }
-
  
 
   const handleDocumentTypeToggle = (documentId: string) => {
@@ -303,23 +474,213 @@ const handleDeleteCompanyVehicle = (
     window.dispatchEvent(new CustomEvent('notificationUpdate'))
   }
 
-  const handleSaveSettings = async () => {
-    try {
-      await saveSettings()
-      console.log('Settings saved successfully')
-    } catch (error) {
-      console.error('Failed to save settings:', error)
+  const handleSaveBillingSettings = async () => {
+  try {
+    const agencyId =
+      localStorage.getItem('selectedAgencyId')
+
+    const token = localStorage.getItem('token')
+
+    for (const row of vehicleRows) {
+      const formData = new FormData()
+
+      formData.append(
+        'agency_id',
+        agencyId || ''
+      )
+
+      formData.append(
+        'vehicle_brand',
+        row.brand
+      )
+
+      formData.append(
+        'vehicle_name',
+        row.car
+      )
+
+      formData.append(
+        'vehicle_type',
+        row.vehicleType
+      )
+
+      formData.append(
+        'fuel_type',
+        row.fuelType
+      )
+
+      formData.append(
+        'seating_capacity',
+        row.seatingCapacity || '0'
+      )
+
+      formData.append(
+        'price',
+        row.price
+      )
+
+      // UPDATE
+      if (row.backendId) {
+        await axios.put(
+          `http://127.0.0.1:8000/api/billing-settings/${row.backendId}`,
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        )
+      }
+
+      // CREATE
+      else {
+        const response = await axios.post(
+          'http://127.0.0.1:8000/api/billing-settings',
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        )
+
+        row.backendId =
+          response.data.id
+      }
+    }
+
+    // COMPANY VEHICLES SAVE
+for (const company of companies) {
+  for (const row of company.vehicles) {
+    const formData = new FormData()
+
+    formData.append(
+      'agency_id',
+      agencyId || ''
+    )
+
+    formData.append(
+      'company_id',
+      company.companyName
+    )
+
+    formData.append(
+      'vehicle_brand',
+      row.brand
+    )
+
+    formData.append(
+      'vehicle_name',
+      row.car
+    )
+
+    formData.append(
+      'vehicle_type',
+      row.vehicleType
+    )
+
+    formData.append(
+      'fuel_type',
+      row.fuelType || 'Petrol'
+    )
+
+    formData.append(
+      'seating_capacity',
+      row.seatingCapacity || '0'
+    )
+
+    formData.append(
+      'price',
+      row.price
+    )
+
+    // UPDATE
+    if (row.backendId) {
+      await axios.put(
+        `http://127.0.0.1:8000/api/billing-settings/${row.backendId}`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      )
+    }
+
+    // CREATE
+    else {
+      const response = await axios.post(
+        'http://127.0.0.1:8000/api/billing-settings',
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      )
+
+      row.backendId =
+        response.data.id
     }
   }
+}
 
-  const handleDeleteCompany = (
+    alert('Saved Successfully')
+
+    fetchBillingSettings()
+  } catch (error) {
+    console.error(error)
+    alert('Save Failed')
+  }
+}
+
+ const handleDeleteCompany = async (
   companyId: number
 ) => {
-  setCompanies(prev =>
-    prev.filter(
-      company => company.id !== companyId
+  try {
+    const company = companies.find(
+      c => c.id === companyId
     )
-  )
+
+    if (!company) return
+
+    const agencyId =
+      localStorage.getItem(
+        'selectedAgencyId'
+      )
+
+    // DELETE ALL VEHICLES INSIDE COMPANY
+    for (const vehicle of company.vehicles) {
+      if (vehicle.backendId) {
+        const formData = new FormData()
+
+        formData.append(
+          'agency_id',
+          agencyId || ''
+        )
+
+        await axios.delete(
+          `http://127.0.0.1:8000/api/billing-settings/${vehicle.backendId}`,
+          {
+            data: formData
+          }
+        )
+      }
+    }
+
+    // REMOVE COMPANY FROM STATE
+    setCompanies(prev =>
+      prev.filter(
+        company =>
+          company.id !== companyId
+      )
+    )
+
+    alert('Company Deleted Successfully')
+  } catch (error) {
+    console.error(error)
+    alert('Delete Failed')
+  }
 }
 
 const handleCompanyChange = (
@@ -389,7 +750,7 @@ const handleCompanyChange = (
             {/* Save Button */}
             <div className="flex justify-end">
               <button
-                onClick={handleSaveSettings}
+                onClick={handleSaveBillingSettings}
                 disabled={isLoading}
                 className={`px-5 py-2 rounded-md font-medium text-white transition-colors ${
                   isLoading
@@ -407,6 +768,7 @@ const handleCompanyChange = (
        {/* COMMON SETTINGS TAB */}
       {activeTab === 'common' && (
         <GeneralVehicleSettings
+         handleSaveBillingSettings={handleSaveBillingSettings}
           vehicleRows={vehicleRows}
           brands={brands}
           vehicleList={vehicleList}

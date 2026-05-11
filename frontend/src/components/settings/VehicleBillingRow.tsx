@@ -8,6 +8,7 @@ interface VehicleBillingRowProps {
     car: string
     vehicleType: string
     price: string
+    fuelType: string 
     seatingCapacity?: string
   }
   brands: string[]
@@ -86,6 +87,11 @@ const VehicleBillingRow = ({
               'vehicleType',
               matchedVehicle?.vehicle_type || ''
             )
+            handleChange(
+    row.id,
+    'fuelType',
+    matchedVehicle?.fuel_type || ''
+  )
 
             handleChange(
               row.id,
