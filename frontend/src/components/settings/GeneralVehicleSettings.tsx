@@ -11,6 +11,7 @@ interface VehicleBillingRowType {
   brand: string
   car: string
   vehicleType: string
+  vehicle_id : number
   price: string
   seatingCapacity?: string
   checked: boolean
@@ -33,8 +34,8 @@ interface GeneralVehicleSettingsProps {
   handleAddVehicleToCompany: (companyId: number) => void
   handleDeleteCompany: (companyId: number) => void
   handlePasteVehicles: (companyId: number) => void
-  handleCompanyVehicleChange: (companyId: number, vehicleId: number, field: any, value: string) => void
-  handleDeleteCompanyVehicle: (companyId: number, vehicleId: number) => void
+  handleCompanyVehicleChange: (companyId: number, vehicle_id: number, field: any, value: string) => void
+  handleDeleteCompanyVehicle: (companyId: number, vehicle_id: number) => void
   handleCompanyChange: (companyId: number, companyName: string) => void
 }
 
@@ -433,8 +434,8 @@ const CompanyVehicleRow = ({
   company: any
   brands: string[]
   vehicleList: any[]
-  handleCompanyVehicleChange: (companyId: number, vehicleId: number, field: any, value: string) => void
-  handleDeleteCompanyVehicle: (companyId: number, vehicleId: number) => void
+  handleCompanyVehicleChange: (companyId: number, vehicle_id: number, field: any, value: string) => void
+  handleDeleteCompanyVehicle: (companyId: number, vehicle_id: number) => void
 showSeatingCapacity: boolean
 isDark: boolean
 }) => {
@@ -514,6 +515,13 @@ isDark: boolean
                 item.vehicle_brand === vehicle.brand &&
                 item.vehicle_name === selectedCar
             )
+
+            handleCompanyVehicleChange(
+  company.id,
+  vehicle.id,
+  'vehicle_id',
+  matchedVehicle?.id || 0
+)
 
             handleCompanyVehicleChange(
               company.id,

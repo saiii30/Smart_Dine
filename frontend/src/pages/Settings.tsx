@@ -12,6 +12,7 @@ interface VehicleBillingRow {
   brand: string
   car: string
   vehicleType: string
+  vehicle_id : number
   fuelType: string
   checked: boolean
   price: string
@@ -50,6 +51,7 @@ const Settings = () => {
     car: '',
     vehicleType: '',
     fuelType: '',
+    vehicle_id : 0,
     price: '',
     seatingCapacity: ''
   }
@@ -146,16 +148,19 @@ const fetchBillingSettings = async () => {
         backendId: item.id,
         selected: false,
         checked: false,
-        brand: item.vehicle_brand,
-        car: item.vehicle_name,
-        vehicleType: item.vehicle_type,
-        fuelType: item.fuel_type,
+        vehicle_id: item.vehicle.id,
+        brand: item.vehicle.vehicle_brand,
+        car: item.vehicle.vehicle_name,
+        vehicleType: item.vehicle.vehicle_type,
+        fuelType: item.vehicle.fuel_type,
         price: String(item.price),
         seatingCapacity: String(
-          item.seating_capacity
+          item.vehicle.seating_capacity
         )
       }))
     )
+   console.log(vehicleRows)
+    console.log("billing settings",response.data)
 
     // COMPANY VEHICLES
     const companyVehicles = data.filter(
@@ -177,13 +182,14 @@ const fetchBillingSettings = async () => {
         backendId: item.id,
         selected: false,
         checked: false,
-        brand: item.vehicle_brand,
-        car: item.vehicle_name,
-        vehicleType: item.vehicle_type,
-        fuelType: item.fuel_type,
+        brand: item.vehicle.vehicle_brand,
+        car: item.vehicle.vehicle_name,
+        vehicleType: item.vehicle.vehicle_type,
+        fuelType: item.vehicle.fuel_type,
+        vehicle_id: item.vehicle.id,
         price: String(item.price),
         seatingCapacity: String(
-          item.seating_capacity
+          item.vehicle.seating_capacity
         )
       }
 
@@ -215,6 +221,7 @@ const fetchBillingSettings = async () => {
         brand: '',
         car: '',
         vehicleType: '',
+        vehicle_id: 0,
         fuelType: '',
         price: '',
         seatingCapacity: '',
@@ -277,6 +284,7 @@ const handleAddVehicleToCompany = (
                 brand: '',
                 car: '',
                 vehicleType: '',
+                vehicle_id: 0,
                 fuelType: '',
                 price: '',
                 seatingCapacity: '',
@@ -490,35 +498,41 @@ const handleDeleteCompanyVehicle = async (
       )
 
       formData.append(
-        'vehicle_brand',
-        row.brand
+        'vehicle_id',
+        String(row.vehicle_id || '')
       )
 
-      formData.append(
-        'vehicle_name',
-        row.car
-      )
+      // formData.append(
+      //   'vehicle_brand',
+      //   row.brand
+      // )
 
-      formData.append(
-        'vehicle_type',
-        row.vehicleType
-      )
+      // formData.append(
+      //   'vehicle_name',
+      //   row.car
+      // )
 
-      formData.append(
-        'fuel_type',
-        row.fuelType
-      )
+      // formData.append(
+      //   'vehicle_type',
+      //   row.vehicleType
+      // )
 
-      formData.append(
-        'seating_capacity',
-        row.seatingCapacity || '0'
-      )
+      // formData.append(
+      //   'fuel_type',
+      //   row.fuelType
+      // )
+
+      // formData.append(
+      //   'seating_capacity',
+      //   row.seatingCapacity || '0'
+      // )
 
       formData.append(
         'price',
         row.price
       )
 
+console.log("row",row)
       // UPDATE
       if (row.backendId) {
         await axios.put(
@@ -564,36 +578,42 @@ for (const company of companies) {
       company.companyName
     )
 
-    formData.append(
-      'vehicle_brand',
-      row.brand
-    )
+    // formData.append(
+    //   'vehicle_brand',
+    //   row.brand
+    // )
 
-    formData.append(
-      'vehicle_name',
-      row.car
-    )
+    // formData.append(
+    //   'vehicle_name',
+    //   row.car
+    // )
 
-    formData.append(
-      'vehicle_type',
-      row.vehicleType
-    )
+    // formData.append(
+    //   'vehicle_type',
+    //   row.vehicleType
+    // )
 
-    formData.append(
-      'fuel_type',
-      row.fuelType || 'Petrol'
-    )
+    // formData.append(
+    //   'fuel_type',
+    //   row.fuelType || 'Petrol'
+    // )
 
-    formData.append(
-      'seating_capacity',
-      row.seatingCapacity || '0'
-    )
+    // formData.append(
+    //   'seating_capacity',
+    //   row.seatingCapacity || '0'
+    // )
 
     formData.append(
       'price',
       row.price
     )
 
+    formData.append(
+      'vehicle_id',
+      String(row.vehicle_id || '')
+    )
+
+    
     // UPDATE
     if (row.backendId) {
       await axios.put(

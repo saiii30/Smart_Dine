@@ -8,6 +8,7 @@ interface VehicleBillingRowProps {
     brand: string
     car: string
     vehicleType: string
+    vehicle_id : number
     price: string
     fuelType: string 
     seatingCapacity?: string
@@ -86,27 +87,34 @@ const VehicleBillingRow = ({
 
             // automatic vehicle type and seating capacity set
             const matchedVehicle = vehicleList.find(
-              vehicle =>
-                vehicle.vehicle_brand === row.brand &&
-                vehicle.vehicle_name === selectedCar
-            )
+  vehicle =>
+    vehicle.vehicle_brand === row.brand &&
+    vehicle.vehicle_name === selectedCar
+)
 
-            handleChange(
-              row.id,
-              'vehicleType',
-              matchedVehicle?.vehicle_type || ''
-            )
-            handleChange(
-    row.id,
-    'fuelType',
-    matchedVehicle?.fuel_type || ''
-  )
+handleChange(
+  row.id,
+  'vehicle_id',
+  matchedVehicle?.id || 0
+)
 
-            handleChange(
-              row.id,
-              'seatingCapacity',
-              matchedVehicle?.seating_capacity?.toString() || ''
-            )
+handleChange(
+  row.id,
+  'vehicleType',
+  matchedVehicle?.vehicle_type || ''
+)
+
+handleChange(
+  row.id,
+  'fuelType',
+  matchedVehicle?.fuel_type || ''
+)
+
+handleChange(
+  row.id,
+  'seatingCapacity',
+  matchedVehicle?.seating_capacity?.toString() || ''
+)
           }}
           className={`w-full border rounded-lg px-3 py-2 ${
             isDark 

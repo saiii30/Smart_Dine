@@ -1018,73 +1018,44 @@ class LocationDeactivate(BaseModel):
 # =========================
 # BILLING SETTINGS SCHEMAS
 # =========================
-
+ 
 class BillingSettingsBase(BaseModel):
     agency_id: str
-
     company_id: Optional[str] = None
-
-    vehicle_brand: str
-
+    vehicle_model: str
     vehicle_name: str
-
-    vehicle_type: str
-
-    fuel_type: Optional[str] = None
-
-    seating_capacity: Optional[int] = None
-
     price: float = Field(..., gt=0)
-
-    @field_validator(
-        "vehicle_brand",
-        "vehicle_name",
-        "vehicle_type"
-    )
+ 
+    @field_validator("vehicle_model", "vehicle_name")
     def validate_strings(cls, v):
         if not v or not v.strip():
-            raise ValueError(
-                "Field cannot be empty"
-            )
-
+            raise ValueError("Field cannot be empty")
         return v.strip()
-
+ 
     class Config:
         from_attributes = True
-
+ 
+ 
 class BillingSettingsCreate(BillingSettingsBase):
     pass
-
+ 
 class BillingSettingsUpdate(BaseModel):
-
-    vehicle_brand: Optional[str] = None
-
+    vehicle_model: Optional[str] = None
     vehicle_name: Optional[str] = None
-
-    vehicle_type: Optional[str] = None
-
-    fuel_type: Optional[str] = None
-
-    seating_capacity: Optional[int] = None
-
-    price: Optional[float] = None
-
+    price: Optional[float] = Field(None, gt=0)
     company_id: Optional[str] = None
-
+ 
     class Config:
         from_attributes = True
-
+ 
 class BillingSettingsResponse(BillingSettingsBase):
     id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
-
+ 
     class Config:
         from_attributes = True
-
+ 
 class BillingSettingsList(BaseModel):
-    billing_settings: List[
-        BillingSettingsResponse
-    ]
-
+    billing_settings: List[BillingSettingsResponse]
     total: int

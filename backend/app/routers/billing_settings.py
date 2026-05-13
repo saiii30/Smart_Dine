@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from app import models
 from app.database import get_db
+from sqlalchemy.orm import joinedload
  
 router = APIRouter(tags=["Billing Settings"])
  
@@ -12,52 +13,37 @@ router = APIRouter(tags=["Billing Settings"])
 class BillingSettingsCreate(BaseModel):
     agency_id: str
     company_id: Optional[str] = None
-    vehicle_brand: str
-    vehicle_name: str
-    vehicle_type: str
-    fuel_type: str
-    seating_capacity: int
+    vehicle_id: int
     price: float = Field(..., gt=0)
  
-    @field_validator("vehicle_brand", "vehicle_name", "vehicle_type", "fuel_type")
+    @field_validator("agency_id")
     def validate_strings(cls, v):
         if not v or not v.strip():
             raise ValueError("Field cannot be empty")
         return v.strip()
  
 class BillingSettingsUpdate(BaseModel):
-    vehicle_brand: Optional[str] = None
-    vehicle_name: Optional[str] = None
-    vehicle_type: Optional[str] = None
-    fuel_type: Optional[str] = None
-    seating_capacity: Optional[int] = None
+    vehicle_id: Optional[int] = None
     price: Optional[float] = None  # Allow 0, will validate in endpoint
     company_id: Optional[str] = None
  
-    @field_validator("vehicle_brand", "vehicle_name", "vehicle_type", "fuel_type")
-    def validate_strings(cls, v):
-        if v is not None and (not v or not v.strip()):
-            raise ValueError("Field cannot be empty")
-        return v.strip() if v else v
- 
-class BillingSettingsResponse(BaseModel):
-    id: str
-    agency_id: str
-    company_id: Optional[str] = None
+class VehicleDetails(BaseModel):
+    id: int
     vehicle_brand: str
     vehicle_name: str
     vehicle_type: str
     fuel_type: str
     seating_capacity: int
-    price: float = Field(..., gt=0)
+ 
+class BillingSettingsResponse(BaseModel):
+    id: str
+    agency_id: str
+    company_id: Optional[str] = None
+    vehicle_id: int
+    price: float
     created_at: datetime
     updated_at: Optional[datetime] = None
- 
-    @field_validator("vehicle_brand", "vehicle_name", "vehicle_type", "fuel_type")
-    def validate_strings(cls, v):
-        if not v or not v.strip():
-            raise ValueError("Field cannot be empty")
-        return v.strip()
+    vehicle: Optional[VehicleDetails] = None
  
     class Config:
         from_attributes = True
@@ -69,11 +55,7 @@ class BillingSettingsResponse(BaseModel):
 def create_billing_setting(
     agency_id: str = Form(...),
     company_id: Optional[str] = Form(None),
-    vehicle_brand: str = Form(...),
-    vehicle_name: str = Form(...),
-    vehicle_type: str = Form(...),
-    fuel_type: str = Form(...),
-    seating_capacity: int = Form(...),
+    vehicle_id: int = Form(...),
     price: float = Form(...),
     db: Session = Depends(get_db)
 ):
@@ -99,10 +81,10 @@ def create_billing_setting(
             if not company:
                 raise HTTPException(404, "Company not found or doesn't belong to this agency")
        
-        # Check if billing setting already exists for this vehicle brand
+        # Check if billing setting already exists for this vehicle
         query = db.query(models.BillingSettings).filter(
             models.BillingSettings.agency_id == agency_id,
-            models.BillingSettings.vehicle_brand == vehicle_brand
+            models.BillingSettings.vehicle_id == vehicle_id
         )
        
         # Handle company_id filter correctly (NULL vs specific company)
@@ -114,17 +96,13 @@ def create_billing_setting(
         existing_setting = query.first()
        
         if existing_setting:
-            raise HTTPException(400, f"Billing setting for vehicle brand '{vehicle_brand}' already exists")
+            raise HTTPException(400, f"Billing setting for vehicle ID '{vehicle_id}' already exists")
        
         # Create new billing setting
         new_setting = models.BillingSettings(
             agency_id=agency_id,
             company_id=company_id,
-            vehicle_brand=vehicle_brand,
-            vehicle_name=vehicle_name,
-            vehicle_type=vehicle_type,
-            fuel_type=fuel_type,
-            seating_capacity=seating_capacity,
+            vehicle_id=vehicle_id,
             price=price
         )
        
@@ -139,37 +117,6 @@ def create_billing_setting(
     except Exception as e:
         db.rollback()
         raise HTTPException(500, f"Database error: {str(e)}")
- 
-# =========================
-# GET - GET ALL BILLING SETTINGS
-# =========================
-@router.get("/billing-settings", response_model=List[BillingSettingsResponse])
-def get_billing_settings(
-    agency_id: Optional[str] = None,
-    company_id: Optional[str] = None,
-    vehicle_brand: Optional[str] = None,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """
-    Get billing settings with optional filters
-    """
-    try:
-        query = db.query(models.BillingSettings)
-       
-        if agency_id:
-            query = query.filter(models.BillingSettings.agency_id == agency_id)
-        if company_id:
-            query = query.filter(models.BillingSettings.company_id == company_id)
-        if vehicle_brand:
-            query = query.filter(models.BillingSettings.vehicle_brand.ilike(f"%{vehicle_brand}%"))
-       
-        settings = query.limit(limit).all()
-       
-        return settings
-       
-    except Exception as e:
-        raise HTTPException(500, f"Error retrieving billing settings: {str(e)}")
  
 # =========================
 # GET - GET BILLING SETTINGS BY AGENCY
@@ -189,7 +136,7 @@ def get_billing_settings_by_agency(
         if not agency:
             raise HTTPException(404, "Agency not found")
        
-        query = db.query(models.BillingSettings).filter(models.BillingSettings.agency_id == agency_id)
+        query = db.query(models.BillingSettings).options(joinedload(models.BillingSettings.vehicle)).filter(models.BillingSettings.agency_id == agency_id)
        
         if company_id:
             query = query.filter(models.BillingSettings.company_id == company_id)
@@ -212,7 +159,7 @@ def get_billing_setting(setting_id: str, db: Session = Depends(get_db)):
     Get a specific billing setting by ID
     """
     try:
-        setting = db.query(models.BillingSettings).filter(models.BillingSettings.id == setting_id).first()
+        setting = db.query(models.BillingSettings).options(joinedload(models.BillingSettings.vehicle)).filter(models.BillingSettings.id == setting_id).first()
        
         if not setting:
             raise HTTPException(404, "Billing setting not found")
@@ -231,11 +178,7 @@ def get_billing_setting(setting_id: str, db: Session = Depends(get_db)):
 def update_billing_setting(
     setting_id: str,
     agency_id: str = Form(...),  # Required for ownership verification
-    vehicle_brand: Optional[str] = Form(None),
-    vehicle_name: Optional[str] = Form(None),
-    vehicle_type: Optional[str] = Form(None),
-    fuel_type: Optional[str] = Form(None),
-    seating_capacity: Optional[int] = Form(None),
+    vehicle_id: Optional[int] = Form(None),
     price: Optional[float] = Form(None),
     company_id: Optional[str] = Form(None),  # Optional - can update company association
     db: Session = Depends(get_db)
@@ -244,11 +187,7 @@ def update_billing_setting(
     Update a billing setting using setting_id and agency_id.
    
     Only provide the fields you want to update:
-    - vehicle_brand (optional)
-    - vehicle_name (optional)
-    - vehicle_type (optional)
-    - fuel_type (optional)
-    - seating_capacity (optional)
+    - vehicle_id (optional)
     - price (optional)
     - company_id (optional - can be NULL for agency-level)
    
@@ -279,11 +218,11 @@ def update_billing_setting(
             setting.company_id = None
        
         # Update only provided fields
-        if vehicle_brand:
-            # Check for duplicate vehicle brand
+        if vehicle_id:
+            # Check for duplicate vehicle
             query = db.query(models.BillingSettings).filter(
                 models.BillingSettings.agency_id == setting.agency_id,
-                models.BillingSettings.vehicle_brand == vehicle_brand,
+                models.BillingSettings.vehicle_id == vehicle_id,
                 models.BillingSettings.id != setting_id
             )
            
@@ -296,21 +235,9 @@ def update_billing_setting(
             existing_setting = query.first()
            
             if existing_setting:
-                raise HTTPException(400, f"Billing setting for vehicle brand '{vehicle_brand}' already exists")
+                raise HTTPException(400, f"Billing setting for vehicle ID '{vehicle_id}' already exists")
            
-            setting.vehicle_brand = vehicle_brand
-       
-        if vehicle_name:
-            setting.vehicle_name = vehicle_name
-       
-        if vehicle_type:
-            setting.vehicle_type = vehicle_type
-       
-        if fuel_type:
-            setting.fuel_type = fuel_type
-       
-        if seating_capacity is not None:
-            setting.seating_capacity = seating_capacity
+            setting.vehicle_id = vehicle_id
        
         if price is not None:
             if price < 0:
