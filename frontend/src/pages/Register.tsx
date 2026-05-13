@@ -1,151 +1,95 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from "../api/api";
 import { useAuth } from '../contexts/AuthContext'
 import AuthLayout from '../components/AuthLayout'
 
+const roles = ['ADMIN', 'MANAGER', 'WAITER', 'KITCHEN', 'CASHIER'] as const
+
 const Register = () => {
   const { register } = useAuth()
-  const navigate = useNavigate()
-
-  const [agencies, setAgencies] = useState<any[]>([])
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    contactNumber: '',
-    password: '',
-    parentId: '',
-  })
-
+  const nav = useNavigate()
+  const [email, setEmail] = useState('')
+  const [full_name, setFullName] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState<string>('WAITER')
+  const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
 
-  // Fetch agencies on component mount
-  useEffect(() => {
-    const fetchAgencies = async () => {
-      try {
-        const response = await api.get("/auth/agencies");
-        setAgencies(response.data);
-      } catch (err) {
-        console.error("Error fetching agencies:", err);
-        setError("Failed to load agencies. Please try again later.");
-      }
-    };
-
-    fetchAgencies();
-  }, []);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-
-    if(e.target.name === "parentId"){
-      localStorage.setItem("selectedAgencyId", e.target.value)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
+    setErr('')
     setLoading(true)
-
     try {
-      await register(
-        formData.fullName,
-        formData.email,
-        formData.password,
-        formData.contactNumber,
-        formData.parentId
-      )
-      navigate('/dashboard')
-    } catch (err: any) {
-      setError(err.message)
+      await register({ email, full_name, password, role })
+      nav('/login')
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Registration failed'
+      setErr(typeof msg === 'string' ? msg : JSON.stringify(msg))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <AuthLayout
-      title="Register"
-      subtitle="Create your account"
-      description="Join TMS today and manage your travel services efficiently."
-    >
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded">{error}</div>
-        )}
-
-        {/* Agency Dropdown */}
-        <select
-          name="parentId"
-          value={formData.parentId}
-          onChange={handleChange}
-          required
-          className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-        >
-          <option value="">Select Agency</option>
-          {agencies.map(a => (
-            <option key={a.id} value={a.id}>
-              {a.agency_name}
-            </option>
-          ))}
-        </select>
-
-        <input
-          name="fullName"
-          placeholder="Full Name"
-          required
-           className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-          value={formData.fullName}
-          onChange={handleChange}
-        />
-
-        <input
-          name="email"
-          type="email"
-          placeholder="Email"
-          required
-           className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-          value={formData.email}
-          onChange={handleChange}
-        />
-
-        <input
-          name="contactNumber"
-          type="tel"
-          maxLength={10}
-          placeholder="Phone Number (10 digits)"
-          required
-           className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-          value={formData.contactNumber}
-          onChange={(e) => {
-            const value = e.target.value.replace(/\D/g, '')
-            setFormData({ ...formData, contactNumber: value })
-          }}
-        />
-
-        <input
-          name="password"
-          type="password"
-          placeholder="Password"
-          required
-           className="mt-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-          value={formData.password}
-          onChange={handleChange}
-        />
-
+    <AuthLayout title="Create account" subtitle="Smart Dine staff access">
+      <form onSubmit={submit} className="space-y-4">
+        {err && <p className="text-sm text-red-600">{err}</p>}
+        <div>
+          <label className="block text-sm font-medium mb-1">Full name</label>
+          <input
+            required
+            value={full_name}
+            onChange={(e) => setFullName(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Email</label>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Password (min 8)</label>
+          <input
+            type="password"
+            minLength={8}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Role</label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
+          >
+            {roles.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-red-600 text-white p-3 rounded-lg"
+          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold shadow-lg disabled:opacity-60"
         >
-          {loading ? 'Creating account...' : 'SIGN UP'}
+          {loading ? 'Creating…' : 'Register'}
         </button>
-
         <p className="text-center text-sm">
-          Already have an account?{' '}
-          <Link to="/login" className="text-red-600 font-semibold">
-            Sign In
+          <Link to="/login" className="text-amber-600 font-medium">
+            Back to login
           </Link>
         </p>
       </form>

@@ -44,15 +44,8 @@ except Exception as e:
     print(f"ERROR loading environment: {e}")
     # Continue with system environment variables
 
-# Database URL - PostgreSQL
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Validate database URL is provided
-if not DATABASE_URL:
-    raise ValueError(
-        "DATABASE_URL environment variable is required. "
-        "Please set it in your .env file or environment variables."
-    )
+# Database URL — PostgreSQL in production; local SQLite fallback for demos
+DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./smartdine.db"
 
 # Print database info for debugging (without credentials)
 if os.getenv("DEBUG", "false").lower() == "true":
@@ -109,15 +102,23 @@ db_config = get_database_config()
 
 # Create engine with PostgreSQL optimizations and error handling
 try:
-    engine = create_engine(
-        DATABASE_URL,
-        pool_size=db_config['pool_size'],
-        max_overflow=db_config['max_overflow'],
-        pool_pre_ping=True,
-        pool_recycle=db_config['pool_recycle'],
-        echo=db_config['db_echo'],
-        future=True
-    )
+    if DATABASE_URL.startswith("sqlite"):
+        engine = create_engine(
+            DATABASE_URL,
+            connect_args={"check_same_thread": False},
+            echo=db_config["db_echo"],
+            future=True,
+        )
+    else:
+        engine = create_engine(
+            DATABASE_URL,
+            pool_size=db_config["pool_size"],
+            max_overflow=db_config["max_overflow"],
+            pool_pre_ping=True,
+            pool_recycle=db_config["pool_recycle"],
+            echo=db_config["db_echo"],
+            future=True,
+        )
     
     if os.getenv("DEBUG", "false").lower() == "true":
         print(f"Database engine created successfully with pool_size={db_config['pool_size']}")

@@ -1,321 +1,178 @@
-import { useEffect, useReducer, memo } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api/api'
-import { Car, Users } from 'lucide-react'
-import { Vehicle, Driver, TripSchedule } from '../types'
-import StatCard from '../components/dashboard/StatCard'
-import RecentTripsSection from '../components/dashboard/RecentTripsSection'
-import DocumentExpirySection from '../components/dashboard/DocumentExpirySection'
-import EmergencyNotificationsSection from '../components/dashboard/EmergencyNotificationsSection'
-import QuickActionsSection from '../components/dashboard/QuickActionsSection'
+import type { DashboardStats } from '../types'
 
-// Constants for magic numbers
-const RECENT_TRIPS_LIMIT = 4
-const EXPIRY_NOTIFICATIONS_LIMIT = 5
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts'
 
-interface ExpiryNotification {
-  id: string
-  type: 'driver' | 'vehicle'
-  title: string
-  description: string
-  expiry_date: string
-  days_remaining: number
-  severity: 'critical' | 'warning' | 'info'
-  entity_id: string
-  entity_name: string
-  document_type: string
-}
+import {
+  DollarSign,
+  ShoppingCart,
+  Users,
+  Clock3,
+  Activity,
+  ArrowUpRight,
+} from 'lucide-react'
 
-interface EmergencyNotification {
-  id: string
-  title: string
-  description: string
-  entity_name: string
-  days_remaining: number
-  severity: 'critical' | 'warning'
-}
-
-// Dashboard state management
-interface DashboardState {
-  stats: {
-    vehicles: number
-    drivers: number
-    activeVehicles: number
-    activeDrivers: number
-  }
-  recentTrips: TripSchedule[]
-  documentExpiry: ExpiryNotification[]
-  emergencyNotifications: EmergencyNotification[]
-  loading: boolean
-}
-
-type DashboardAction = 
-  | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_STATS'; payload: DashboardState['stats'] }
-  | { type: 'SET_RECENT_TRIPS'; payload: TripSchedule[] }
-  | { type: 'SET_DOCUMENT_EXPIRY'; payload: ExpiryNotification[] }
-  | { type: 'SET_EMERGENCY_NOTIFICATIONS'; payload: EmergencyNotification[] }
-  | { type: 'RESET_DATA' }
-
-const dashboardReducer = (state: DashboardState, action: DashboardAction): DashboardState => {
-  switch (action.type) {
-    case 'SET_LOADING':
-      return { ...state, loading: action.payload }
-    case 'SET_STATS':
-      return { ...state, stats: action.payload }
-    case 'SET_RECENT_TRIPS':
-      return { ...state, recentTrips: action.payload }
-    case 'SET_DOCUMENT_EXPIRY':
-      return { ...state, documentExpiry: action.payload }
-    case 'SET_EMERGENCY_NOTIFICATIONS':
-      return { ...state, emergencyNotifications: action.payload }
-    case 'RESET_DATA':
-      return {
-        ...state,
-        recentTrips: [],
-        documentExpiry: [],
-        emergencyNotifications: [],
-        loading: false
-      }
-    default:
-      return state
-  }
-}
-
-const Dashboard = memo(() => {
-  const initialState: DashboardState = {
-    stats: {
-      vehicles: 0,
-      drivers: 0,
-      activeVehicles: 0,
-      activeDrivers: 0,
-    },
-    recentTrips: [],
-    documentExpiry: [],
-    emergencyNotifications: [],
-    loading: true
-  }
-  
-  const [state, dispatch] = useReducer(dashboardReducer, initialState)
-  const { stats, recentTrips, documentExpiry, emergencyNotifications, loading } = state
-
-  // Extracted function to fetch stats
-  const fetchStats = async () => {
-    try {
-      const [vehiclesRes, driversRes] = await Promise.all([
-        api.get('/vehicles/'),
-        api.get('/drivers/'),
-      ])
-
-      const vehicles = vehiclesRes.data as Vehicle[]
-      const drivers = driversRes.data as Driver[]
-
-      dispatch({
-        type: 'SET_STATS',
-        payload: {
-          vehicles: vehicles.length,
-          drivers: drivers.length,
-          activeVehicles: vehicles.filter((v) => v.is_active).length,
-          activeDrivers: drivers.filter((d) => {
-            // Normalize is_active to boolean to handle different data types
-            const isActive = Boolean(Number(d.is_active));
-            return isActive;
-          }).length,
-        }
-      })
-    } catch (error) {
-      console.error('Failed to fetch stats:', error)
-    }
-  }
-
-  // Listen for notification updates
-  useEffect(() => {
-    const handleNotificationUpdate = async () => {
-      try {
-        await fetchStats()
-      } catch (error) {
-        console.error('Failed to update stats on notification:', error)
-      }
-    }
-
-    window.addEventListener('notificationUpdate', handleNotificationUpdate)
-    
-    return () => {
-      window.removeEventListener('notificationUpdate', handleNotificationUpdate)
-    }
-  }, [])
+const Dashboard = () => {
+  const [s, setS] = useState<DashboardStats | null>(null)
 
   useEffect(() => {
-    const abortController = new AbortController()
-    
-    const fetchDashboardData = async () => {
-      try {
-        // Batch all API calls together for better performance
-        const [vehiclesRes, driversRes, tripsRes, notificationsRes] = await Promise.allSettled([
-          api.get('/vehicles/'),
-          api.get('/drivers/'),
-          api.get('/trip-schedules/'),
-          api.get('/notifications/')
-        ])
-        
-        // Check if component is still mounted
-        if (abortController.signal.aborted) return
-
-        // Handle vehicles and drivers (for stats)
-        if (vehiclesRes.status === 'fulfilled' && driversRes.status === 'fulfilled') {
-          const vehicles = vehiclesRes.value.data as Vehicle[]
-          const drivers = driversRes.value.data as Driver[]
-
-          if (!abortController.signal.aborted) {
-            dispatch({
-              type: 'SET_STATS',
-              payload: {
-                vehicles: vehicles.length,
-                drivers: drivers.length,
-                activeVehicles: vehicles.filter((v) => v.is_active).length,
-                activeDrivers: drivers.filter((d) => {
-                  // Normalize is_active to boolean to handle different data types
-                  const isActive = Boolean(Number(d.is_active));
-                  return isActive;
-                }).length,
-              }
-            })
-          }
-        } else {
-          console.warn('Failed to fetch vehicles or drivers:', { vehiclesRes, driversRes })
-        }
-
-        // Handle trips
-        if (tripsRes.status === 'fulfilled') {
-          const schedules = Array.isArray(tripsRes.value.data) ? tripsRes.value.data : []
-          
-          // Get recent trips (last RECENT_TRIPS_LIMIT)
-          const recentSchedules = schedules
-            .sort((a: TripSchedule, b: TripSchedule) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .slice(0, RECENT_TRIPS_LIMIT)
-          
-          if (!abortController.signal.aborted) {
-            dispatch({ type: 'SET_RECENT_TRIPS', payload: recentSchedules })
-          }
-        } else {
-          console.warn('Failed to fetch trips:', tripsRes)
-          if (!abortController.signal.aborted) {
-            dispatch({ type: 'SET_RECENT_TRIPS', payload: [] })
-          }
-        }
-
-        // Handle notifications
-        if (notificationsRes.status === 'fulfilled') {
-          const notifications = notificationsRes.value.data as ExpiryNotification[]
-          
-          // Get document expiry notifications (last EXPIRY_NOTIFICATIONS_LIMIT)
-          // Filter out safety equipment notifications as they are handled separately in emergency section
-          const expiryNotifications = notifications
-            .filter((n: ExpiryNotification) => n.document_type !== 'fire_extinguisher' && n.document_type !== 'first_aid_kit' && n.document_type !== 'emergency_exit')
-            .slice(0, EXPIRY_NOTIFICATIONS_LIMIT)
-          
-          if (!abortController.signal.aborted) {
-            dispatch({ type: 'SET_DOCUMENT_EXPIRY', payload: expiryNotifications })
-          }
-        } else {
-          console.warn('Failed to fetch notifications:', notificationsRes)
-          if (!abortController.signal.aborted) {
-            dispatch({ type: 'SET_DOCUMENT_EXPIRY', payload: [] })
-          }
-        }
-
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
-        // Set default values if all APIs fail
-        if (!abortController.signal.aborted) {
-          dispatch({ type: 'RESET_DATA' })
-        }
-      } finally {
-        if (!abortController.signal.aborted) {
-          dispatch({ type: 'SET_LOADING', payload: false })
-        }
-      }
-    }
-
-    fetchDashboardData()
-    
-    return () => {
-      // Cleanup function to abort ongoing requests
-      abortController.abort()
-    }
+    void api.get<DashboardStats>('/reports/dashboard')
+      .then((r) => setS(r.data))
   }, [])
 
-  const statCards = [
-    {
-      name: 'Total Vehicles',
-      value: stats.vehicles,
-      icon: Car,
-      gradient: 'from-blue-500 to-blue-600',
-      iconGradient: 'from-blue-400 to-blue-500',
-      bgGradient: 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20',
-    },
-    {
-      name: 'Active Vehicles',
-      value: stats.activeVehicles,
-      icon: Car,
-      gradient: 'from-green-500 to-green-600',
-      iconGradient: 'from-green-400 to-green-500',
-      bgGradient: 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20',
-    },
-    {
-      name: 'Total Drivers',
-      value: stats.drivers,
-      icon: Users,
-      gradient: 'from-purple-500 to-purple-600',
-      iconGradient: 'from-purple-400 to-purple-500',
-      bgGradient: 'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20',
-    },
-    {
-      name: 'Active Drivers',
-      value: stats.activeDrivers,
-      icon: Users,
-      gradient: 'from-orange-500 to-orange-600',
-      iconGradient: 'from-orange-400 to-orange-500',
-      bgGradient: 'from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20',
-    },
-  ]
-
-  if (loading) {
+  if (!s) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 dark:border-primary-400"></div>
+      <div className="h-[80vh] flex items-center justify-center text-slate-500">
+        Loading dashboard...
       </div>
     )
   }
 
+  const stats = [
+    { title: 'Revenue', value: `₹${s.revenue}`, icon: DollarSign },
+    { title: 'Orders', value: s.total_orders, icon: ShoppingCart },
+    { title: 'Active Tables', value: s.active_tables, icon: Users },
+    { title: 'Pending', value: s.pending_orders, icon: Clock3 },
+  ]
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Dashboard</h1>
+    <div className="space-y-6 bg-white min-h-screen p-6">
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <StatCard
-            key={stat.name}
-            name={stat.name}
-            value={stat.value}
-            icon={stat.icon}
-            gradient={stat.gradient}
-            iconGradient={stat.iconGradient}
-            bgGradient={stat.bgGradient}
-          />
-        ))}
+      {/* HEADER */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Dashboard
+          </h1>
+          <p className="text-sm text-slate-500">
+            Restaurant overview
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button className="px-4 py-2 rounded-xl border border-orange-200 text-orange-600 font-medium hover:bg-orange-50">
+            Create Order
+          </button>
+
+          <button className="px-4 py-2 rounded-xl bg-orange-600 text-white font-medium hover:bg-orange-700">
+            Export
+          </button>
+        </div>
       </div>
 
-      {/* Three Sections in One Row */}
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <RecentTripsSection recentTrips={recentTrips} />
-        <DocumentExpirySection documentExpiry={documentExpiry} />
-        <EmergencyNotificationsSection emergencyNotifications={emergencyNotifications} />
+      {/* STATS */}
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+
+        {stats.map((item, i) => {
+          const Icon = item.icon
+
+          return (
+            <div
+              key={i}
+              className="p-5 rounded-2xl border border-orange-100 bg-white shadow-sm hover:shadow-md transition"
+            >
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-slate-500">
+                  {item.title}
+                </p>
+
+                <div className="h-10 w-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                  <Icon className="h-5 w-5 text-orange-600" />
+                </div>
+              </div>
+
+              <h2 className="text-2xl font-bold mt-3 text-slate-900">
+                {item.value}
+              </h2>
+
+              <div className="flex items-center gap-1 mt-3 text-orange-600 text-sm">
+                <ArrowUpRight className="h-4 w-4" />
+                Live update
+              </div>
+            </div>
+          )
+        })}
+
       </div>
 
-      <QuickActionsSection />
+      {/* MAIN GRID */}
+      <div className="grid lg:grid-cols-3 gap-5">
+
+        {/* CHART */}
+        <div className="lg:col-span-2 p-5 rounded-2xl border border-orange-100 bg-white">
+
+          <div className="flex justify-between mb-4">
+            <h2 className="font-semibold text-slate-900">
+              Top Selling Items
+            </h2>
+
+            <Activity className="h-5 w-5 text-orange-500" />
+          </div>
+
+          <div className="h-[320px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={s.top_items}>
+                <CartesianGrid opacity={0.08} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="qty" fill="#f97316" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+        </div>
+
+        {/* RIGHT PANEL */}
+        <div className="space-y-4">
+
+          <div className="p-5 rounded-2xl border border-orange-100 bg-orange-50">
+            <p className="text-sm text-slate-600">Total Revenue</p>
+
+            <h2 className="text-3xl font-bold text-orange-600 mt-2">
+              ₹{s.revenue}
+            </h2>
+
+            <div className="text-sm text-orange-600 mt-2 flex items-center gap-1">
+              <ArrowUpRight className="h-4 w-4" />
+              Growth this month
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl border border-orange-100 bg-white space-y-3">
+
+            <div className="flex justify-between">
+              <span className="text-slate-600">Kitchen Queue</span>
+              <span className="font-bold">{s.pending_orders}</span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-slate-600">Occupied Tables</span>
+              <span className="font-bold">{s.active_tables}</span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-slate-600">Total Orders</span>
+              <span className="font-bold">{s.total_orders}</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
   )
-})
+}
 
 export default Dashboard
-

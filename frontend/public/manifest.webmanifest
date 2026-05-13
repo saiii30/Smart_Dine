@@ -1,0 +1,9 @@
+{
+  "name": "Smart Dine",
+  "short_name": "SmartDine",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#d97706",
+  "description": "Restaurant management — Smart Dine"
+}

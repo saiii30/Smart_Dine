@@ -1,167 +1,104 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import {api} from "../api/api";
-import { User } from "../types";
- 
-interface LoginPayload {
-  username: string;
-  password: string;
-  agency_id: string;
-  it_company_id?: string;
-}
- 
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  login: (data: LoginPayload) => Promise<User>;
-  register: (
-    name: string,
-    email: string,
-    password: string,
-    contactNumber: string,
-    agencyId: string
-  ) => Promise<void>;
-  logout: () => void;
-  loading: boolean;
-  refreshUser: () => Promise<void>;
-}
- 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
- 
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-};
- 
-export const AuthProvider = ({ children, onLogoutNavigate }: { children: ReactNode; onLogoutNavigate?: () => void }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { api } from '../api/api'
+import type { User } from '../types'
 
- 
- 
-  /* -------------------- LOAD USER -------------------- */
+interface LoginPayload {
+  email: string
+  password: string
+}
+
+interface RegisterPayload {
+  email: string
+  full_name: string
+  password: string
+  role?: string
+  branch_id?: number | null
+}
+
+interface AuthContextType {
+  user: User | null
+  token: string | null
+  login: (data: LoginPayload) => Promise<User>
+  register: (data: RegisterPayload) => Promise<void>
+  logout: () => void
+  loading: boolean
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export const useAuth = () => {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
+}
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
   const fetchUser = async () => {
     try {
-      const res = await api.get("/auth/me");
-      setUser(res.data);
-    } catch (err) {
-      console.error("Failed to fetch user", err);
-      setUser(null);
+      const res = await api.get<User>('/auth/me')
+      setUser(res.data)
+    } catch {
+      setUser(null)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
- 
+  }
+
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    if (storedToken) {
-      setToken(storedToken);
-      api.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
+    const stored = localStorage.getItem('token')
+    if (stored) {
+      setToken(stored)
+      api.defaults.headers.common.Authorization = `Bearer ${stored}`
     } else {
-      setLoading(false);
+      setLoading(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
     if (token && !user) {
-      fetchUser();
+      void fetchUser()
     }
-  }, [token]);
+  }, [token])
 
-  /* -------------------- LOGIN -------------------- */
   const login = async (data: LoginPayload) => {
-    try {
-      const res = await api.post("/auth/login", data);
- 
-      const { access_token } = res.data;
- 
-      // Store the token
-      localStorage.setItem("token", access_token);
-      setToken(access_token);
-      //api.defaults.headers.common.Authorization = `Bearer ${access_token}`;
- 
-      // Fetch user data using the token
-      const userResponse = await api.get("/auth/me");
-
-      setUser(userResponse.data); // Set user data from the /me endpoint
-      return userResponse.data; // Return user data for potential use in components
-    } catch (err: any) {
-      console.error("Login error:", err);
-      throw new Error(err.response?.data?.detail || "Login failed");
-    }
-  };
- 
-  /* -------------------- REGISTER -------------------- */
-  const register = async (
-    name: string,
-    email: string,
-    password: string,
-    contactNumber: string,
-    agencyId: string
-  ) => {
-    try {
-      await api.post("/auth/register", {
-        name,
-        email,
-        password,
-        contact_number: contactNumber,
-        agency_id: agencyId,
-        role: "SUPERVISOR", // 🔥 REQUIRED BY DB CONSTRAINT
-      });
- 
-      // 🔁 Auto login after register
-      await login({
-        username: email,
-        password,
-        agency_id: agencyId,
-      });
-    } catch (err: any) {
-      throw new Error(err.response?.data?.detail || "Registration failed");
-    }
-  };
-
-//   const refreshUser = async () => {
-//   try {
-//     const res = await axios.get("/api/auth/me") // your API
-//     alert("User refreshed: " + JSON.stringify(res.data))
-//     setUser(res.data)
-//   } catch (err) {
-//     console.error("Failed to refresh user", err)
-//   }
-// }
-
-const refreshUser = async () => {
-  try {
-    const res = await api.get("/auth/me");
-
-    console.log("REFRESH USER:", res.data) // debug
-
-    setUser({ ...res.data }) // force new object
-
-  } catch (err) {
-    console.error("Failed to refresh user", err)
+    const res = await api.post<{ access_token: string }>('/auth/login', {
+      email: data.email,
+      password: data.password,
+    })
+    const access = res.data.access_token
+    localStorage.setItem('token', access)
+    setToken(access)
+    api.defaults.headers.common.Authorization = `Bearer ${access}`
+    const me = await api.get<User>('/auth/me')
+    setUser(me.data)
+    return me.data
   }
-}
+
+  const register = async (data: RegisterPayload) => {
+    await api.post('/auth/register', {
+      email: data.email,
+      full_name: data.full_name,
+      password: data.password,
+      role: data.role || 'WAITER',
+      branch_id: data.branch_id ?? undefined,
+    })
+  }
 
   const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem("token");
-    // Use navigation callback if provided, otherwise fallback to window.location
-    if (onLogoutNavigate) {
-      onLogoutNavigate();
-    } else {
-      // Fallback to window.location for navigation since AuthProvider is outside Router context
-      window.location.href = "/login";
-    }
-  };
- 
+    localStorage.removeItem('token')
+    delete api.defaults.headers.common.Authorization
+    setToken(null)
+    setUser(null)
+    window.location.href = '/login'
+  }
+
   return (
-    <AuthContext.Provider
-      value={{ user, token, login, register, logout, loading, refreshUser }}
-    >
+    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
