@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
-
+import BillingInput from './BillingInput'
+import BillingSelect from './BillingSelect'
 interface VehicleBillingRowProps {
   row: {
     id: number
@@ -55,123 +56,100 @@ const VehicleBillingRow = ({
 
       {/* BRAND */}
       <div>
-        <select
-          value={row.brand}
-          onChange={e => {
-            handleChange(row.id, 'brand', e.target.value)
-            handleChange(row.id, 'car', '')
-            handleChange(row.id, 'vehicleType', '')
-          }}
-          className={`w-full border rounded-lg px-3 py-2 ${
-            isDark 
-              ? 'bg-gray-800 border-gray-600 text-white' 
-              : 'bg-white border-gray-300 text-gray-900'
-          }`}
-        >
-          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>Select Brand</option>
-          {brands.map((brand, index) => (
-            <option key={index} value={brand} className={isDark ? 'bg-gray-800' : 'bg-white'}>
-              {brand}
-            </option>
-          ))}
-        </select>
+        <BillingSelect
+  value={row.brand}
+  placeholder="Select Brand"
+  onChange={e => {
+    handleChange(row.id, 'brand', e.target.value)
+    handleChange(row.id, 'car', '')
+    handleChange(row.id, 'vehicleType', '')
+  }}
+  options={brands.map(brand => ({
+    label: brand,
+    value: brand
+  }))}
+/>
       </div>
 
       {/* CAR */}
       <div>
-        <select
-          value={row.car}
-          onChange={e => {
-            const selectedCar = e.target.value
-            handleChange(row.id, 'car', selectedCar)
+        <BillingSelect
+  value={row.car}
+  placeholder="Select Vehicle"
+  onChange={e => {
+    const selectedCar = e.target.value
 
-            // automatic vehicle type and seating capacity set
-            const matchedVehicle = vehicleList.find(
-  vehicle =>
-    vehicle.vehicle_brand === row.brand &&
-    vehicle.vehicle_name === selectedCar
-)
+    handleChange(row.id, 'car', selectedCar)
 
-handleChange(
-  row.id,
-  'vehicle_id',
-  matchedVehicle?.id || 0
-)
+    const matchedVehicle =
+      vehicleList.find(
+        vehicle =>
+          vehicle.vehicle_brand ===
+            row.brand &&
+          vehicle.vehicle_name ===
+            selectedCar
+      )
 
-handleChange(
-  row.id,
-  'vehicleType',
-  matchedVehicle?.vehicle_type || ''
-)
+    handleChange(
+      row.id,
+      'vehicle_id',
+      matchedVehicle?.id || 0
+    )
 
-handleChange(
-  row.id,
-  'fuelType',
-  matchedVehicle?.fuel_type || ''
-)
+    handleChange(
+      row.id,
+      'vehicleType',
+      matchedVehicle?.vehicle_type || ''
+    )
 
-handleChange(
-  row.id,
-  'seatingCapacity',
-  matchedVehicle?.seating_capacity?.toString() || ''
-)
-          }}
-          className={`w-full border rounded-lg px-3 py-2 ${
-            isDark 
-              ? 'bg-gray-800 border-gray-600 text-white' 
-              : 'bg-white border-gray-300 text-gray-900'
-          }`}
-        >
-          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>Select Vehicle</option>
-          {vehicleList
-            .filter(
-              vehicle =>
-                vehicle.vehicle_brand === row.brand
-            )
-            .map(vehicle => (
-              <option
-                key={vehicle.id}
-                value={vehicle.vehicle_name}
-                className={isDark ? 'bg-gray-800' : 'bg-white'}
-              >
-                {vehicle.vehicle_name} - {vehicle.fuel_type}
-              </option>
-            ))}
-        </select>
+    handleChange(
+      row.id,
+      'fuelType',
+      matchedVehicle?.fuel_type || ''
+    )
+
+    handleChange(
+      row.id,
+      'seatingCapacity',
+      matchedVehicle?.seating_capacity?.toString() ||
+        ''
+    )
+  }}
+  options={vehicleList
+    .filter(
+      vehicle =>
+        vehicle.vehicle_brand === row.brand
+    )
+    .map(vehicle => ({
+      label: `${vehicle.vehicle_name} - ${vehicle.fuel_type}`,
+      value: vehicle.vehicle_name
+    }))}
+/>
       </div>
 
       {/* VEHICLE TYPE */}
       <div>
-        <select
-          value={row.vehicleType}
-          onChange={e => {
-            handleChange(
-              row.id,
-              'vehicleType',
-              e.target.value
-            )
-          }}
-          className={`w-full border rounded-lg px-3 py-2 ${
-            isDark 
-              ? 'bg-gray-800 border-gray-600 text-white' 
-              : 'bg-white border-gray-300 text-gray-900'
-          }`}
-        >
-          <option value="" className={isDark ? 'bg-gray-800' : 'bg-white'}>Vehicle Type</option>
-          {[
-            ...new Set(
-              vehicleList.map(vehicle => vehicle.vehicle_type)
-            )
-          ].map((vehicleType, index) => (
-            <option
-              key={index}
-              value={vehicleType}
-              className={isDark ? 'bg-gray-800' : 'bg-white'}
-            >
-              {vehicleType}
-            </option>
-          ))}
-        </select>
+       <BillingSelect
+  value={row.vehicleType}
+  placeholder="Vehicle Type"
+  onChange={e =>
+    handleChange(
+      row.id,
+      'vehicleType',
+      e.target.value
+    )
+  }
+  options={[
+    ...new Set(
+      vehicleList.map(
+        vehicle => vehicle.vehicle_type
+      )
+    )
+  ].map(vehicleType => ({
+    label: vehicleType,
+    value: vehicleType
+  }))}
+/>
       </div>
 
       {/* PRICE */}
@@ -180,39 +158,32 @@ handleChange(
     {/* SEATING CAPACITY */}
 {showSeatingCapacity && (
   <div>
-    <input
-      type="number"
-      placeholder="Seating Capacity"
-      value={row.seatingCapacity || ''}
-      disabled
-      className={`w-full border rounded-lg px-3 py-2 ${
-        isDark 
-          ? 'bg-gray-700 border-gray-600 text-gray-300' 
-          : 'bg-gray-50 border-gray-300 text-gray-900'
-      }`}
-    />
+    <BillingInput
+  type="number"
+  placeholder="Seating Capacity"
+  value={row.seatingCapacity || ''}
+  disabled
+/>
   </div>
 )}
 
 <div>
-        <input
-          type="number"
-          placeholder="Price"
-          value={row.price}
-          disabled={editingId !== row.id && editingId !== null}
-          onChange={e =>
-            handleChange(
-              row.id,
-              'price',
-              e.target.value
-            )
-          }
-          className={`w-full border rounded-lg px-3 py-2 ${
-            isDark 
-              ? 'bg-gray-800 border-gray-600 text-white' 
-              : 'bg-white border-gray-300 text-gray-900'
-          }`}
-        />
+        <BillingInput
+  type="number"
+  placeholder="Price"
+  value={row.price}
+  disabled={
+    editingId !== row.id &&
+    editingId !== null
+  }
+  onChange={e =>
+    handleChange(
+      row.id,
+      'price',
+      e.target.value
+    )
+  }
+/>
       </div>
 
       {/* ACTIONS */}

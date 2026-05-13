@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs'
 import { Vehicle } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 import FileUpload from './FileUpload'
+import BillingSelect from '../components/settings/BillingSelect'
 
 interface VehicleModalProps {
   vehicle: Vehicle | null
@@ -44,7 +45,7 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
     vehicle_model: '',
     vehicle_status: 'Active',
     manufacturing_year: '',
-    fuel_type: 'Diesel',
+    fuel_type: '',
     seating_capacity: '',
     gps_device_id: '',
     fire_extinguisher_available: false,
@@ -230,7 +231,7 @@ const brands = [
       vehicle_model: '',
       vehicle_status: 'Active',
       manufacturing_year: '',
-      fuel_type: 'Diesel',
+      fuel_type: '',
       seating_capacity: '',
       gps_device_id: '',
       fire_extinguisher_available: false,
@@ -824,22 +825,26 @@ if (row['Insurance Date']) {
                     </div>
                     <div>
                       <FieldLabel required>Vehicle Brand</FieldLabel>
-                     <select
-          value={draft.vehicle_brand}
-          className={`${inputStyle} ${validationErrors.vehicle_brand ? 'border-red-500 focus:ring-red-500' : ''}`}
-          onChange={e => {
-            const updatedBrand = e.target.value;
-            saveDraft({ vehicle_brand: updatedBrand });
-          }}
-          
-        >
-          <option value="" >Select Brand</option>
-          {brands.map((brand, index) => (
-            <option key={index} value={brand} >
-              {brand}
-            </option>
-          ))}
-        </select>
+                     <BillingSelect
+    value={draft.vehicle_brand}
+    placeholder="Select Brand"
+    onChange={e => {
+      const updatedBrand =
+        e.target.value
+
+      saveDraft({
+        vehicle_brand: updatedBrand,
+        vehicle_model: '',
+        vehicle_type: '',
+        fuel_type: '',
+        seating_capacity: ''
+      })
+    }}
+    options={brands.map(brand => ({
+      label: brand,
+      value: brand
+    }))}
+  />
         {validationErrors.vehicle_brand && (
                         <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_brand}</p>
                       )}
@@ -849,27 +854,26 @@ if (row['Insurance Date']) {
                     <div>
   <FieldLabel required>Vehicle Model</FieldLabel>
 
-  <select
+   <BillingSelect
     value={draft.vehicle_model}
-    className={`${inputStyle} ${
-      validationErrors.vehicle_model
-        ? 'border-red-500 focus:ring-red-500'
-        : ''
-    }`}
+    placeholder="Select Vehicle"
+  
     onChange={e => {
-      const selectedCar = e.target.value
+      const selectedCar =
+        e.target.value
 
       saveDraft({
         vehicle_model: selectedCar
       })
 
-      // automatic vehicle details set
-      const matchedVehicle = vehicleList.find(
-        vehicle =>
-          vehicle.vehicle_brand ===
-            draft.vehicle_brand &&
-          vehicle.vehicle_name === selectedCar
-      )
+      const matchedVehicle =
+        vehicleList.find(
+          vehicle =>
+            vehicle.vehicle_brand ===
+              draft.vehicle_brand &&
+            vehicle.vehicle_name ===
+              selectedCar
+        )
 
       if (matchedVehicle) {
         saveDraft({
@@ -882,26 +886,17 @@ if (row['Insurance Date']) {
         })
       }
     }}
-  >
-    <option value="">
-      Select Vehicle
-    </option>
-
-    {vehicleList
+    options={vehicleList
       .filter(
         vehicle =>
           vehicle.vehicle_brand ===
           draft.vehicle_brand
       )
-      .map(vehicle => (
-        <option
-          key={vehicle.id}
-          value={vehicle.vehicle_name}
-        >
-          {vehicle.vehicle_name} 
-        </option>
-      ))}
-  </select>
+      .map(vehicle => ({
+        label: vehicle.vehicle_name,
+        value: vehicle.vehicle_name
+      }))}
+  />
    {validationErrors.vehicle_model && (
                         <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_model}</p>
                       )}
@@ -909,27 +904,28 @@ if (row['Insurance Date']) {
 
                     <div>
                       <FieldLabel required>Vehicle Type</FieldLabel>
-                       <select
-          value={draft.vehicle_type}
-          className={`${inputStyle} ${validationErrors.vehicle_type ? 'border-red-500 focus:ring-red-500' : ''}`}
-          onChange={e => saveDraft({ vehicle_type: e.target.value })}
-        
-        >
-          <option value="" >Vehicle Type</option>
-          {[
-            ...new Set(
-              vehicleList.map(vehicle => vehicle.vehicle_type)
-            )
-          ].map((vehicleType, index) => (
-            <option
-              key={index}
-              value={vehicleType}
-             
-            >
-              {vehicleType}
-            </option>
-          ))}
-        </select>
+                       <BillingSelect
+    value={draft.vehicle_type}
+    placeholder="Vehicle Type"
+
+    onChange={e =>
+      saveDraft({
+        vehicle_type:
+          e.target.value
+      })
+    }
+    options={[
+      ...new Set(
+        vehicleList.map(
+          vehicle =>
+            vehicle.vehicle_type
+        )
+      )
+    ].map(vehicleType => ({
+      label: vehicleType,
+      value: vehicleType
+    }))}
+  />
                       {validationErrors.vehicle_type && (
                         <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_type}</p>
                       )}
