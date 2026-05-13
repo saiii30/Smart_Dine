@@ -28,10 +28,13 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
     </label>
   );
 
+
+
   const DRAFT_KEY = 'vehicle_modal_draft_v1';
 
   const { user } = useAuth();
   const isSupervisor = user?.role === 'SUPERVISOR';
+  const [vehicleList, setVehicleList] = useState<any[]>([])
 
   // --- Form State ---
   const [draft, setDraft] = useState<Record<string, any>>({
@@ -74,6 +77,30 @@ const VehicleModal = ({ vehicle, onClose, onSuccess }: VehicleModalProps) => {
     service_expiry: '',
     puc_expiry: '',
   });
+
+  useEffect(() => {
+  fetchVehicleList()
+}, [])
+
+const fetchVehicleList = async () => {
+  try {
+    const response = await fetch(
+      'http://127.0.0.1:8000/api/vehicle-list'
+    )
+
+    const data = await response.json()
+
+    setVehicleList(data)
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const brands = [
+  ...new Set(
+    vehicleList.map(vehicle => vehicle.vehicle_brand)
+  )
+]
 
   // Track actual File objects for uploads (not saved to localStorage)
   const [files, setFiles] = useState<{
@@ -797,18 +824,119 @@ if (row['Insurance Date']) {
                     </div>
                     <div>
                       <FieldLabel required>Vehicle Brand</FieldLabel>
-                      <input required type="text" placeholder="e.g. Suzuki" className={`${inputStyle} ${validationErrors.vehicle_brand ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.vehicle_brand} onChange={e => saveDraft({ vehicle_brand: e.target.value })} />
-                      {validationErrors.vehicle_brand && (
+                     <select
+          value={draft.vehicle_brand}
+          className={`${inputStyle} ${validationErrors.vehicle_brand ? 'border-red-500 focus:ring-red-500' : ''}`}
+          onChange={e => {
+            const updatedBrand = e.target.value;
+            saveDraft({ vehicle_brand: updatedBrand });
+          }}
+          
+        >
+          <option value="" >Select Brand</option>
+          {brands.map((brand, index) => (
+            <option key={index} value={brand} >
+              {brand}
+            </option>
+          ))}
+        </select>
+        {validationErrors.vehicle_brand && (
                         <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_brand}</p>
                       )}
+          
                     </div>
+
                     <div>
-                      <FieldLabel required>Vehicle Model</FieldLabel>
-                      <input required type="text" placeholder="Dezire" className={`${inputStyle} ${validationErrors.vehicle_model ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.vehicle_model} onChange={e => saveDraft({ vehicle_model: e.target.value })} />
-                      {validationErrors.vehicle_model && (
+  <FieldLabel required>Vehicle Model</FieldLabel>
+
+  <select
+    value={draft.vehicle_model}
+    className={`${inputStyle} ${
+      validationErrors.vehicle_model
+        ? 'border-red-500 focus:ring-red-500'
+        : ''
+    }`}
+    onChange={e => {
+      const selectedCar = e.target.value
+
+      saveDraft({
+        vehicle_model: selectedCar
+      })
+
+      // automatic vehicle details set
+      const matchedVehicle = vehicleList.find(
+        vehicle =>
+          vehicle.vehicle_brand ===
+            draft.vehicle_brand &&
+          vehicle.vehicle_name === selectedCar
+      )
+
+      if (matchedVehicle) {
+        saveDraft({
+          vehicle_type:
+            matchedVehicle.vehicle_type,
+          seating_capacity:
+            matchedVehicle.seating_capacity,
+          fuel_type:
+            matchedVehicle.fuel_type
+        })
+      }
+    }}
+  >
+    <option value="">
+      Select Vehicle
+    </option>
+
+    {vehicleList
+      .filter(
+        vehicle =>
+          vehicle.vehicle_brand ===
+          draft.vehicle_brand
+      )
+      .map(vehicle => (
+        <option
+          key={vehicle.id}
+          value={vehicle.vehicle_name}
+        >
+          {vehicle.vehicle_name} 
+        </option>
+      ))}
+  </select>
+   {validationErrors.vehicle_model && (
                         <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_model}</p>
                       )}
+</div>
+
+                    <div>
+                      <FieldLabel required>Vehicle Type</FieldLabel>
+                       <select
+          value={draft.vehicle_type}
+          className={`${inputStyle} ${validationErrors.vehicle_type ? 'border-red-500 focus:ring-red-500' : ''}`}
+          onChange={e => saveDraft({ vehicle_type: e.target.value })}
+        
+        >
+          <option value="" >Vehicle Type</option>
+          {[
+            ...new Set(
+              vehicleList.map(vehicle => vehicle.vehicle_type)
+            )
+          ].map((vehicleType, index) => (
+            <option
+              key={index}
+              value={vehicleType}
+             
+            >
+              {vehicleType}
+            </option>
+          ))}
+        </select>
+                      {validationErrors.vehicle_type && (
+                        <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_type}</p>
+                      )}
                     </div>
+                    
+
+
                     <div>
                       <FieldLabel required>RC Number</FieldLabel>
                       <input required type="text" placeholder="RC12345" className={`${inputStyle} ${validationErrors.rc_number ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.rc_number} onChange={e => saveDraft({ rc_number: e.target.value })} />
@@ -816,31 +944,11 @@ if (row['Insurance Date']) {
                         <p className="text-red-500 text-xs mt-1">{validationErrors.rc_number}</p>
                       )}
                     </div>
-                    <div className="mt-6">
-                      <FieldLabel optional>Ownership Type</FieldLabel>
-                      <select className={inputStyle} value={draft.ownershipType} onChange={e => saveDraft({ ownershipType: e.target.value })}>
-                        <option>Leased</option>
-                        <option>Owned</option>
-                      </select>
-                    </div>
+                   
                   </div>
 
                   <div className="space-y-4">
-                    <div>
-                      <FieldLabel required>Vehicle Type</FieldLabel>
-                      <select required className={`${inputStyle} ${validationErrors.vehicle_type ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.vehicle_type} onChange={e => saveDraft({ vehicle_type: e.target.value })}>
-                        <option>Mini Bus</option>
-                        <option>Bus</option>
-                        <option>Passenger Van</option>
-                        <option>Sedan</option>
-                        <option>SUV</option>
-                        <option>MUV</option>
-                        <option>Hatch back</option>
-                      </select>
-                      {validationErrors.vehicle_type && (
-                        <p className="text-red-500 text-xs mt-1">{validationErrors.vehicle_type}</p>
-                      )}
-                    </div>
+                    
                     <div>
                       <FieldLabel required>Vehicle Status</FieldLabel>
                       <select required className={inputStyle + " text-green-600 font-bold"} value={draft.vehicle_status} onChange={e => saveDraft({ vehicle_status: e.target.value })}>
@@ -856,11 +964,19 @@ if (row['Insurance Date']) {
                     <div>
                       <FieldLabel required>Fuel Type</FieldLabel>
                       <select required className={`${inputStyle} ${validationErrors.fuel_type ? 'border-red-500 focus:ring-red-500' : ''}`} value={draft.fuel_type} onChange={e => saveDraft({ fuel_type: e.target.value })}>
-                        <option>Diesel</option>
-                        <option>Petrol</option>
-                        <option>Electric</option>
-                        <option>CNG</option>
+                        <option value="">Select Fuel Type</option>
+                        {[
+                          ...new Set(
+                            vehicleList.map(vehicle => vehicle.fuel_type)
+                          )
+                        ].map((fuelType, index) => (
+                          <option key={index} value={fuelType}>
+                            {fuelType}
+                          </option>
+                        ))}
                       </select>
+
+
                       {validationErrors.fuel_type && (
                         <p className="text-red-500 text-xs mt-1">{validationErrors.fuel_type}</p>
                       )}
@@ -868,6 +984,14 @@ if (row['Insurance Date']) {
                     <div>
                       <FieldLabel optional>Seating Capacity</FieldLabel>
                       <input type="number" className={inputStyle} value={draft.seating_capacity} onChange={e => saveDraft({ seating_capacity: e.target.value })} />
+                    </div>
+
+                     <div className="mt-6">
+                      <FieldLabel optional>Ownership Type</FieldLabel>
+                      <select className={inputStyle} value={draft.ownershipType} onChange={e => saveDraft({ ownershipType: e.target.value })}>
+                        <option>Leased</option>
+                        <option>Owned</option>
+                      </select>
                     </div>
                   </div>
                 </div>
