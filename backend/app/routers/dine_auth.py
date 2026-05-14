@@ -16,27 +16,55 @@ from app.database import get_db
 
 router = APIRouter()
 
+@router.post(
+    "/register",
+    response_model=schemas.UserOut,
+    status_code=status.HTTP_201_CREATED
+)
+def register(
+    payload: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    # 1. Only ADMIN can create users
+    if current_user.role != models.DineUserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=403,
+            detail="Only ADMIN can register users"
+        )
 
-@router.post("/register", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)
-def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
-    if get_user_by_email(db, str(payload.email).lower()):
-        raise HTTPException(status_code=400, detail="Email already registered")
+    # 2. Check duplicate email
+    existing_user = get_user_by_email(db, str(payload.email).lower())
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+
+    # 3. Role MUST come from request (admin decides)
     role = payload.role.upper()
-    allowed = {r.value for r in models.DineUserRole}
-    if role not in allowed:
-        raise HTTPException(status_code=400, detail="Invalid role")
+
+    allowed_roles = {r.value for r in models.DineUserRole}
+    if role not in allowed_roles:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid role"
+        )
+
+    # 4. Create user
     user = models.User(
         email=str(payload.email).lower(),
         full_name=payload.full_name,
         hashed_password=get_password_hash(payload.password),
         role=role,
-        branch_id=payload.branch_id,
+        branch_id=payload.branch_id
     )
+
     db.add(user)
     db.commit()
     db.refresh(user)
-    return user
 
+    return user
 
 @router.post("/token", response_model=schemas.Token)
 def login_token(

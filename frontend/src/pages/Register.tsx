@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import AuthLayout from '../components/AuthLayout'
 
-const roles = ['ADMIN', 'MANAGER', 'WAITER', 'KITCHEN', 'CASHIER'] as const
+
 
 const Register = () => {
   const { register } = useAuth()
@@ -11,7 +11,7 @@ const Register = () => {
   const [email, setEmail] = useState('')
   const [full_name, setFullName] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<string>('WAITER')
+
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,7 +20,7 @@ const Register = () => {
     setErr('')
     setLoading(true)
     try {
-      await register({ email, full_name, password, role })
+      await register({ email, full_name, password })
       nav('/login')
     } catch (e: unknown) {
       const msg =
@@ -66,20 +66,7 @@ const Register = () => {
             className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Role</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
-          >
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
+        
         <button
           type="submit"
           disabled={loading}

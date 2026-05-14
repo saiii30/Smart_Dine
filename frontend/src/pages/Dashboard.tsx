@@ -58,15 +58,7 @@ const Dashboard = () => {
           </p>
         </div>
 
-        <div className="flex gap-3">
-          <button className="px-4 py-2 rounded-xl border border-orange-200 text-orange-600 font-medium hover:bg-orange-50">
-            Create Order
-          </button>
-
-          <button className="px-4 py-2 rounded-xl bg-orange-600 text-white font-medium hover:bg-orange-700">
-            Export
-          </button>
-        </div>
+       
       </div>
 
       {/* STATS */}
