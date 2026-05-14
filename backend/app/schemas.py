@@ -163,6 +163,7 @@ class OrderItemOut(BaseModel):
 class OrderOut(BaseModel):
     id: int
     table_id: Optional[int] = None
+    table_name: Optional[str] = None
     waiter_id: Optional[str] = None
     branch_id: Optional[int] = None
     status: str

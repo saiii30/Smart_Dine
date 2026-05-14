@@ -90,7 +90,7 @@ const Billing = () => {
           <option value="">Choose order</option>
           {orders.map((o) => (
             <option key={o.id} value={o.id}>
-              #{o.id} — ₹{o.total_amount.toFixed(2)}
+              {o.table_name ? `Table ${o.table_name}` : 'Takeaway'} - #{o.id} — ₹{o.total_amount.toFixed(2)}
             </option>
           ))}
         </select>
@@ -100,9 +100,14 @@ const Billing = () => {
       {order && (
         <div className="p-6 border rounded-2xl bg-white dark:bg-slate-900 space-y-4">
 
-          <div className="flex items-center gap-2">
-            <Receipt className="h-5 w-5" />
-            <h2 className="font-semibold">Bill Summary</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-5 w-5" />
+              <h2 className="font-semibold">Bill Summary</h2>
+            </div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              {order.table_name ? `Table ${order.table_name}` : 'Takeaway'} - Order #{order.id}
+            </div>
           </div>
 
           <div className="space-y-2 text-sm">

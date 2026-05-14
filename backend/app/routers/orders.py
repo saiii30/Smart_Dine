@@ -20,6 +20,7 @@ def _serialize_order(o: models.Order) -> schemas.OrderOut:
         items_out.append(row)
     base = schemas.OrderOut.model_validate(o, from_attributes=True)
     base.items = items_out
+    base.table_name = o.table.table_number if o.table else None
     return base
 
 

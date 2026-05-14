@@ -54,6 +54,7 @@ export interface OrderItem {
 export interface Order {
   id: number
   table_id?: number | null
+  table_name?: string | null
   waiter_id?: string | null
   branch_id?: number | null
   status: string
