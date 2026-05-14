@@ -28,6 +28,20 @@ const Kitchen = () => {
     load()
   })
 
+  const getOrderStatus = (order: Order) => {
+  const allServed = order.items.every(i => i.status === 'served')
+  const allReadyOrServed = order.items.every(
+    i => i.status === 'ready' || i.status === 'served'
+  )
+  const anyPreparing = order.items.some(i => i.status === 'preparing')
+
+  if (allServed) return 'served'
+  if (allReadyOrServed) return 'ready'
+  if (anyPreparing) return 'preparing'
+
+  return 'pending'
+}
+
   const bump = async (orderId: number, itemId: number, status: string) => {
     await api.patch(`/orders/${orderId}/items/${itemId}/status`, { status })
     toast.success('Updated')
@@ -50,6 +64,7 @@ const Kitchen = () => {
       </div>
       <div className="grid md:grid-cols-2 gap-4">
         {orders.map((o) => {
+          const status = getOrderStatus(o)
           const progress = getOrderProgress(o)
           const allReady = progress.readyCount === progress.totalCount && progress.servedCount === 0
           const partialReady = progress.readyCount > 0 && progress.readyCount < progress.totalCount
@@ -68,7 +83,7 @@ const Kitchen = () => {
               <div className="flex justify-between items-center">
                 <span className="font-bold text-lg">#{o.id}</span>
                 <div className="text-right">
-                  <div className="text-xs uppercase tracking-wide opacity-70 mb-1">{o.status}</div>
+                  <div className="text-xs uppercase tracking-wide opacity-70 mb-1">{status}</div>
                   <div className="text-sm font-semibold">
                     {progress.readyCount}/{progress.totalCount} Ready
                   </div>

@@ -105,6 +105,20 @@ const OrdersPage = () => {
     load()
   }
 
+  const getOrderStatus = (order: Order) => {
+  const allServed = order.items.every(i => i.status === 'served')
+  const allReadyOrServed = order.items.every(
+    i => i.status === 'ready' || i.status === 'served'
+  )
+  const anyPreparing = order.items.some(i => i.status === 'preparing')
+
+  if (allServed) return 'completed'
+  if (allReadyOrServed) return 'ready'
+  if (anyPreparing) return 'preparing'
+
+  return 'pending'
+}
+
   // Calculate order progress
   const getOrderProgress = (order: Order) => {
     const readyCount = order.items.filter(i => i.status === 'ready').length
@@ -119,6 +133,7 @@ const OrdersPage = () => {
     load()
   }
 
+ 
   return (
     <div className="space-y-8">
 
@@ -215,6 +230,9 @@ const OrdersPage = () => {
       {/* ORDERS GRID */}
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
         {filteredOrders.map((o) => {
+
+           const status = getOrderStatus(o)
+
           const progress = getOrderProgress(o)
           const allReady = progress.readyCount === progress.totalCount && progress.servedCount === 0
           const partialReady = progress.readyCount > 0 && progress.readyCount < progress.totalCount
@@ -247,9 +265,9 @@ const OrdersPage = () => {
               </div>
 
               <div className="text-right">
-                <span className={`text-xs px-3 py-1 rounded-full font-semibold ${statusColor[o.status]}`}>
-                  {o.status}
-                </span>
+                <span className={`text-xs px-3 py-1 rounded-full font-semibold ${statusColor[status]}`}>
+  {status}
+</span>
               </div>
             </div>
 
