@@ -104,6 +104,7 @@ class DiningTable(Base):
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    occupied_seats = Column(Integer, nullable=False, default=0)
 
     branch = relationship("Branch", back_populates="floor_tables")
     orders = relationship("Order", back_populates="table")
@@ -146,6 +147,7 @@ class Order(Base):
     status = Column(String(32), nullable=False, default=OrderStatus.PENDING.value)
     special_instructions = Column(Text, nullable=True)
     customer_name = Column(String(256), nullable=True)
+    seat_count = Column(Integer, nullable=False, default=1)
     subtotal = Column(Float, nullable=False, default=0.0)
     tax_rate = Column(Float, nullable=False, default=0.05)
     discount_amount = Column(Float, nullable=False, default=0.0)

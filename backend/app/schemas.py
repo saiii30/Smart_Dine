@@ -145,6 +145,7 @@ class OrderCreate(BaseModel):
     branch_id: Optional[int] = None
     customer_name: Optional[str] = None
     special_instructions: Optional[str] = None
+    seat_count: int = Field(default=1, ge=1)
     items: List[OrderItemIn] = Field(..., min_length=1)
 
 
@@ -167,6 +168,7 @@ class OrderOut(BaseModel):
     waiter_id: Optional[str] = None
     branch_id: Optional[int] = None
     status: str
+    seat_count: int = 1
     special_instructions: Optional[str] = None
     customer_name: Optional[str] = None
     subtotal: float

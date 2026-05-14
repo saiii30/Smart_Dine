@@ -21,6 +21,7 @@ const OrdersPage = () => {
   const [open, setOpen] = useState(false)
 
   const [tableId, setTableId] = useState<number | ''>('')
+  const [seatCount, setSeatCount] = useState<number>(1)
   const [cart, setCart] = useState<{ menu_item_id: number; quantity: number; special_instructions?: string }[]>([])
 
   const [addToOrderId, setAddToOrderId] = useState<number | null>(null)
@@ -65,14 +66,33 @@ const OrdersPage = () => {
     return true
   })
 
+  const selectedTable = tables.find((t) => t.id === tableId)
+  const remainingSeats = selectedTable
+    ? Math.max(
+        0,
+        selectedTable.capacity -
+          orders
+            .filter(
+              (o) =>
+                o.table_id === tableId &&
+                o.status !== 'completed' &&
+                o.status !== 'cancelled'
+            )
+            .reduce((sum, o) => sum + (o.seat_count || 1), 0)
+      )
+    : 0
+
   const submit = async () => {
     if (!cart.length) {
       toast.error('Select items')
       return
     }
 
+  
+
     await api.post('/orders', {
       table_id: tableId || null,
+      seat_count: tableId ? seatCount : 1,
       items: cart.map(item => ({
         menu_item_id: item.menu_item_id,
         quantity: item.quantity,
@@ -106,21 +126,43 @@ const OrdersPage = () => {
     load()
   }
 
-  const getOrderStatus = (order: Order) => {
-    if (order.status === 'cancelled') return 'cancelled'
-    const activeItems = order.items.filter(i => i.status !== 'cancelled')
-    if (activeItems.length === 0) {
-      return order.items.some(i => i.status === 'served') ? 'completed' : 'cancelled'
-    }
-    const allServed = activeItems.every(i => i.status === 'served')
-    const anyPreparing = activeItems.some(i => i.status === 'preparing')
-    const anyReady = activeItems.some(i => i.status === 'ready')
+const getOrderStatus = (order: Order) => {
 
-    if (allServed) return 'completed'
-    if (anyPreparing) return 'preparing'
-    if (anyReady) return 'ready'
-    return 'pending'
+  // final statuses
+  if (order.status === 'completed') return 'completed'
+  if (order.status === 'cancelled') return 'cancelled'
+
+  const activeItems = order.items.filter(
+    (i) => i.status !== 'cancelled'
+  )
+
+  if (activeItems.length === 0) {
+    return 'cancelled'
   }
+
+  const allServed = activeItems.every(
+    (i) => i.status === 'served'
+  )
+
+  const anyPreparing = activeItems.some(
+    (i) => i.status === 'preparing'
+  )
+
+  const anyReady = activeItems.some(
+    (i) => i.status === 'ready'
+  )
+
+  // IMPORTANT
+  // served items means food delivered
+  // NOT billing completed
+  if (allServed) return 'served'
+
+  if (anyPreparing) return 'preparing'
+
+  if (anyReady) return 'ready'
+
+  return 'pending'
+}
 
   // Calculate order progress
   const getOrderProgress = (order: Order) => {
@@ -370,8 +412,13 @@ const OrdersPage = () => {
 
             {/* FOOTER */}
             <div className="mt-4 flex justify-between items-center gap-2">
-              <div className="font-bold text-lg">
-                ₹{o.total_amount.toFixed(2)}
+              <div>
+                <div className="font-bold text-lg">₹{o.total_amount.toFixed(2)}</div>
+                {o.table_name && o.seat_count && (
+                  <div className="text-xs text-slate-500">
+                    Table {o.table_name} • {o.seat_count} seat{o.seat_count > 1 ? 's' : ''}
+                  </div>
+                )}
               </div>
 
               {/* <select
@@ -444,17 +491,48 @@ const OrdersPage = () => {
               <select
                 className="w-full border rounded-xl p-2"
                 value={tableId}
-                onChange={(e) =>
-                  setTableId(e.target.value ? Number(e.target.value) : '')
-                }
+                onChange={(e) => {
+                  const value = e.target.value ? Number(e.target.value) : ''
+                  setTableId(value)
+                  setSeatCount(1)
+                }}
               >
                 <option value="">Select table (optional)</option>
                 {tables.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.table_number}
+                    {t.table_number} ({t.capacity} seats)
                   </option>
                 ))}
               </select>
+            )}
+            {tableId && (
+              <>
+                {remainingSeats > 0 ? (
+                  <div className="flex items-center gap-2 mt-3">
+                    <label className="text-sm font-medium">Seats:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={remainingSeats}
+                      value={seatCount}
+                      className="w-24 border rounded-xl p-2"
+                      onChange={(e) => {
+                        const value = Number(e.target.value) || 1
+                        setSeatCount(Math.min(Math.max(1, value), remainingSeats))
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-sm text-red-600 mt-3">
+                    No seats available on this table. Choose another table.
+                  </div>
+                )}
+                {selectedTable && (
+                  <div className="text-xs text-slate-500">
+                    {remainingSeats} seat{remainingSeats === 1 ? '' : 's'} available on this table
+                  </div>
+                )}
+              </>
             )}
 
             <div className="max-h-60 overflow-auto space-y-4">
@@ -535,7 +613,12 @@ const OrdersPage = () => {
               </button>
               <button
                 onClick={addToOrderId ? addToOrder : submit}
-                className="flex-1 bg-black text-white py-3 rounded-xl"
+                disabled={!addToOrderId && tableId !== '' && remainingSeats === 0}
+                className={`flex-1 py-3 rounded-xl ${
+                  !addToOrderId && tableId !== '' && remainingSeats === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-black text-white'
+                }`}
               >
                 {addToOrderId ? 'Add to Order' : 'Place Order'}
               </button>

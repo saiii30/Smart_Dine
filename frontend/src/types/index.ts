@@ -58,6 +58,7 @@ export interface Order {
   waiter_id?: string | null
   branch_id?: number | null
   status: string
+  seat_count?: number
   special_instructions?: string | null
   customer_name?: string | null
   subtotal: number
