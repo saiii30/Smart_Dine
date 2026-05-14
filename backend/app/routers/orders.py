@@ -122,13 +122,39 @@ async def patch_order_status(
     allowed = {s.value for s in models.OrderStatus}
     if status not in allowed:
         raise HTTPException(status_code=400, detail="Invalid status")
-    if user.role == "KITCHEN" and status not in ("preparing", "ready", "pending"):
+    if user.role == "KITCHEN" and status not in ("preparing", "ready", "pending", "cancelled"):
         raise HTTPException(status_code=403, detail="Kitchen cannot set this status")
+    if status == models.OrderStatus.CANCELLED.value:
+        for item in o.items:
+            if item.status not in (
+                models.OrderItemStatus.SERVED.value,
+                models.OrderItemStatus.CANCELLED.value,
+            ):
+                item.status = models.OrderItemStatus.CANCELLED.value
+        active_subtotal = sum(
+            item.unit_price * item.quantity
+            for item in o.items
+            if item.status != models.OrderItemStatus.CANCELLED.value
+        )
+        o.subtotal = active_subtotal
+        o.tax_amount = round(active_subtotal * o.tax_rate, 2)
+        o.total_amount = round(active_subtotal + o.tax_amount - o.discount_amount, 2)
     o.status = status
-    if status == models.OrderStatus.COMPLETED.value and o.table_id:
-        tbl = db.query(models.DiningTable).filter(models.DiningTable.id == o.table_id).first()
-        if tbl:
-            tbl.status = models.TableStatus.AVAILABLE.value
+    if status in (models.OrderStatus.COMPLETED.value, models.OrderStatus.CANCELLED.value) and o.table_id:
+        other_active = (
+            db.query(models.Order)
+            .filter(
+                models.Order.table_id == o.table_id,
+                models.Order.id != o.id,
+                models.Order.status != models.OrderStatus.COMPLETED.value,
+                models.Order.status != models.OrderStatus.CANCELLED.value,
+            )
+            .count()
+        )
+        if other_active == 0:
+            tbl = db.query(models.DiningTable).filter(models.DiningTable.id == o.table_id).first()
+            if tbl:
+                tbl.status = models.TableStatus.AVAILABLE.value
     db.commit()
     db.refresh(o)
     await emit_order(order_id, "order_status")
@@ -141,7 +167,7 @@ async def patch_item_status(
     item_id: int,
     body: schemas.OrderItemStatusUpdate,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_roles("ADMIN", "MANAGER", "KITCHEN")),
+    _: models.User = Depends(require_roles("ADMIN", "MANAGER", "KITCHEN", "WAITER")),
 ):
     li = (
         db.query(models.OrderItem)
@@ -150,14 +176,46 @@ async def patch_item_status(
     )
     if not li:
         raise HTTPException(status_code=404, detail="Line not found")
+    if li.status == models.OrderItemStatus.SERVED.value and body.status == models.OrderItemStatus.CANCELLED.value:
+        raise HTTPException(status_code=400, detail="Cannot cancel an item that has already been served")
     li.status = body.status
+
     o = db.query(models.Order).filter(models.Order.id == order_id).first()
     if o:
         items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all()
-        if all(i.status == models.OrderItemStatus.READY.value for i in items):
-            o.status = models.OrderStatus.READY.value
+        if all(i.status in (models.OrderItemStatus.SERVED.value, models.OrderItemStatus.CANCELLED.value) for i in items):
+            if any(i.status == models.OrderItemStatus.SERVED.value for i in items):
+                o.status = models.OrderStatus.COMPLETED.value
+            else:
+                o.status = models.OrderStatus.CANCELLED.value
         elif any(i.status == models.OrderItemStatus.PREPARING.value for i in items):
             o.status = models.OrderStatus.PREPARING.value
+        elif any(i.status == models.OrderItemStatus.READY.value for i in items):
+            o.status = models.OrderStatus.READY.value
+        else:
+            o.status = models.OrderStatus.PENDING.value
+        # Recalculate totals excluding cancelled items
+        active_subtotal = sum(
+            i.unit_price * i.quantity for i in items if i.status != models.OrderItemStatus.CANCELLED.value
+        )
+        o.subtotal = active_subtotal
+        o.tax_amount = round(active_subtotal * o.tax_rate, 2)
+        o.total_amount = round(active_subtotal + o.tax_amount - o.discount_amount, 2)
+    if o and o.status in (models.OrderStatus.COMPLETED.value, models.OrderStatus.CANCELLED.value) and o.table_id:
+        other_active = (
+            db.query(models.Order)
+            .filter(
+                models.Order.table_id == o.table_id,
+                models.Order.id != order_id,
+                models.Order.status != models.OrderStatus.COMPLETED.value,
+                models.Order.status != models.OrderStatus.CANCELLED.value,
+            )
+            .count()
+        )
+        if other_active == 0:
+            tbl = db.query(models.DiningTable).filter(models.DiningTable.id == o.table_id).first()
+            if tbl:
+                tbl.status = models.TableStatus.AVAILABLE.value
     db.commit()
     db.refresh(o)  # type: ignore
     await emit_order(order_id, "item_status")

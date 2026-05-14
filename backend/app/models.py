@@ -41,6 +41,7 @@ class OrderStatus(str, enum.Enum):
     READY = "ready"
     SERVED = "served"
     COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 
 class OrderItemStatus(str, enum.Enum):
@@ -48,6 +49,7 @@ class OrderItemStatus(str, enum.Enum):
     PREPARING = "preparing"
     READY = "ready"
     SERVED = "served"
+    CANCELLED = "cancelled"
 
 
 class TableStatus(str, enum.Enum):

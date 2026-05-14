@@ -11,6 +11,7 @@ const statusColor: Record<string, string> = {
   ready: 'bg-purple-100 text-purple-700',
   served: 'bg-emerald-100 text-emerald-700',
   completed: 'bg-gray-200 text-gray-700',
+  cancelled: 'bg-red-100 text-red-700',
 }
 
 const OrdersPage = () => {
@@ -106,24 +107,31 @@ const OrdersPage = () => {
   }
 
   const getOrderStatus = (order: Order) => {
-  const allServed = order.items.every(i => i.status === 'served')
-  const allReadyOrServed = order.items.every(
-    i => i.status === 'ready' || i.status === 'served'
-  )
-  const anyPreparing = order.items.some(i => i.status === 'preparing')
+    if (order.status === 'cancelled') return 'cancelled'
+    const activeItems = order.items.filter(i => i.status !== 'cancelled')
+    if (activeItems.length === 0) {
+      return order.items.some(i => i.status === 'served') ? 'completed' : 'cancelled'
+    }
+    const allServed = activeItems.every(i => i.status === 'served')
+    const anyPreparing = activeItems.some(i => i.status === 'preparing')
+    const anyReady = activeItems.some(i => i.status === 'ready')
 
-  if (allServed) return 'completed'
-  if (allReadyOrServed) return 'ready'
-  if (anyPreparing) return 'preparing'
-
-  return 'pending'
-}
+    if (allServed) return 'completed'
+    if (anyPreparing) return 'preparing'
+    if (anyReady) return 'ready'
+    return 'pending'
+  }
 
   // Calculate order progress
   const getOrderProgress = (order: Order) => {
-    const readyCount = order.items.filter(i => i.status === 'ready').length
-    const servedCount = order.items.filter(i => i.status === 'served').length
-    return { readyCount, servedCount, totalCount: order.items.length }
+    const activeItems = order.items.filter(i => i.status !== 'cancelled')
+    const readyCount = activeItems.filter(i => i.status === 'ready').length
+    const servedCount = activeItems.filter(i => i.status === 'served').length
+    return {
+      readyCount,
+      servedCount,
+      totalCount: activeItems.length || order.items.length,
+    }
   }
 
   // Update individual item status
@@ -167,7 +175,7 @@ const OrdersPage = () => {
           >
             All
           </button>
-          {['pending', 'preparing', 'ready', 'served', 'completed'].map((status) => (
+          {['pending', 'preparing', 'ready', 'served', 'completed', 'cancelled'].map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
@@ -324,12 +332,17 @@ const OrdersPage = () => {
                         ✓ SERVED
                       </span>
                     )}
+                    {i.status === 'cancelled' && (
+                      <span className="text-xs px-2 py-1 bg-red-500 text-white rounded font-semibold">
+                        ✕ CANCELLED
+                      </span>
+                    )}
                   </div>
                   
-                  {/* Item status buttons - only show for non-completed orders */}
-                  {o.status !== 'completed' && (
+                  {/* Item status buttons - only show for non-completed and non-cancelled items */}
+                  {o.status !== 'completed' && o.status !== 'cancelled' && i.status !== 'served' && i.status !== 'cancelled' && (
                     <div className="flex gap-1 flex-wrap">
-                      {['preparing', 'ready', 'served'].map((s) => (
+                      {['preparing', 'ready', 'served', 'cancelled'].map((s) => (
                         <button
                           key={s}
                           type="button"
@@ -339,12 +352,14 @@ const OrdersPage = () => {
                                 ? 'bg-green-500 text-white'
                                 : s === 'served'
                                 ? 'bg-gray-600 text-white'
+                                : s === 'cancelled'
+                                ? 'bg-red-500 text-white'
                                 : 'bg-blue-500 text-white'
                               : 'bg-white/80 dark:bg-slate-700 border border-gray-300 hover:bg-gray-100'
                           }`}
                           onClick={() => updateItemStatus(o.id, i.id, s)}
                         >
-                          {s === 'ready' ? '✓' : s === 'served' ? '✓' : ''} {s}
+                          {s === 'ready' || s === 'served' || s === 'cancelled' ? '✓' : ''} {s}
                         </button>
                       ))}
                     </div>
@@ -377,14 +392,30 @@ const OrdersPage = () => {
             </div>
 
             {/* ADD ITEMS BUTTON */}
-            {o.status !== 'completed' && (
-              <button
-                onClick={() => setAddToOrderId(o.id)}
-                className="mt-2 w-full text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
-              >
-                + Add Items
-              </button>
-            )}
+            <div className="flex gap-2 flex-wrap">
+              {o.status !== 'completed' && o.status !== 'cancelled' && (
+                <button
+                  onClick={() => setAddToOrderId(o.id)}
+                  className="mt-2 flex-1 text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
+                >
+                  + Add Items
+                </button>
+              )}
+              {o.status !== 'completed' && o.status !== 'cancelled' && (
+                <button
+                  onClick={async () => {
+                    await api.patch(`/orders/${o.id}/status`, null, {
+                      params: { status: 'cancelled' },
+                    })
+                    toast.success('Order cancelled')
+                    load()
+                  }}
+                  className="mt-2 flex-1 text-xs px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium"
+                >
+                  Cancel Order
+                </button>
+              )}
+            </div>
           </div>
           )
         })}

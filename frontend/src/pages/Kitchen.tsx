@@ -28,19 +28,19 @@ const Kitchen = () => {
     load()
   })
 
-  const getOrderStatus = (order: Order) => {
-  const allServed = order.items.every(i => i.status === 'served')
-  const allReadyOrServed = order.items.every(
-    i => i.status === 'ready' || i.status === 'served'
-  )
-  const anyPreparing = order.items.some(i => i.status === 'preparing')
+  const getOrderStatus = (items: Order['items']) => {
+    const allServed = items.every(i => i.status === 'served')
+    const allReadyOrServed = items.every(
+      i => i.status === 'ready' || i.status === 'served'
+    )
+    const anyPreparing = items.some(i => i.status === 'preparing')
 
-  if (allServed) return 'served'
-  if (allReadyOrServed) return 'ready'
-  if (anyPreparing) return 'preparing'
+    if (allServed) return 'served'
+    if (allReadyOrServed) return 'ready'
+    if (anyPreparing) return 'preparing'
 
-  return 'pending'
-}
+    return 'pending'
+  }
 
   const bump = async (orderId: number, itemId: number, status: string) => {
     await api.patch(`/orders/${orderId}/items/${itemId}/status`, { status })
@@ -49,10 +49,10 @@ const Kitchen = () => {
   }
 
   // Calculate order progress
-  const getOrderProgress = (order: Order) => {
-    const readyCount = order.items.filter(i => i.status === 'ready').length
-    const servedCount = order.items.filter(i => i.status === 'served').length
-    return { readyCount, servedCount, totalCount: order.items.length }
+  const getOrderProgress = (items: Order['items']) => {
+    const readyCount = items.filter(i => i.status === 'ready').length
+    const servedCount = items.filter(i => i.status === 'served').length
+    return { readyCount, servedCount, totalCount: items.length }
   }
 
   return (
@@ -64,8 +64,10 @@ const Kitchen = () => {
       </div>
       <div className="grid md:grid-cols-2 gap-4">
         {orders.map((o) => {
-          const status = getOrderStatus(o)
-          const progress = getOrderProgress(o)
+          const visibleItems = o.items.filter((li) => li.status !== 'cancelled')
+          if (!visibleItems.length) return null
+          const status = getOrderStatus(visibleItems)
+          const progress = getOrderProgress(visibleItems)
           const allReady = progress.readyCount === progress.totalCount && progress.servedCount === 0
           const partialReady = progress.readyCount > 0 && progress.readyCount < progress.totalCount
           
@@ -102,7 +104,7 @@ const Kitchen = () => {
                 />
               </div>
               
-              {o.items.map((li) => (
+              {visibleItems.map((li) => (
                 <div
                   key={li.id}
                   className={`border rounded-lg p-3 space-y-2 transition-all ${
