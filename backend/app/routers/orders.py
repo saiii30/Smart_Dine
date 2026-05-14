@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -159,4 +160,53 @@ async def patch_item_status(
     db.commit()
     db.refresh(o)  # type: ignore
     await emit_order(order_id, "item_status")
+    return _serialize_order(o)
+
+
+@router.post("/{order_id}/items", response_model=schemas.OrderOut)
+async def add_items_to_order(
+    order_id: int,
+    items: List[schemas.OrderItemIn],
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_roles("ADMIN", "MANAGER", "WAITER", "CASHIER")),
+):
+    o = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if o.status == models.OrderStatus.COMPLETED.value:
+        raise HTTPException(status_code=400, detail="Cannot add items to completed order")
+    
+    subtotal_add = 0.0
+    new_lines: list[models.OrderItem] = []
+    for it in items:
+        mi = db.query(models.MenuItem).filter(models.MenuItem.id == it.menu_item_id).first()
+        if not mi or not mi.is_available:
+            raise HTTPException(status_code=400, detail=f"Menu item {it.menu_item_id} unavailable")
+        line_total = mi.price * it.quantity
+        subtotal_add += line_total
+        new_lines.append(
+            models.OrderItem(
+                order_id=order_id,
+                menu_item_id=mi.id,
+                quantity=it.quantity,
+                unit_price=mi.price,
+                status=models.OrderItemStatus.PENDING.value,
+                special_instructions=it.special_instructions,
+            )
+        )
+    
+    # Update order totals
+    o.subtotal += subtotal_add
+    tax_add = round(subtotal_add * o.tax_rate, 2)
+    o.tax_amount = round((o.subtotal + o.discount_amount) * o.tax_rate, 2)  # Recalculate total tax
+    o.total_amount = round(o.subtotal + o.tax_amount - o.discount_amount, 2)
+    
+    # Add new items
+    for li in new_lines:
+        db.add(li)
+    
+    db.commit()
+    db.refresh(o)
+    await emit_order(order_id, "order_updated")
     return _serialize_order(o)
