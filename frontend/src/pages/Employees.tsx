@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
-import { X } from 'lucide-react'
+import { X, Trash2, Pencil } from 'lucide-react'
 
 interface Emp {
   id: number
@@ -15,14 +15,18 @@ const Employees = () => {
   const [rows, setRows] = useState<Emp[]>([])
   const [open, setOpen] = useState(false)
 
+  const [editId, setEditId] = useState<number | null>(null)
+
   const [form, setForm] = useState({
     full_name: '',
     email: '',
     role: 'WAITER',
   })
 
+  // 🔥 password editable (now always visible in edit too)
   const [password, setPassword] = useState('')
 
+  // LOAD
   const load = () => {
     void api.get<Emp[]>('/employees').then((r) => setRows(r.data))
   }
@@ -31,40 +35,88 @@ const Employees = () => {
     load()
   }, [])
 
+  // RESET
+  const reset = () => {
+    setForm({ full_name: '', email: '', role: 'WAITER' })
+    setPassword('')
+    setEditId(null)
+    setOpen(false)
+  }
+
+  // GENERATE PASSWORD
   const generatePassword = () => {
     const chars =
       'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 
-    return Array.from({ length: 8 })
-      .map(() =>
-        chars[Math.floor(Math.random() * chars.length)]
-      )
+    const pwd = Array.from({ length: 8 })
+      .map(() => chars[Math.floor(Math.random() * chars.length)])
       .join('')
+
+    setPassword(pwd)
   }
 
-  const createEmployee = async () => {
+  // CREATE + UPDATE
+  const saveEmployee = async () => {
     if (!form.full_name || !form.email) {
       toast.error('Fill all fields')
       return
     }
 
-    const pwd = generatePassword()
-    setPassword(pwd)
-
     try {
-      await api.post('/employees', {
-        ...form,
-        password: pwd,
-      })
+      if (editId) {
+        // UPDATE (password optional)
+        await api.patch(`/employees/${editId}`, {
+          ...form,
+          password: password || undefined,
+        })
 
-      toast.success('Employee created')
+        toast.success('Employee updated')
+      } else {
+        // CREATE (password required)
+        if (!password) {
+          toast.error('Generate password')
+          return
+        }
 
-      setForm({ full_name: '', email: '', role: 'WAITER' })
-      setOpen(false)
+        await api.post('/employees', {
+          ...form,
+          password,
+        })
+
+        toast.success('Employee created')
+      }
+
+      reset()
       load()
     } catch {
-      toast.error('Failed to create employee')
+      toast.error('Operation failed')
     }
+  }
+
+  // DELETE
+  const deleteEmployee = async (id: number) => {
+    if (!confirm('Delete this employee?')) return
+
+    try {
+      await api.delete(`/employees/${id}`)
+      toast.success('Deleted')
+      load()
+    } catch {
+      toast.error('Delete failed')
+    }
+  }
+
+  // EDIT
+  const editEmployee = (emp: Emp) => {
+    setForm({
+      full_name: emp.full_name,
+      email: emp.email || '',
+      role: emp.role,
+    })
+
+    setEditId(emp.id)
+    setPassword('') // user can enter new password if needed
+    setOpen(true)
   }
 
   const roleColor = (role: string) => {
@@ -104,12 +156,14 @@ const Employees = () => {
       <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
 
         <table className="w-full text-sm">
+
           <thead className="bg-slate-50 dark:bg-slate-800 text-left">
             <tr>
               <th className="p-3">Name</th>
               <th className="p-3">Email</th>
               <th className="p-3">Role</th>
               <th className="p-3">Status</th>
+              <th className="p-3">Actions</th>
             </tr>
           </thead>
 
@@ -119,20 +173,11 @@ const Employees = () => {
                 key={e.id}
                 className="border-t border-slate-100 dark:border-slate-800"
               >
-                <td className="p-3 font-medium">
-                  {e.full_name}
-                </td>
-
-                <td className="p-3 text-slate-500">
-                  {e.email}
-                </td>
+                <td className="p-3 font-medium">{e.full_name}</td>
+                <td className="p-3 text-slate-500">{e.email}</td>
 
                 <td className="p-3">
-                  <span
-                    className={`px-2 py-1 text-xs rounded-full ${roleColor(
-                      e.role
-                    )}`}
-                  >
+                  <span className={`px-2 py-1 text-xs rounded-full ${roleColor(e.role)}`}>
                     {e.role}
                   </span>
                 </td>
@@ -148,6 +193,23 @@ const Employees = () => {
                     {e.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
+
+                {/* ACTIONS */}
+                <td className="p-3 flex gap-3">
+                  <button
+                    onClick={() => editEmployee(e)}
+                    className="text-blue-600 hover:scale-110 transition"
+                  >
+                    <Pencil size={18} />
+                  </button>
+
+                  <button
+                    onClick={() => deleteEmployee(e.id)}
+                    className="text-red-600 hover:scale-110 transition"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -160,48 +222,43 @@ const Employees = () => {
 
           <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-xl p-6 space-y-4">
 
+            {/* HEADER */}
             <div className="flex justify-between">
               <h2 className="text-lg font-semibold">
-                Create Employee
+                {editId ? 'Edit Employee' : 'Create Employee'}
               </h2>
 
-              <button onClick={() => setOpen(false)}>
+              <button onClick={reset}>
                 <X className="h-5 w-5" />
               </button>
             </div>
 
+            {/* NAME */}
             <input
-              className="w-full border rounded-lg px-3 py-2 bg-transparent"
+              className="w-full border rounded-lg px-3 py-2"
               placeholder="Full Name"
               value={form.full_name}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  full_name: e.target.value,
-                })
+                setForm({ ...form, full_name: e.target.value })
               }
             />
 
+            {/* EMAIL */}
             <input
-              className="w-full border rounded-lg px-3 py-2 bg-transparent"
+              className="w-full border rounded-lg px-3 py-2"
               placeholder="Email"
               value={form.email}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  email: e.target.value,
-                })
+                setForm({ ...form, email: e.target.value })
               }
             />
 
+            {/* ROLE */}
             <select
-              className="w-full border rounded-lg px-3 py-2 bg-transparent"
+              className="w-full border rounded-lg px-3 py-2"
               value={form.role}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  role: e.target.value,
-                })
+                setForm({ ...form, role: e.target.value })
               }
             >
               <option value="WAITER">Waiter</option>
@@ -210,18 +267,32 @@ const Employees = () => {
               <option value="MANAGER">Manager</option>
             </select>
 
-            {password && (
-              <div className="text-xs bg-slate-100 dark:bg-slate-800 p-3 rounded-lg">
-                Generated Password:
-                <div className="font-bold">{password}</div>
-              </div>
-            )}
+            {/* PASSWORD (EDIT + CREATE BOTH) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Password</label>
 
+              <input
+                className="w-full border rounded-lg px-3 py-2 bg-gray-100"
+                value={password}
+                placeholder="Enter or generate password"
+                onChange={(e) => setPassword(e.target.value)}
+              />
+
+              <button
+                type="button"
+                onClick={generatePassword}
+                className="w-full py-2 rounded-lg bg-blue-600 text-white"
+              >
+                Generate Password
+              </button>
+            </div>
+
+            {/* SAVE */}
             <button
-              onClick={createEmployee}
+              onClick={saveEmployee}
               className="w-full py-2 rounded-lg bg-slate-900 text-white"
             >
-              Create Employee
+              {editId ? 'Update' : 'Create'}
             </button>
 
           </div>

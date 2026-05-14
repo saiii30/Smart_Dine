@@ -285,6 +285,7 @@ class EmployeeCreate(BaseModel):
     role: str
     email: Optional[EmailStr] = None
     contact_number: Optional[str] = None
+    password: Optional[str] = None
     branch_id: Optional[int] = None
     user_id: Optional[str] = None
 
@@ -294,6 +295,7 @@ class EmployeeUpdate(BaseModel):
     role: Optional[str] = None
     email: Optional[EmailStr] = None
     contact_number: Optional[str] = None
+    password: Optional[str] = None
     branch_id: Optional[int] = None
     is_active: Optional[bool] = None
 
