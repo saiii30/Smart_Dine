@@ -59,6 +59,12 @@ class DiningTableCreate(BaseModel):
     zone: Optional[str] = None
     status: str = "available"
     branch_id: Optional[int] = None
+    shape: str = "rectangle"
+    width: float = 100.0
+    height: float = 100.0
+    pos_x: float = 40.0
+    pos_y: float = 40.0
+    waiter_id: Optional[str] = None
 
 
 class DiningTableUpdate(BaseModel):
@@ -68,7 +74,11 @@ class DiningTableUpdate(BaseModel):
     status: Optional[str] = None
     pos_x: Optional[float] = None
     pos_y: Optional[float] = None
+    shape: Optional[str] = None
+    width: Optional[float] = None
+    height: Optional[float] = None
     branch_id: Optional[int] = None
+    waiter_id: Optional[str] = None
 
 
 class DiningTableOut(BaseModel):
@@ -80,7 +90,12 @@ class DiningTableOut(BaseModel):
     qr_token: str
     pos_x: float
     pos_y: float
+    shape: str = "rectangle"
+    width: float = 100.0
+    height: float = 100.0
     branch_id: Optional[int] = None
+    waiter_id: Optional[str] = None
+    waiter_name: Optional[str] = None
     qr_url: Optional[str] = None
 
     model_config = {"from_attributes": True}

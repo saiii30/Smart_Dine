@@ -18,12 +18,17 @@ FRONTEND = os.getenv("FRONTEND_PUBLIC_URL", "http://localhost:5173").rstrip("/")
 def _table_out(t: models.DiningTable) -> schemas.DiningTableOut:
     data = schemas.DiningTableOut.model_validate(t, from_attributes=True)
     data.qr_url = f"{FRONTEND}/customer/{t.qr_token}"
+    if t.assigned_waiter:
+        data.waiter_name = t.assigned_waiter.full_name
     return data
 
 
 @router.get("", response_model=list[schemas.DiningTableOut])
-def list_tables(db: Session = Depends(get_db), _: models.User = Depends(get_current_active_user)):
-    rows = db.query(models.DiningTable).order_by(models.DiningTable.id).all()
+def list_tables(db: Session = Depends(get_db), user: models.User = Depends(get_current_active_user)):
+    q = db.query(models.DiningTable)
+    if user.role == "WAITER":
+        q = q.filter(models.DiningTable.waiter_id == user.id)
+    rows = q.order_by(models.DiningTable.id).all()
     return [_table_out(t) for t in rows]
 
 
@@ -40,6 +45,12 @@ def create_table(
         status=body.status,
         branch_id=body.branch_id,
         qr_token=str(uuid.uuid4()),
+        shape=body.shape,
+        width=body.width,
+        height=body.height,
+        pos_x=body.pos_x,
+        pos_y=body.pos_y,
+        waiter_id=body.waiter_id,
     )
     db.add(t)
     db.commit()
@@ -74,6 +85,15 @@ def delete_table(
     t = db.query(models.DiningTable).filter(models.DiningTable.id == table_id).first()
     if not t:
         raise HTTPException(status_code=404, detail="Table not found")
+
+    # Check for active orders before deleting
+    has_orders = db.query(models.Order).filter(models.Order.table_id == table_id).first()
+    if has_orders:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete table. It has existing orders associated with it.",
+        )
+
     db.delete(t)
     db.commit()
     return {"ok": True}

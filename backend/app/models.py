@@ -101,13 +101,18 @@ class DiningTable(Base):
     qr_token = Column(String(64), unique=True, nullable=False, index=True)
     pos_x = Column(Float, nullable=False, default=40.0)
     pos_y = Column(Float, nullable=False, default=40.0)
+    shape = Column(String(32), nullable=False, default="rectangle")
+    width = Column(Float, nullable=False, default=100.0)
+    height = Column(Float, nullable=False, default=100.0)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     occupied_seats = Column(Integer, nullable=False, default=0)
+    waiter_id = Column(String(36), ForeignKey("users.id"), nullable=True)
 
     branch = relationship("Branch", back_populates="floor_tables")
     orders = relationship("Order", back_populates="table")
+    assigned_waiter = relationship("User", foreign_keys=[waiter_id])
 
 
 class Category(Base):
