@@ -15,7 +15,6 @@ from app.auth import (
 from app.database import get_db
 
 router = APIRouter()
-
 @router.post(
     "/register",
     response_model=schemas.UserOut,
@@ -23,46 +22,46 @@ router = APIRouter()
 )
 def register(
     payload: schemas.UserCreate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
-    # 1. Only ADMIN can create users
-    if current_user.role != models.DineUserRole.ADMIN.value:
-        raise HTTPException(
-            status_code=403,
-            detail="Only ADMIN can register users"
-        )
-
-    # 2. Check duplicate email
-    existing_user = get_user_by_email(db, str(payload.email).lower())
+    # 1. Check duplicate email
+    existing_user = get_user_by_email(db, payload.email.lower())
     if existing_user:
         raise HTTPException(
             status_code=400,
             detail="Email already registered"
         )
 
-    # 3. Role MUST come from request (admin decides)
-    role = payload.role.upper()
-
+    # 2. Validate role
+    role = "ADMIN" 
     allowed_roles = {r.value for r in models.DineUserRole}
+
     if role not in allowed_roles:
         raise HTTPException(
             status_code=400,
             detail="Invalid role"
         )
 
-    # 4. Create user
+    # 3. Create user
     user = models.User(
-        email=str(payload.email).lower(),
+        email=payload.email.lower(),
         full_name=payload.full_name,
         hashed_password=get_password_hash(payload.password),
         role=role,
         branch_id=payload.branch_id
     )
 
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    # 4. Save safely
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"User creation failed: {str(e)}"
+        )
 
     return user
 

@@ -50,6 +50,8 @@ def create_table(
         height=body.height,
         pos_x=body.pos_x,
         pos_y=body.pos_y,
+        is_merged=body.is_merged,
+        merge_history=body.merge_history,
         waiter_id=body.waiter_id,
     )
     db.add(t)

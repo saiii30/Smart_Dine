@@ -45,9 +45,17 @@ const Tables = () => {
 
   const deleteTable = async (id: number) => {
     if (!confirm('Delete this table?')) return
-    await api.delete(`/tables/${id}`)
-    toast.success('Deleted')
-    load()
+    try {
+      await api.delete(`/tables/${id}`)
+      toast.success('Deleted')
+      load()
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        toast.error('Cannot delete table. It has existing orders associated with it.')
+      } else {
+        toast.error('Failed to delete table')
+      }
+    }
   }
 
   if (loading) {

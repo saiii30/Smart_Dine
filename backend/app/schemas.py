@@ -64,7 +64,9 @@ class DiningTableCreate(BaseModel):
     height: float = 100.0
     pos_x: float = 40.0
     pos_y: float = 40.0
+    is_merged: bool = False
     waiter_id: Optional[str] = None
+    merge_history: Optional[dict[str, Any]] = None
 
 
 class DiningTableUpdate(BaseModel):
@@ -77,8 +79,10 @@ class DiningTableUpdate(BaseModel):
     shape: Optional[str] = None
     width: Optional[float] = None
     height: Optional[float] = None
+    is_merged: Optional[bool] = None
     branch_id: Optional[int] = None
     waiter_id: Optional[str] = None
+    merge_history: Optional[dict[str, Any]] = None
 
 
 class DiningTableOut(BaseModel):
@@ -93,8 +97,10 @@ class DiningTableOut(BaseModel):
     shape: str = "rectangle"
     width: float = 100.0
     height: float = 100.0
+    is_merged: bool = False
     branch_id: Optional[int] = None
     waiter_id: Optional[str] = None
+    merge_history: Optional[dict[str, Any]] = None
     waiter_name: Optional[str] = None
     qr_url: Optional[str] = None
 

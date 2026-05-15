@@ -108,7 +108,9 @@ class DiningTable(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     occupied_seats = Column(Integer, nullable=False, default=0)
+    is_merged = Column(Boolean, nullable=False, default=False)
     waiter_id = Column(String(36), ForeignKey("users.id"), nullable=True)
+    merge_history = Column(JSON, nullable=True)
 
     branch = relationship("Branch", back_populates="floor_tables")
     orders = relationship("Order", back_populates="table")

@@ -200,7 +200,14 @@ const VisualTable = ({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover/btn:scale-110 transition-transform"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             Merge
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onSplitTable(table.id); }} className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 transition-colors group/btn">
+            <button 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                if (table.is_merged) onSplitTable(table.id); 
+                else toast.error("Only merged tables can be split!"); 
+              }} 
+              className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-colors group/btn ${table.is_merged ? 'hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300' : 'text-slate-600 cursor-not-allowed opacity-50'}`}
+            >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover/btn:scale-110 transition-transform"><path d="M12 8v8"/><path d="M8 12l4 4 4-4"/><path d="M5 4h14"/></svg>
             Split
           </button>
@@ -268,8 +275,24 @@ export default function FloorPlan({ tables, waiters, onUpdate, onDeleteTable, us
     // Merge visually by making the table longer to accommodate new seats
     const newWidth = source.shape === 'circle' ? 140 : source.width + 60
     
+    const historyData = {
+      source_original: {
+        capacity: source.capacity,
+        width: source.width,
+        height: source.height,
+        shape: source.shape,
+      },
+      target_original: {
+        table_number: target.table_number,
+        capacity: target.capacity,
+        width: target.width,
+        height: target.height,
+        shape: target.shape,
+      }
+    }
+
     try {
-      await api.patch(`/tables/${sourceId}`, { capacity: newCap, width: newWidth, shape: 'rectangle' })
+      await api.patch(`/tables/${sourceId}`, { capacity: newCap, width: newWidth, shape: 'rectangle', is_merged: true, merge_history: historyData })
       await api.delete(`/tables/${targetId}`)
       toast.success(`Merged Table ${target.table_number} into ${source.table_number}`)
       onUpdate()
@@ -282,38 +305,47 @@ export default function FloorPlan({ tables, waiters, onUpdate, onDeleteTable, us
   const splitTable = async (id: number) => {
     const table = localTables.find((t) => t.id === id)
     if (!table) return
-    if (table.capacity < 2) {
-      toast.error('Table needs at least 2 seats to be split')
+    if (!table.is_merged) {
+      toast.error('Only merged tables can be split')
       return
     }
 
-    const newCap1 = Math.ceil(table.capacity / 2)
-    const newCap2 = table.capacity - newCap1
-    const newWidth = Math.max(100, table.width - 60) // Shrink width when splitting
-    
-    try {
-      // Update original table to be smaller
-      await api.patch(`/tables/${id}`, { capacity: newCap1, width: newWidth })
+    if (table.merge_history) {
+      const hist = table.merge_history
       
-      // Create new split table next to it
-      const count = localTables.length + 1
-      await api.post('/tables', {
-        table_number: `T${count}`,
-        shape: table.shape,
-        width: 100,
-        height: table.height,
-        capacity: newCap2,
-        pos_x: (table.pos_x || 0) + newWidth + 40,
-        pos_y: table.pos_y || 0,
-        zone: table.zone,
-        branch_id: table.branch_id
-      })
-      
-      toast.success('Table split successfully')
-      onUpdate()
-    } catch (err) {
-      console.error("Split table error:", err)
-      toast.error('Failed to split table')
+      try {
+        // Restore original source table properties
+        await api.patch(`/tables/${id}`, { 
+          capacity: hist.source_original.capacity, 
+          width: hist.source_original.width, 
+          height: hist.source_original.height,
+          shape: hist.source_original.shape,
+          is_merged: false,
+          merge_history: null
+        })
+        
+        // Recreate the deleted target table with its original properties
+        await api.post('/tables', {
+          table_number: hist.target_original.table_number,
+          shape: hist.target_original.shape,
+          width: hist.target_original.width,
+          height: hist.target_original.height,
+          capacity: hist.target_original.capacity,
+          pos_x: (table.pos_x || 0) + hist.source_original.width + 40,
+          pos_y: table.pos_y || 0,
+          zone: table.zone,
+          branch_id: table.branch_id,
+          is_merged: false
+        })
+        
+        toast.success('Table split successfully')
+        onUpdate()
+      } catch (err) {
+        console.error("Split table error:", err)
+        toast.error('Failed to split table')
+      }
+    } else {
+      toast.error('Cannot split: original table history is missing')
     }
   }
 
