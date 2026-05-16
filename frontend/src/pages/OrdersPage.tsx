@@ -22,6 +22,7 @@ const OrdersPage = () => {
 
   const [tableId, setTableId] = useState<number | ''>('')
   const [seatCount, setSeatCount] = useState<number>(1)
+  const [customerName, setCustomerName] = useState<string>('')
   const [cart, setCart] = useState<{ menu_item_id: number; quantity: number; special_instructions?: string }[]>([])
 
   const [addToOrderId, setAddToOrderId] = useState<number | null>(null)
@@ -93,6 +94,7 @@ const OrdersPage = () => {
     await api.post('/orders', {
       table_id: tableId || null,
       seat_count: tableId ? seatCount : 1,
+      customer_name: customerName || undefined,
       items: cart.map(item => ({
         menu_item_id: item.menu_item_id,
         quantity: item.quantity,
@@ -103,6 +105,7 @@ const OrdersPage = () => {
     toast.success('Order placed')
     setOpen(false)
     setCart([])
+    setCustomerName('')
     load()
   }
 
@@ -303,11 +306,16 @@ const getOrderStatus = (order: Order) => {
           >
 
             {/* HEADER */}
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex justify-between items-start mb-3">
               <div>
                 <h2 className="font-bold text-lg">
                   Order #{o.id}
                 </h2>
+                {o.customer_name && (
+                  <div className="text-base font-semibold text-slate-700 dark:text-slate-200 mt-0.5">
+                    {o.customer_name}
+                  </div>
+                )}
                 {/* <p className="text-xs text-slate-500">
                   <Clock className="inline h-3 w-3 mr-1" />
                   {progress.readyCount}/{progress.totalCount} Ready
@@ -417,6 +425,7 @@ const getOrderStatus = (order: Order) => {
                 {o.table_name && o.seat_count && (
                   <div className="text-xs text-slate-500">
                     Table {o.table_name} • {o.seat_count} seat{o.seat_count > 1 ? 's' : ''}
+                    {o.customer_name && ` • ${o.customer_name}`}
                   </div>
                 )}
               </div>
@@ -484,12 +493,13 @@ const getOrderStatus = (order: Order) => {
           <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
 
             <h2 className="text-lg font-semibold">
-              {addToOrderId ? `Add Items to Order #${addToOrderId}` : 'Create Order'}
+              {addToOrderId ? `Add Items to Order #${addToOrderId} ${orders.find(o => o.id === addToOrderId)?.customer_name ? `(${orders.find(o => o.id === addToOrderId)?.customer_name})` : ''}` : 'Create Order'}
             </h2>
 
             {!addToOrderId && (
+              <>
               <select
-                className="w-full border rounded-xl p-2"
+                className="w-full border rounded-xl p-2 mb-3"
                 value={tableId}
                 onChange={(e) => {
                   const value = e.target.value ? Number(e.target.value) : ''
@@ -504,6 +514,13 @@ const getOrderStatus = (order: Order) => {
                   </option>
                 ))}
               </select>
+              <input
+                placeholder="Customer Name (Optional)"
+                className="w-full border rounded-xl p-2 mb-3"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+              />
+              </>
             )}
             {tableId && (
               <>

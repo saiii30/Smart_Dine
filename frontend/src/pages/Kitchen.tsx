@@ -107,11 +107,16 @@ const Kitchen = () => {
               }`}
             >
               {/* Ticket Header */}
-              <div className="flex justify-between items-center mb-3">
+                <div className="flex justify-between items-start mb-3">
                 <div>
                   <h2 className="font-bold text-lg">
                     Order #{o.id}
                   </h2>
+                    {o.customer_name && (
+                      <div className="text-lg font-semibold text-slate-700 dark:text-slate-200 mt-0.5">
+                        {o.customer_name}
+                      </div>
+                    )}
                   {/* <p className="text-xs text-slate-500">
                     <Clock className="inline h-3 w-3 mr-1" />
                     {progress.readyCount}/{progress.totalCount} Ready
@@ -211,6 +216,7 @@ const Kitchen = () => {
                   {o.table_name && o.seat_count && (
                     <div className="text-xs text-slate-500">
                       Table {o.table_name} • {o.seat_count} seat{o.seat_count > 1 ? 's' : ''}
+                      {o.customer_name && ` • ${o.customer_name}`}
                     </div>
                   )}
                 </div>
