@@ -48,7 +48,7 @@ const Dashboard = () => {
     <div className="space-y-6 bg-white min-h-screen p-6">
 
       {/* HEADER */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
             Dashboard

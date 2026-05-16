@@ -22,14 +22,14 @@ const Inventory = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center flex-wrap gap-3">
+      <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">Inventory</h1>
           <p className="text-sm opacity-70">Stock levels and low-stock signals.</p>
         </div>
         <button
           type="button"
-          className="px-4 py-2 rounded-xl bg-amber-600 text-white text-sm"
+          className="px-4 py-2 rounded-xl bg-amber-600 text-white text-sm w-full sm:w-auto"
           onClick={async () => {
             const name = window.prompt('Ingredient name')
             if (!name) return
@@ -41,7 +41,7 @@ const Inventory = () => {
           Add item
         </button>
       </div>
-      <div className="rounded-2xl border border-amber-100 dark:border-slate-800 overflow-hidden">
+      <div className="rounded-2xl border border-amber-100 dark:border-slate-800 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-100/80 dark:bg-slate-800/80">
             <tr>

@@ -229,7 +229,7 @@ const Billing = () => {
           </div>
 
           {/* ACTIONS */}
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
 
             <button
               onClick={finalize}
@@ -240,7 +240,7 @@ const Billing = () => {
 
             <button
               onClick={pdf}
-              className="px-5 py-3 rounded-xl border flex items-center gap-2"
+              className="px-5 py-3 rounded-xl border flex items-center justify-center gap-2"
             >
               <FileText className="h-4 w-4" />
 

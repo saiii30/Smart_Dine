@@ -136,7 +136,7 @@ const Employees = () => {
     <div className="space-y-6">
 
       {/* HEADER */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
         <div>
           <h1 className="text-2xl font-semibold">Employees</h1>
           <p className="text-sm text-slate-500">
@@ -146,14 +146,14 @@ const Employees = () => {
 
         <button
           onClick={() => setOpen(true)}
-          className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm"
+          className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm w-full sm:w-auto"
         >
           Add Employee
         </button>
       </div>
 
       {/* TABLE */}
-      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto bg-white dark:bg-slate-900">
 
         <table className="w-full text-sm">
 
@@ -220,7 +220,7 @@ const Employees = () => {
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
 
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-xl p-6 space-y-4">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-xl p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
 
             {/* HEADER */}
             <div className="flex justify-between">

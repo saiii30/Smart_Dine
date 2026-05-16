@@ -70,13 +70,13 @@ const Tables = () => {
     <div className="space-y-8">
 
       {/* HEADER */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
         <div>
           <h1 className="text-3xl font-bold">Tables</h1>
           <p className="text-slate-500">Manage restaurant tables</p>
         </div>
 
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl self-start sm:self-auto">
           <button
             onClick={() => setView('grid')}
             className={`px-4 py-2 rounded-lg text-sm font-medium ${view === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm' : 'opacity-70 text-slate-600 dark:text-slate-300'}`}

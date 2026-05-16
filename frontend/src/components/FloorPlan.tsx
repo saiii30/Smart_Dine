@@ -118,7 +118,7 @@ const VisualTable = ({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="group cursor-grab active:cursor-grabbing z-10 hover:z-30">
+    <div ref={setNodeRef} style={style} tabIndex={0} className="group cursor-grab active:cursor-grabbing z-10 hover:z-30 focus:z-30 outline-none">
       {/* Table Surface */}
       <div
         {...listeners}
@@ -158,7 +158,7 @@ const VisualTable = ({
 
       {/* Hover Controls */}
       {!isStaff && (
-        <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 absolute -top-[165px] left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.4)] p-4 gap-3 text-sm flex flex-col items-center pointer-events-auto border border-white/10 min-w-[220px] z-[100] transform scale-95 group-hover:scale-100">
+        <div className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 focus-within:opacity-100 transition-all duration-300 absolute -top-[165px] left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.4)] p-4 gap-3 text-sm flex flex-col items-center pointer-events-auto border border-white/10 min-w-[220px] z-[100] transform scale-95 group-hover:scale-100 group-focus:scale-100 focus-within:scale-100">
         
         <div className="flex items-center justify-between w-full bg-slate-800/80 p-1.5 rounded-xl border border-white/5 shadow-inner">
           <button
@@ -382,24 +382,26 @@ export default function FloorPlan({ tables, waiters, onUpdate, onDeleteTable, us
   }
 
   return (
-    <div className="relative w-full h-[700px] bg-[#e2e8f0] dark:bg-[#0f172a] rounded-3xl overflow-hidden mt-6 shadow-[inset_0_0_80px_rgba(0,0,0,0.15)] border-4 border-slate-300 dark:border-slate-800">
+    <div className="relative w-full h-[500px] md:h-[700px] min-w-[320px] overflow-auto touch-pan-x touch-pan-y bg-[#e2e8f0] dark:bg-[#0f172a] rounded-3xl mt-6 shadow-[inset_0_0_80px_rgba(0,0,0,0.15)] border-4 border-slate-300 dark:border-slate-800">
       {/* Blueprint Grid Pattern */}
-      <div className="absolute inset-0 opacity-[0.05] dark:opacity-[0.08] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#000 2px, transparent 2px), linear-gradient(90deg, #000 2px, transparent 2px)', backgroundSize: '60px 60px' }} />
+      <div className="absolute min-w-[800px] min-h-[700px] inset-0 opacity-[0.05] dark:opacity-[0.08] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#000 2px, transparent 2px), linear-gradient(90deg, #000 2px, transparent 2px)', backgroundSize: '60px 60px' }} />
 
       {/* Bottom Tool Bar - Add Tables Without Form */}
       {userRole !== 'WAITER' && userRole !== 'KITCHEN' && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 bg-white/95 backdrop-blur dark:bg-slate-900/95 p-2 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-slate-200 dark:border-slate-700 z-[100]">
+        <div className="fixed sm:absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-wrap justify-center gap-2 sm:gap-3 bg-white/95 backdrop-blur dark:bg-slate-900/95 p-2 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-slate-200 dark:border-slate-700 z-[100] w-[90%] sm:w-auto">
           <button onClick={() => addTable('circle')} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl text-sm font-semibold flex items-center gap-2 transition-transform active:scale-95"><div className="w-4 h-4 rounded-full border-2 border-slate-400"></div> Circle</button>
           <button onClick={() => addTable('square')} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl text-sm font-semibold flex items-center gap-2 transition-transform active:scale-95"><div className="w-4 h-4 rounded-sm border-2 border-slate-400"></div> Square</button>
           <button onClick={() => addTable('rectangle')} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl text-sm font-semibold flex items-center gap-2 transition-transform active:scale-95"><div className="w-5 h-3 rounded-sm border-2 border-slate-400"></div> Rectangle</button>
         </div>
       )}
 
-      <DndContext onDragEnd={handleDragEnd}>
-        {localTables.map((table) => (
-          <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} />
-        ))}
-      </DndContext>
+      <div className="min-w-[800px] min-h-[700px] relative">
+        <DndContext onDragEnd={handleDragEnd}>
+          {localTables.map((table) => (
+            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} />
+          ))}
+        </DndContext>
+      </div>
     </div>
   )
 }

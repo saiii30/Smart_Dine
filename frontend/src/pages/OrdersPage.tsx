@@ -188,7 +188,7 @@ const getOrderStatus = (order: Order) => {
     <div className="space-y-8">
 
       {/* HEADER */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
         <div>
           <h1 className="text-3xl font-bold">Orders</h1>
           <p className="text-slate-500">Real-time kitchen operations</p>
@@ -196,7 +196,7 @@ const getOrderStatus = (order: Order) => {
 
         <button
           onClick={() => setOpen(true)}
-          className="px-5 py-2.5 rounded-xl bg-black text-white flex items-center gap-2"
+          className="px-5 py-2.5 rounded-xl bg-black text-white flex items-center justify-center gap-2 w-full sm:w-auto"
         >
           <ShoppingBag className="h-4 w-4" />
           New Order
@@ -481,7 +481,7 @@ const getOrderStatus = (order: Order) => {
       {/* MODAL */}
       {(open || addToOrderId) && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl p-6 space-y-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
 
             <h2 className="text-lg font-semibold">
               {addToOrderId ? `Add Items to Order #${addToOrderId}` : 'Create Order'}

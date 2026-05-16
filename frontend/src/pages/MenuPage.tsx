@@ -203,12 +203,12 @@ const MenuPage = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full lg:w-auto">
           <input
             placeholder="Search menu..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="h-11 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none"
+            className="h-11 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none w-full sm:w-auto flex-1"
           />
 
           <button
@@ -464,7 +464,7 @@ const MenuPage = () => {
 
       {showAdd && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-5">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[90vh] overflow-y-auto">
             <div>
               <h2 className="text-2xl font-bold">
                 Add New Menu
