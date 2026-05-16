@@ -112,10 +112,10 @@ const Kitchen = () => {
                   <h2 className="font-bold text-lg">
                     Order #{o.id}
                   </h2>
-                  <p className="text-xs text-slate-500">
+                  {/* <p className="text-xs text-slate-500">
                     <Clock className="inline h-3 w-3 mr-1" />
                     {progress.readyCount}/{progress.totalCount} Ready
-                  </p>
+                  </p> */}
                 </div>
 
                 <div className="text-right">

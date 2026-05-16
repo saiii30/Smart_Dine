@@ -24,6 +24,7 @@ def kitchen_queue(
                     models.OrderStatus.PENDING.value,
                     models.OrderStatus.PREPARING.value,
                     models.OrderStatus.READY.value,
+                    "served",
                 ]
             )
         )
