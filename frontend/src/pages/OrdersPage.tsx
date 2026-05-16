@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { DiningTable, MenuItem, Order } from '../types'
 import { useOrderSocket } from '../hooks/useOrderSocket'
-import { ShoppingBag, Clock, ChefHat } from 'lucide-react'
+import { ShoppingBag, Clock, ChefHat, X, Minus, Plus, ShoppingCart, ArrowLeft } from 'lucide-react'
 
 const statusColor: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -23,10 +23,12 @@ const OrdersPage = () => {
   const [tableId, setTableId] = useState<number | ''>('')
   const [seatCount, setSeatCount] = useState<number>(1)
   const [customerName, setCustomerName] = useState<string>('')
-  const [cart, setCart] = useState<{ menu_item_id: number; quantity: number; special_instructions?: string }[]>([])
+  const [cart, setCart] = useState<{ menu_item_id: number; name: string; price: number; quantity: number; special_instructions?: string }[]>([])
 
   const [addToOrderId, setAddToOrderId] = useState<number | null>(null)
-  const [addCart, setAddCart] = useState<{ menu_item_id: number; quantity: number; special_instructions?: string }[]>([])
+  const [addCart, setAddCart] = useState<{ menu_item_id: number; name: string; price: number; quantity: number; special_instructions?: string }[]>([])
+  const [menuSearch, setMenuSearch] = useState('')
+  const [showMobileCart, setShowMobileCart] = useState(false)
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
@@ -104,6 +106,7 @@ const OrdersPage = () => {
 
     toast.success('Order placed')
     setOpen(false)
+    setShowMobileCart(false)
     setCart([])
     setCustomerName('')
     load()
@@ -125,6 +128,7 @@ const OrdersPage = () => {
 
     toast.success('Items added to order')
     setAddToOrderId(null)
+    setShowMobileCart(false)
     setAddCart([])
     load()
   }
@@ -186,6 +190,35 @@ const getOrderStatus = (order: Order) => {
     load()
   }
 
+  // Cart helpers
+  const currentCart = addToOrderId ? addCart : cart
+  const cartTotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+
+  const handleAddToCart = (m: MenuItem) => {
+    const setCurrentCart = addToOrderId ? setAddCart : setCart
+    setCurrentCart((prev) => {
+      const existing = prev.find((i) => i.menu_item_id === m.id)
+      if (existing) {
+        return prev.map((i) =>
+          i.menu_item_id === m.id ? { ...i, quantity: i.quantity + 1 } : i
+        )
+      }
+      return [...prev, { menu_item_id: m.id, name: m.name, price: m.price, quantity: 1, special_instructions: '' }]
+    })
+  }
+
+  const updateQuantity = (id: number, delta: number) => {
+    const setCurrentCart = addToOrderId ? setAddCart : setCart
+    setCurrentCart((prev) =>
+      prev.map((i) => {
+        if (i.menu_item_id === id) {
+          const newQty = Math.max(0, i.quantity + delta)
+          return { ...i, quantity: newQty }
+        }
+        return i
+      }).filter((i) => i.quantity > 0)
+    )
+  }
  
   return (
     <div className="space-y-8">
@@ -489,157 +522,228 @@ const getOrderStatus = (order: Order) => {
 
       {/* MODAL */}
       {(open || addToOrderId) && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-
-            <h2 className="text-lg font-semibold">
-              {addToOrderId ? `Add Items to Order #${addToOrderId} ${orders.find(o => o.id === addToOrderId)?.customer_name ? `(${orders.find(o => o.id === addToOrderId)?.customer_name})` : ''}` : 'Create Order'}
-            </h2>
-
-            {!addToOrderId && (
-              <>
-              <select
-                className="w-full border rounded-xl p-2 mb-3"
-                value={tableId}
-                onChange={(e) => {
-                  const value = e.target.value ? Number(e.target.value) : ''
-                  setTableId(value)
-                  setSeatCount(1)
-                }}
-              >
-                <option value="">Select table (optional)</option>
-                {tables.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.table_number} ({t.capacity} seats)
-                  </option>
-                ))}
-              </select>
-              <input
-                placeholder="Customer Name (Optional)"
-                className="w-full border rounded-xl p-2 mb-3"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-              />
-              </>
-            )}
-            {tableId && (
-              <>
-                {remainingSeats > 0 ? (
-                  <div className="flex items-center gap-2 mt-3">
-                    <label className="text-sm font-medium">Seats:</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={remainingSeats}
-                      value={seatCount}
-                      className="w-24 border rounded-xl p-2"
-                      onChange={(e) => {
-                        const value = Number(e.target.value) || 1
-                        setSeatCount(Math.min(Math.max(1, value), remainingSeats))
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="text-sm text-red-600 mt-3">
-                    No seats available on this table. Choose another table.
-                  </div>
-                )}
-                {selectedTable && (
-                  <div className="text-xs text-slate-500">
-                    {remainingSeats} seat{remainingSeats === 1 ? '' : 's'} available on this table
-                  </div>
-                )}
-              </>
-            )}
-
-            <div className="max-h-60 overflow-auto space-y-4">
-              {menu
-                .filter((m) => m.is_available)
-                .map((m) => {
-                  const currentCart = addToOrderId ? addCart : cart
-                  const setCurrentCart = addToOrderId ? setAddCart : setCart
-                  
-                  const line = currentCart.find(
-                    (c) => c.menu_item_id === m.id
-                  )
-
-                  return (
-                    <div
-                      key={m.id}
-                      className="border rounded-lg p-3 space-y-2"
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">
-                          {m.name} ₹{m.price}
-                        </span>
-                        <input
-                          type="number"
-                          className="w-16 border rounded px-2 py-1"
-                          value={line?.quantity || 0}
-                          onChange={(e) => {
-                            const q = Number(e.target.value)
-                            setCurrentCart((prev) => {
-                              const rest = prev.filter(
-                                (x) => x.menu_item_id !== m.id
-                              )
-                              if (!q) return rest
-                              return [...rest, { 
-                                menu_item_id: m.id, 
-                                quantity: q,
-                                special_instructions: line?.special_instructions || ''
-                              }]
-                            })
-                          }}
-                        />
-                      </div>
-                      {line && (
-                        <textarea
-                          placeholder="Special instructions (e.g., no ice, extra spicy)"
-                          className="w-full border rounded px-2 py-1 text-sm"
-                          value={line.special_instructions || ''}
-                          onChange={(e) => {
-                            setCurrentCart((prev) =>
-                              prev.map((item) =>
-                                item.menu_item_id === m.id
-                                  ? { ...item, special_instructions: e.target.value }
-                                  : item
-                              )
-                            )
-                          }}
-                        />
-                      )}
-                    </div>
-                  )
-                })}
-            </div>
-
-            <div className="flex gap-2">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-950 w-full h-full sm:h-[95vh] sm:max-w-[1400px] sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+            
+            {/* MODAL HEADER */}
+            <div className="flex items-center justify-between p-4 sm:px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-xl flex items-center justify-center">
+                  <ShoppingBag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold leading-tight">
+                    {addToOrderId ? `Add Items to Order #${addToOrderId}` : 'New POS Order'}
+                  </h2>
+                  {addToOrderId && (
+                    <p className="text-xs text-slate-500 font-medium">
+                      {orders.find(o => o.id === addToOrderId)?.customer_name || 'Guest'}
+                    </p>
+                  )}
+                </div>
+              </div>
               <button
                 onClick={() => {
-                  if (addToOrderId) {
-                    setAddToOrderId(null)
-                    setAddCart([])
-                  } else {
-                    setOpen(false)
-                    setCart([])
-                  }
+                  setOpen(false)
+                  setAddToOrderId(null)
+                  setCart([])
+                  setAddCart([])
+                  setMenuSearch('')
+                  setTableId('')
+                  setCustomerName('')
+                  setSeatCount(1)
+                  setShowMobileCart(false)
                 }}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
               >
-                Cancel
-              </button>
-              <button
-                onClick={addToOrderId ? addToOrder : submit}
-                disabled={!addToOrderId && tableId !== '' && remainingSeats === 0}
-                className={`flex-1 py-3 rounded-xl ${
-                  !addToOrderId && tableId !== '' && remainingSeats === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-black text-white'
-                }`}
-              >
-                {addToOrderId ? 'Add to Order' : 'Place Order'}
+                <X className="w-6 h-6" />
               </button>
             </div>
+
+            {/* MODAL BODY */}
+            <div className="flex-1 overflow-hidden flex w-full relative">
+              
+              {/* LEFT: Menu Area */}
+              <div className={`flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950/50 p-4 sm:p-6 ${showMobileCart ? 'hidden lg:block' : 'block'}`}>
+                <div className="mb-6">
+                  <input 
+                    placeholder="Search menu..." 
+                    value={menuSearch}
+                    onChange={e => setMenuSearch(e.target.value)}
+                    className="w-full max-w-sm px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 outline-none focus:border-orange-500 transition-colors"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {menu
+                    .filter(m => m.is_available)
+                    .filter(m => m.name.toLowerCase().includes(menuSearch.toLowerCase()))
+                    .map(m => (
+                      <div
+                        key={m.id}
+                        onClick={() => handleAddToCart(m)}
+                        className="group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer active:scale-[0.98] flex flex-col"
+                      >
+                        <div className="relative h-32 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                          {m.image_url ? (
+                            <img src={m.image_url} alt={m.name} className="h-full w-full object-cover group-hover:scale-105 transition duration-500" />
+                          ) : (
+                            <div className="h-full flex items-center justify-center text-4xl">
+                              {m.is_veg ? '🥗' : '🍔'}
+                            </div>
+                          )}
+                          <div className="absolute top-2 right-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold shadow-sm">
+                            ₹{m.price}
+                          </div>
+                        </div>
+                        <div className="p-3 flex-1 flex flex-col">
+                          <div className="flex items-start justify-between gap-1 mb-1">
+                            <h3 className="font-bold text-sm leading-tight line-clamp-2">{m.name}</h3>
+                            <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${m.is_veg ? 'bg-green-500' : 'bg-red-500'}`} />
+                          </div>
+                          <p className="text-xs text-slate-500 mt-auto line-clamp-1">{m.category_name}</p>
+                        </div>
+                      </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* RIGHT: Cart Sidebar */}
+              <div className={`w-full lg:w-[400px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex-col h-full shrink-0 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] lg:shadow-none z-20 ${showMobileCart ? 'flex' : 'hidden lg:flex'}`}>
+                <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800">
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setShowMobileCart(false)} 
+                      className="lg:hidden p-2 -ml-2 mr-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                    >
+                      <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                    </button>
+                    <ShoppingCart className="w-5 h-5 text-orange-600" />
+                    <h2 className="text-lg font-bold">Current Order</h2>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {currentCart.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-10 space-y-3">
+                      <ShoppingBag className="w-10 h-10 opacity-20" />
+                      <p>Tap menu items to add to order</p>
+                    </div>
+                  ) : (
+                    currentCart.map((item) => (
+                      <div key={item.menu_item_id} className="p-3 border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/50">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 leading-tight">
+                            <div className="font-semibold text-sm">{item.name}</div>
+                            <div className="text-xs text-orange-600 font-bold mt-1">₹{(item.price * item.quantity).toFixed(2)}</div>
+                          </div>
+                          <div className="flex items-center gap-3 bg-white dark:bg-slate-900 rounded-lg p-1.5 border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <button onClick={() => updateQuantity(item.menu_item_id, -1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-500"><Minus className="w-4 h-4" /></button>
+                            <span className="w-4 text-center text-sm font-bold">{item.quantity}</span>
+                            <button onClick={() => updateQuantity(item.menu_item_id, 1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-500"><Plus className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                        <input
+                          placeholder="Special instructions (e.g. no ice)"
+                          value={item.special_instructions || ''}
+                          onChange={(e) => {
+                            const setCurrentCart = addToOrderId ? setAddCart : setCart
+                            setCurrentCart(prev => prev.map(i => i.menu_item_id === item.menu_item_id ? { ...i, special_instructions: e.target.value } : i))
+                          }}
+                          className="w-full mt-3 p-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 outline-none focus:border-orange-500 transition-colors"
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 space-y-4">
+                  {!addToOrderId && (
+                    <>
+                      <select 
+                        value={tableId} 
+                        onChange={(e) => {
+                          setTableId(e.target.value ? Number(e.target.value) : '')
+                          setSeatCount(1)
+                        }}
+                        className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 font-semibold outline-none focus:border-orange-500 transition-colors"
+                      >
+                        <option value="" disabled>Select Table...</option>
+                        <option value="">Takeaway / No Table</option>
+                        {tables.map(t => (
+                          <option key={t.id} value={t.id}>Table {t.table_number} ({t.capacity} seats)</option>
+                        ))}
+                      </select>
+
+                      {tableId !== '' && (
+                        <>
+                          {remainingSeats > 0 ? (
+                            <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-300 dark:border-slate-600">
+                              <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">Seats</label>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-slate-500 font-medium">{remainingSeats} available</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={remainingSeats}
+                                  value={seatCount}
+                                  className="w-16 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-center font-bold outline-none"
+                                  onChange={(e) => {
+                                    const value = Number(e.target.value) || 1
+                                    setSeatCount(Math.min(Math.max(1, value), remainingSeats))
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-red-600 font-medium bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-200 dark:border-red-800/50">
+                              Table is full (0 seats available).
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      <input 
+                        placeholder="Customer Name (Optional)" 
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-sm outline-none focus:border-orange-500 transition-colors"
+                      />
+                    </>
+                  )}
+
+                  <div className="flex justify-between items-center py-2 px-1 border-t border-slate-200 dark:border-slate-700 pt-4">
+                    <span className="font-bold text-slate-500 text-sm uppercase tracking-wider">Total</span>
+                    <span className="text-2xl font-black text-slate-800 dark:text-slate-100">₹{cartTotal.toFixed(2)}</span>
+                  </div>
+
+                  <button 
+                    onClick={addToOrderId ? addToOrder : submit}
+                    disabled={currentCart.length === 0 || (!addToOrderId && tableId !== '' && remainingSeats < seatCount)}
+                    className="w-full py-4 bg-orange-600 hover:bg-orange-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    <ChefHat className="w-5 h-5" />
+                    {addToOrderId ? 'Send to Kitchen' : 'Place Order'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* MOBILE BOTTOM CART TOGGLE */}
+            {!showMobileCart && (
+              <div className="lg:hidden p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 z-20">
+                <button 
+                  onClick={() => setShowMobileCart(true)}
+                  className="w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg flex items-center justify-between px-6 transition-all active:scale-[0.98]"
+                >
+                  <span className="flex items-center gap-2">
+                    <ShoppingBag className="w-5 h-5" />
+                    {currentCart.reduce((sum, i) => sum + i.quantity, 0)} Items
+                  </span>
+                  <span>View Cart • ₹{cartTotal.toFixed(2)}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

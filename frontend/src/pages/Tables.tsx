@@ -4,6 +4,12 @@ import {
   Pencil,
   Trash2,
   Users,
+  MapPin,
+  Layers,
+  UserCircle,
+  Armchair,
+  LayoutGrid,
+  Map,
 } from 'lucide-react'
 
 import toast from 'react-hot-toast'
@@ -66,6 +72,13 @@ const Tables = () => {
     )
   }
 
+  const stats = [
+    { title: 'Total Tables', value: rows.length, icon: Layers, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+    { title: 'Total Capacity', value: rows.reduce((acc, t) => acc + t.capacity, 0), icon: Users, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+    { title: 'Active Zones', value: new Set(rows.map(t => t.zone)).size, icon: MapPin, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+    { title: 'Waiters Staff', value: waiters.length, icon: UserCircle, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+  ]
+
   return (
     <div className="space-y-8">
 
@@ -79,52 +92,85 @@ const Tables = () => {
         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl self-start sm:self-auto">
           <button
             onClick={() => setView('grid')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${view === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm' : 'opacity-70 text-slate-600 dark:text-slate-300'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${view === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'opacity-70 text-slate-600 dark:text-slate-300 hover:opacity-100'}`}
           >
+            <LayoutGrid className="w-4 h-4" />
             Grid
           </button>
           <button
             onClick={() => setView('floor')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${view === 'floor' ? 'bg-white dark:bg-slate-700 shadow-sm' : 'opacity-70 text-slate-600 dark:text-slate-300'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${view === 'floor' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'opacity-70 text-slate-600 dark:text-slate-300 hover:opacity-100'}`}
           >
+            <Map className="w-4 h-4" />
             Floor Plan
           </button>
         </div>
 
       </div>
 
+      {/* STATS OVERVIEW */}
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {stats.map((item, i) => {
+          const Icon = item.icon
+          return (
+            <div key={i} className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4">
+              <div className={`h-14 w-14 rounded-2xl flex items-center justify-center ${item.bg} ${item.color}`}>
+                <Icon className="h-7 w-7" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 font-medium">{item.title}</p>
+                <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100">{item.value}</h3>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       {view === 'floor' ? (
         <FloorPlan tables={rows} waiters={waiters} onUpdate={load} onDeleteTable={deleteTable} userRole={user?.role} />
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {rows.map((t) => (
             <div
               key={t.id}
-              className="p-5 rounded-2xl border bg-white dark:bg-slate-900 shadow-sm"
+              className="group relative bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden"
             >
-              <div className="flex justify-between">
-                <h2 className="text-xl font-bold">{t.table_number}</h2>
-
-                <span className="text-sm text-slate-500">
-                  {t.zone}
-                </span>
+              {/* Decorative Background Element */}
+              <div className="absolute -right-8 -top-8 w-32 h-32 bg-gradient-to-br from-orange-100 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700 opacity-60 pointer-events-none" />
+              
+              <div className="relative flex justify-between items-start mb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-3 py-1 text-[10px] uppercase tracking-wider font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {t.zone}
+                    </span>
+                  </div>
+                  <h2 className="text-3xl font-black text-slate-800 dark:text-white flex items-baseline gap-1">
+                    <span className="text-lg text-slate-400 font-bold">#</span>{t.table_number}
+                  </h2>
+                </div>
+                <div className="h-12 w-12 bg-orange-50 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center text-orange-600 border border-orange-100 dark:border-orange-800/50 shadow-sm">
+                  <Armchair className="w-6 h-6" />
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 mt-2 text-sm text-slate-600">
-                <Users className="h-4 w-4" />
-                {t.capacity} seats
-              </div>
-
-              {!isStaff && (
-                <div className="flex justify-end gap-2 mt-4">
+              <div className="relative flex items-center justify-between mt-8 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-lg">
+                  <Users className="w-4 h-4 text-orange-500" />
+                  {t.capacity} Seats
+                </div>
+                
+                {!isStaff && (
                   <button
                     onClick={() => deleteTable(t.id)}
-                    className="p-2 rounded-lg border text-red-500"
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all duration-200"
+                    title="Delete Table"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="w-5 h-5" />
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))}
         </div>
