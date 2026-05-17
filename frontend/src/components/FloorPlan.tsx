@@ -232,6 +232,14 @@ export default function FloorPlan({
   userRole,
 }: FloorPlanProps) {
   const [localTables, setLocalTables] = useState<FloorPlanTable[]>(tables)
+  const [mergePrompt, setMergePrompt] = useState<{
+    deletedTableId: number
+    keptTableId: number
+    deletedTableName: string
+    keptTableName: string
+    revertX: number
+    revertY: number
+  } | null>(null)
 
   useEffect(() => {
     setLocalTables(tables)
@@ -247,6 +255,40 @@ export default function FloorPlan({
 
     const newX = Math.max(0, (table.pos_x || 0) + delta.x)
     const newY = Math.max(0, (table.pos_y || 0) + delta.y)
+
+    // Check for collisions/proximity with other tables for merging
+    let nearbyTable = null
+    for (const other of localTables) {
+      if (other.id === id) continue
+      const rect1 = { x: newX, y: newY, w: table.width || 100, h: table.height || 100 }
+      const rect2 = { x: other.pos_x || 0, y: other.pos_y || 0, w: other.width || 100, h: other.height || 100 }
+      
+      // Add a small threshold to make merging easier when they are close
+      const threshold = 20
+      const isOverlapping =
+        rect1.x < rect2.x + rect2.w + threshold &&
+        rect1.x + rect1.w + threshold > rect2.x &&
+        rect1.y < rect2.y + rect2.h + threshold &&
+        rect1.y + rect1.h + threshold > rect2.y
+
+      if (isOverlapping) {
+        nearbyTable = other
+        break
+      }
+    }
+
+    if (nearbyTable) {
+      setMergePrompt({
+        deletedTableId: table.id,
+        keptTableId: nearbyTable.id,
+        deletedTableName: table.table_number,
+        keptTableName: nearbyTable.table_number,
+        revertX: table.pos_x || 0,
+        revertY: table.pos_y || 0
+      })
+      setLocalTables((prev) => prev.map((t) => (t.id === id ? { ...t, pos_x: newX, pos_y: newY } : t)))
+      return
+    }
 
     setLocalTables((prev) => prev.map((t) => (t.id === id ? { ...t, pos_x: newX, pos_y: newY } : t)))
 
@@ -373,15 +415,40 @@ export default function FloorPlan({
     }
   }
 
-  const assignWaiter = async (id: number, waiterId: string) => {
-    try {
-      await api.patch(`/tables/${id}`, { waiter_id: waiterId === '' ? null : waiterId })
-      toast.success('Waiter assigned')
-      onUpdate()
-    } catch {
-      toast.error('Failed to assign waiter')
-    }
+ const assignWaiter = async (id: number, waiterId: string) => {
+  // Find waiter name
+  const waiter = waiters.find(
+    (w) => String(w.user_id) === String(waiterId)
+  )
+
+  // Backup old state
+  const oldTables = [...localTables]
+
+  // Instant local update without full rerender
+  setLocalTables((prev) =>
+    prev.map((t) =>
+      t.id === id
+        ? {
+            ...t,
+            waiter_id: waiterId === '' ? null : waiterId,
+            waiter_name: waiterId === '' ? null : waiter?.full_name || null,
+          }
+        : t
+    )
+  )
+
+  try {
+    await api.patch(`/tables/${id}`, {
+      waiter_id: waiterId === '' ? null : waiterId,
+    })
+
+    toast.success('Waiter assigned')
+  } catch {
+    // rollback if API fails
+    setLocalTables(oldTables)
+    toast.error('Failed to assign waiter')
   }
+}
 
   // const addTable = async (shape: string) => {
   //   const count = tables.length + 1;
@@ -426,6 +493,40 @@ export default function FloorPlan({
           ))}
         </DndContext>
       </div>
+
+      {/* Custom Merge Confirmation Modal */}
+      {mergePrompt && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in duration-200">
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-2">
+              Merge Tables?
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">
+              You are about to merge <strong className="text-slate-800 dark:text-slate-200">Table {mergePrompt.deletedTableName}</strong> into <strong className="text-slate-800 dark:text-slate-200">Table {mergePrompt.keptTableName}</strong>. This will combine their seats and permanently remove Table {mergePrompt.deletedTableName}.
+            </p>
+            <div className="flex justify-end gap-3 mt-2">
+              <button
+                onClick={() => {
+                  setLocalTables((prev) => prev.map((t) => (t.id === mergePrompt.deletedTableId ? { ...t, pos_x: mergePrompt.revertX, pos_y: mergePrompt.revertY } : t)))
+                  setMergePrompt(null)
+                }}
+                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await mergeTables(mergePrompt.keptTableId, mergePrompt.deletedTableId)
+                  setMergePrompt(null)
+                }}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-lg transition-colors"
+              >
+                Confirm Merge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
