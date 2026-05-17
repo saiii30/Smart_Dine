@@ -24,6 +24,9 @@ const Tables = () => {
   const [rows, setRows] = useState<DiningTable[]>([])
   const [waiters, setWaiters] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showTableModal, setShowTableModal] = useState(false)
+const [selectedShape, setSelectedShape] = useState('')
+const [tableName, setTableName] = useState('')
 
   const [view, setView] = useState<'grid' | 'floor'>('floor')
 
@@ -79,6 +82,46 @@ const Tables = () => {
     { title: 'Waiters Staff', value: waiters.length, icon: UserCircle, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
   ]
 
+  const addTable = async () => {
+  if (!tableName.trim()) {
+    toast.error('Enter table name')
+    return
+  }
+
+  try {
+    await api.post('/tables', {
+      table_number: tableName,
+      shape: selectedShape,
+      width: selectedShape === 'rectangle' ? 140 : 100,
+      height: selectedShape === 'rectangle' ? 80 : 100,
+      capacity:
+        selectedShape === 'circle'
+          ? 4
+          : selectedShape === 'rectangle'
+          ? 6
+          : 4,
+      pos_x: 50,
+      pos_y: 50,
+    })
+
+    toast.success('Table Added')
+
+    setShowTableModal(false)
+    setTableName('')
+    setSelectedShape('')
+
+    load()
+  } catch {
+    toast.error('Failed to add table')
+  }
+}
+
+const openTableModal = (shape: string) => {
+  setSelectedShape(shape)
+  setTableName(`T${rows.length + 1}`)
+  setShowTableModal(true)
+}
+
   return (
     <div className="space-y-8">
 
@@ -89,22 +132,103 @@ const Tables = () => {
           <p className="text-slate-500">Manage restaurant tables</p>
         </div>
 
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl self-start sm:self-auto">
+        
+
+     <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl self-start sm:self-auto shadow-sm border border-slate-200 dark:border-slate-700">
+
+  {/* Add Table Dropdown */}
+  {!isStaff && (
+    <div className="relative group">
+
+      {/* Main Add Button */}
+      <button
+        className="h-10 px-3 rounded-xl bg-white dark:bg-slate-700
+        hover:bg-slate-50 dark:hover:bg-slate-600
+        text-slate-700 dark:text-white
+        flex items-center gap-2
+        shadow-sm transition-all duration-200"
+      >
+        <Plus className="w-4 h-4" />
+        <span className="text-sm font-medium">Add</span>
+      </button>
+
+      {/* Floating Shapes */}
+      <div
+        className="absolute top-12 left-0
+        opacity-0 invisible translate-y-2
+        group-hover:opacity-100 group-hover:visible group-hover:translate-y-0
+        transition-all duration-200 z-50"
+      >
+        <div className="flex items-center gap-2 p-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl">
+
+          {/* Circle */}
           <button
-            onClick={() => setView('grid')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${view === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'opacity-70 text-slate-600 dark:text-slate-300 hover:opacity-100'}`}
+            onClick={() => openTableModal('circle')}
+            className="h-10 w-10 rounded-xl bg-violet-50 dark:bg-violet-500/10
+            hover:bg-violet-100 dark:hover:bg-violet-500/20
+            flex items-center justify-center transition-all"
+            title="Circle Table"
           >
-            <LayoutGrid className="w-4 h-4" />
-            Grid
+            <div className="w-4 h-4 rounded-full border-[3px] border-violet-600" />
           </button>
+
+          {/* Square */}
           <button
-            onClick={() => setView('floor')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${view === 'floor' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'opacity-70 text-slate-600 dark:text-slate-300 hover:opacity-100'}`}
+            onClick={() => openTableModal('square')}
+            className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10
+            hover:bg-emerald-100 dark:hover:bg-emerald-500/20
+            flex items-center justify-center transition-all"
+            title="Square Table"
           >
-            <Map className="w-4 h-4" />
-            Floor Plan
+            <div className="w-4 h-4 rounded-md border-[3px] border-emerald-600" />
           </button>
+
+          {/* Rectangle */}
+          <button
+            onClick={() => openTableModal('rectangle')}
+            className="h-10 w-10 rounded-xl bg-orange-50 dark:bg-orange-500/10
+            hover:bg-orange-100 dark:hover:bg-orange-500/20
+            flex items-center justify-center transition-all"
+            title="Rectangle Table"
+          >
+            <div className="w-6 h-3 rounded-sm border-[3px] border-orange-600" />
+          </button>
+
         </div>
+      </div>
+    </div>
+  )}
+
+  {/* Grid Button */}
+  <button
+    onClick={() => setView('grid')}
+    className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-all ${
+      view === 'grid'
+        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
+        : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-700/50'
+    }`}
+  >
+    <LayoutGrid className="w-4 h-4" />
+    Grid
+  </button>
+
+  {/* Floor Button */}
+  <button
+    onClick={() => setView('floor')}
+    className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-all ${
+      view === 'floor'
+        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
+        : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-700/50'
+    }`}
+  >
+    <Map className="w-4 h-4" />
+    Floor Plan
+  </button>
+
+</div>
+
+
+        
 
       </div>
 
@@ -127,7 +251,14 @@ const Tables = () => {
       </div>
 
       {view === 'floor' ? (
-        <FloorPlan tables={rows} waiters={waiters} onUpdate={load} onDeleteTable={deleteTable} userRole={user?.role} />
+        <FloorPlan
+  tables={rows}
+  waiters={waiters}
+  onUpdate={load}
+  onDeleteTable={deleteTable}
+  onAddTable={addTable}
+  userRole={user?.role}
+/>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {rows.map((t) => (
@@ -176,7 +307,80 @@ const Tables = () => {
         </div>
       )}
 
+      {showTableModal && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+
+    <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 dark:text-white">
+            Create Table
+          </h2>
+
+          <p className="text-slate-500 text-sm mt-1">
+            Add new {selectedShape} table
+          </p>
+        </div>
+
+        <div className="h-12 w-12 rounded-2xl bg-orange-100 dark:bg-orange-500/10 flex items-center justify-center">
+
+          {selectedShape === 'circle' && (
+            <div className="w-5 h-5 rounded-full border-[3px] border-orange-600" />
+          )}
+
+          {selectedShape === 'square' && (
+            <div className="w-5 h-5 rounded-md border-[3px] border-orange-600" />
+          )}
+
+          {selectedShape === 'rectangle' && (
+            <div className="w-7 h-4 rounded-sm border-[3px] border-orange-600" />
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+
+        <div>
+          <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+            Table Name
+          </label>
+
+          <input
+            value={tableName}
+            onChange={(e) => setTableName(e.target.value)}
+            placeholder="Enter table name"
+            className="mt-2 w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-orange-500"
+          />
+        </div>
+
+      </div>
+
+      <div className="flex justify-end gap-3 mt-8">
+
+        <button
+          onClick={() => setShowTableModal(false)}
+          className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={addTable}
+          className="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-lg"
+        >
+          Create Table
+        </button>
+
+      </div>
+
     </div>
+  </div>
+)}
+
+    </div>
+
+    
   )
 }
 

@@ -85,19 +85,29 @@ def delete_table(
     _: models.User = Depends(require_roles("ADMIN", "MANAGER")),
 ):
     t = db.query(models.DiningTable).filter(models.DiningTable.id == table_id).first()
+
     if not t:
         raise HTTPException(status_code=404, detail="Table not found")
 
-    # Check for active orders before deleting
-    has_orders = db.query(models.Order).filter(models.Order.table_id == table_id).first()
-    if has_orders:
+    # Only block active orders
+    has_active_orders = (
+        db.query(models.Order)
+        .filter(
+            models.Order.table_id == table_id,
+            models.Order.status.in_(["PENDING", "PREPARING", "SERVED"])
+        )
+        .first()
+    )
+
+    if has_active_orders:
         raise HTTPException(
             status_code=409,
-            detail="Cannot delete table. It has existing orders associated with it.",
+            detail="Cannot delete table. Active orders exist.",
         )
 
     db.delete(t)
     db.commit()
+
     return {"ok": True}
 
 
