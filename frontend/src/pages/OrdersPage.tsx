@@ -573,7 +573,151 @@ const getOrderStatus = (order: Order) => {
       )}
 
       {/* MODAL */}
-      
+      {open && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center z-50 overflow-hidden">
+          <div className="bg-slate-50 dark:bg-slate-900 w-full max-w-5xl h-full flex flex-col shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+            
+            {/* Header */}
+            <div className="flex justify-between items-center px-6 py-4 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shadow-sm z-10 relative">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
+                  <ShoppingBag className="text-orange-600" />
+                  {addToOrderId ? 'Add to Order' : 'New Order'}
+                </h2>
+                {addToOrderId && <p className="text-sm font-semibold text-slate-500 mt-1">Appending to Order #{addToOrderId}</p>}
+              </div>
+
+              <div className="flex items-center gap-4">
+                <button
+                  className="lg:hidden relative p-2 bg-orange-100 text-orange-600 rounded-xl"
+                  onClick={() => setShowMobileCart(!showMobileCart)}
+                >
+                  <ShoppingCart />
+                  {currentCart.length > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full font-bold">
+                      {currentCart.reduce((sum, item) => sum + item.quantity, 0)}
+                    </span>
+                  )}
+                </button>
+
+                <button 
+                  onClick={() => {
+                    setOpen(false)
+                    setAddToOrderId(null)
+                    setCart([])
+                    setAddCart([])
+                    setTableId('')
+                    setCustomerName('')
+                  }}
+                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 flex overflow-hidden relative">
+              
+              {/* Menu Section */}
+              <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
+                <div className="p-4 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+                  <input
+                    type="text"
+                    placeholder="Search menu..."
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-orange-500 transition-shadow"
+                    value={menuSearch}
+                    onChange={(e) => setMenuSearch(e.target.value)}
+                  />
+                </div>
+                
+                <div className="flex-1 overflow-auto p-4 sm:p-6 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-32 lg:pb-6">
+                  {menu
+                    .filter((m) =>
+                      m.name.toLowerCase().includes(menuSearch.toLowerCase())
+                    )
+                    .map((m) => (
+                      <div
+                        key={m.id}
+                        className="group flex flex-col bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer"
+                        onClick={() => handleAddToCart(m)}
+                      >
+                        <div className="h-28 sm:h-32 bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
+                          {m.image_url ? (
+                            <img src={m.image_url} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-4xl group-hover:scale-110 transition duration-500">
+                              {m.is_veg ? '🥗' : '🍔'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-3 sm:p-4 flex flex-col flex-1 justify-between gap-2">
+                          <div>
+                            <h3 className="font-bold text-sm sm:text-base leading-tight line-clamp-2">{m.name}</h3>
+                            <p className="text-xs text-slate-500 mt-1 line-clamp-1">{m.category_name}</p>
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="font-black text-orange-600 text-lg">₹{m.price}</span>
+                            <div className="bg-orange-100 text-orange-600 dark:bg-orange-900/30 w-8 h-8 rounded-full flex items-center justify-center group-hover:bg-orange-500 group-hover:text-white transition-colors">
+                              <Plus className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Cart Section */}
+              <div className={`absolute inset-0 lg:static lg:w-[400px] flex flex-col bg-white dark:bg-slate-950 z-20 transition-transform duration-300 ${showMobileCart ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}`}>
+                
+                <div className="lg:hidden flex items-center gap-2 p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                  <button onClick={() => setShowMobileCart(false)} className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <span className="font-bold text-lg">Back to Menu</span>
+                </div>
+
+                <div className="flex-1 overflow-auto p-5">
+                  {currentCart.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                      <ShoppingCart className="w-16 h-16 mb-4" />
+                      <p className="font-medium text-lg">Cart is empty</p>
+                      <p className="text-sm">Click items to add them</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {currentCart.map((item) => (
+                        <div key={item.menu_item_id} className="flex gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                          <div className="flex-1">
+                            <div className="font-bold text-sm sm:text-base leading-tight pr-2">{item.name}</div>
+                            <div className="font-bold text-orange-600 mt-1">₹{item.price * item.quantity}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => updateQuantity(item.menu_item_id, -1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Minus className="w-4 h-4" /></button>
+                            <span className="font-bold">{item.quantity}</span>
+                            <button onClick={() => updateQuantity(item.menu_item_id, 1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Plus className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-5 border-t border-slate-200 dark:border-slate-800 space-y-4">
+                  <button 
+                    onClick={addToOrderId ? addToOrder : submit}
+                    disabled={addToOrderId ? currentCart.length === 0 : false}
+                    className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    <ChefHat className="w-5 h-5" />
+                    {addToOrderId ? 'Send to Kitchen' : (currentCart.length === 0 ? 'Seat Customer' : 'Place Order')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
