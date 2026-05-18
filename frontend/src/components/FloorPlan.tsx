@@ -501,10 +501,25 @@ export default function FloorPlan({
       return
     }
 
+    const active = activeOrders?.filter((o: any) => o.table_id === id) || []
+    if (active.length > 0) {
+      const confirmed = window.confirm('Splitting this table will cancel its active orders to free both tables. Continue?')
+      if (!confirmed) return
+    }
+
     if (table.merge_history) {
       const hist = table.merge_history
       
       try {
+        // Free the table: Cancel any active orders on it
+        if (active.length > 0) {
+          await Promise.all(
+            active.map((o: any) => 
+              api.patch(`/orders/${o.id}/status`, null, { params: { status: 'cancelled' } })
+            )
+          )
+        }
+
         // Restore original source table properties
         await api.patch(`/tables/${id}`, { 
           capacity: hist.source_original.capacity, 
@@ -512,7 +527,9 @@ export default function FloorPlan({
           height: hist.source_original.height,
           shape: hist.source_original.shape,
           is_merged: false,
-          merge_history: null
+          merge_history: null,
+          status: 'available',
+          waiter_id: null
         })
         
         // Recreate the deleted target table with its original properties
@@ -526,10 +543,12 @@ export default function FloorPlan({
           pos_y: table.pos_y || 0,
           zone: table.zone,
           branch_id: table.branch_id,
-          is_merged: false
+          is_merged: false,
+          status: 'available',
+          waiter_id: null
         })
         
-        toast.success('Table split successfully')
+        toast.success('Tables split and freed successfully')
         onUpdate()
       } catch (err) {
         console.error("Split table error:", err)
