@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { DiningTable, MenuItem, Order } from '../types'
 import { useOrderSocket } from '../hooks/useOrderSocket'
-import { ShoppingBag, Clock, ChefHat, X, Minus, Plus, ShoppingCart, ArrowLeft } from 'lucide-react'
+import { ShoppingBag, Clock, ChefHat, X, Minus, Plus, ShoppingCart, ArrowLeft, Search } from 'lucide-react'
 
 const statusColor: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -566,8 +566,8 @@ const getOrderStatus = (order: Order) => {
 
       {/* MODAL */}
       {open && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center z-50 overflow-hidden">
-          <div className="bg-slate-50 dark:bg-slate-900 w-full max-w-5xl h-full flex flex-col shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-50 dark:bg-slate-900 w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl rounded-3xl overflow-hidden animate-in fade-in-90 slide-in-from-bottom-10 duration-300">
             
             {/* Header */}
             <div className="flex justify-between items-center px-6 py-4 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shadow-sm z-10 relative">
@@ -613,16 +613,20 @@ const getOrderStatus = (order: Order) => {
               {/* Menu Section */}
               <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
                 <div className="p-4 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
-                  <input
-                    type="text"
-                    placeholder="Search menu..."
-                    className="w-full border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-orange-500 transition-shadow"
-                    value={menuSearch}
-                    onChange={(e) => setMenuSearch(e.target.value)}
-                  />
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search menu..."
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-xl pl-11 pr-4 py-3 outline-none focus:ring-2 focus:ring-orange-500 transition-shadow"
+                      value={menuSearch}
+                      onChange={(e) => setMenuSearch(e.target.value)}
+                    />
+                  </div>
                 </div>
                 
-                <div className="flex-1 overflow-auto p-4 sm:p-6 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-32 lg:pb-6">
+                <div className="flex-1 overflow-auto p-4 sm:p-6 pb-32 lg:pb-6">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {menu
                     .filter((m) =>
                       m.name.toLowerCase().includes(menuSearch.toLowerCase())
@@ -656,6 +660,7 @@ const getOrderStatus = (order: Order) => {
                         </div>
                       </div>
                     ))}
+                  </div>
                 </div>
               </div>
 
@@ -678,13 +683,13 @@ const getOrderStatus = (order: Order) => {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {currentCart.map((item) => (
-                        <div key={item.menu_item_id} className="flex gap-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      {currentCart.map((item, index) => (
+                        <div key={item.menu_item_id} className={`flex gap-4 items-center py-4 ${index < currentCart.length - 1 ? 'border-b border-slate-100 dark:border-slate-800' : ''}`}>
                           <div className="flex-1">
                             <div className="font-bold text-sm sm:text-base leading-tight pr-2">{item.name}</div>
                             <div className="font-bold text-orange-600 mt-1">₹{item.price * item.quantity}</div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg">
                             <button onClick={() => updateQuantity(item.menu_item_id, -1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Minus className="w-4 h-4" /></button>
                             <span className="font-bold">{item.quantity}</span>
                             <button onClick={() => updateQuantity(item.menu_item_id, 1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Plus className="w-4 h-4" /></button>
@@ -695,11 +700,15 @@ const getOrderStatus = (order: Order) => {
                   )}
                 </div>
 
-                <div className="p-5 border-t border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 space-y-4">
+                  <div className="flex justify-between items-center text-lg font-bold">
+                    <span>Total</span>
+                    <span>₹{cartTotal.toFixed(2)}</span>
+                  </div>
                   <button 
                     onClick={addToOrderId ? addToOrder : submit}
                     disabled={currentCart.length === 0}
-                    className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-orange-600 hover:bg-orange-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                   >
                     <ChefHat className="w-5 h-5" />
                     {addToOrderId ? 'Send to Kitchen' : 'Place Order'}
