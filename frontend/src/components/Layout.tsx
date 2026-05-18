@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -40,6 +40,13 @@ const Layout = () => {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const loc = useLocation()
+  const mainRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0
+    }
+  }, [loc.pathname])
 
   const role = user?.role || ''
   const filtered = nav.filter((n) => !n.roles || n.roles.includes(role as (typeof n.roles)[number]))
@@ -150,7 +157,7 @@ const Layout = () => {
             </span>
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6 overflow-auto">
+        <main ref={mainRef} className="flex-1 p-4 sm:p-6 overflow-auto">
           <Outlet />
         </main>
       </div>

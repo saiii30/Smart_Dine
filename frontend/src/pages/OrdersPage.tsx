@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { DiningTable, MenuItem, Order } from '../types'
@@ -15,6 +16,8 @@ const statusColor: Record<string, string> = {
 }
 
 const OrdersPage = () => {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>([])
   const [tables, setTables] = useState<DiningTable[]>([])
   const [menu, setMenu] = useState<MenuItem[]>([])
@@ -34,6 +37,7 @@ const OrdersPage = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [tableFilter, setTableFilter] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const initialized = useRef(false)
 
   const load = () => {
     void api.get<Order[]>('/orders').then((r) => setOrders(r.data))
@@ -49,6 +53,44 @@ const OrdersPage = () => {
     load()
     toast('Live update 🔔')
   })
+
+  useEffect(() => {
+    const handleInitialTable = async () => {
+      if (!initialized.current && location.state?.openNewOrderForTable) {
+        initialized.current = true
+        const tId = location.state.openNewOrderForTable
+        
+        try {
+          const res = await api.get<Order[]>('/orders')
+          setOrders(res.data)
+          
+          setTableId(tId)
+          setOpen(true)
+          
+          const active = res.data.filter(o => o.table_id === tId && o.status !== 'completed' && o.status !== 'cancelled')
+          if (active.length > 0) {
+            setAddToOrderId(active[0].id)
+          } else {
+            setAddToOrderId(null)
+          }
+        } catch (e) {}
+        
+        // Clear state without triggering a router navigation jump
+        window.history.replaceState({}, '')
+      }
+    }
+    handleInitialTable()
+  }, [location.state])
+
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    if (open || addToOrderId) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [open, addToOrderId])
 
   // Filter logic
   const filteredOrders = orders.filter((o) => {
@@ -109,6 +151,7 @@ const OrdersPage = () => {
     setShowMobileCart(false)
     setCart([])
     setCustomerName('')
+    setTableId('')
     load()
   }
 
@@ -130,8 +173,12 @@ const OrdersPage = () => {
     setAddToOrderId(null)
     setShowMobileCart(false)
     setAddCart([])
+    setTableId('')
     load()
   }
+
+  // Get active orders for selected table
+  const activeOrdersForTable = tableId !== '' ? orders.filter(o => o.table_id === tableId && o.status !== 'completed' && o.status !== 'cancelled') : []
 
 const getOrderStatus = (order: Order) => {
 
@@ -658,22 +705,36 @@ const getOrderStatus = (order: Order) => {
                 </div>
 
                 <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 space-y-4">
-                  {!addToOrderId && (
-                    <>
+                  <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-300 dark:border-slate-600">
+                    <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">Table</label>
+                    <span className="font-bold text-slate-800 dark:text-slate-100">
+                      {tableId ? `Table ${tables.find(t => t.id === tableId)?.table_number}` : 'Takeaway'}
+                    </span>
+                  </div>
+
+                  {tableId !== '' && activeOrdersForTable.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">Select Order</label>
                       <select 
-                        value={tableId} 
+                        value={addToOrderId || 'new'}
                         onChange={(e) => {
-                          setTableId(e.target.value ? Number(e.target.value) : '')
-                          setSeatCount(1)
+                          if (e.target.value === 'new') setAddToOrderId(null)
+                          else setAddToOrderId(Number(e.target.value))
                         }}
                         className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 font-semibold outline-none focus:border-orange-500 transition-colors"
                       >
-                        <option value="" disabled>Select Table...</option>
-                        <option value="">Takeaway / No Table</option>
-                        {tables.map(t => (
-                          <option key={t.id} value={t.id}>Table {t.table_number} ({t.capacity} seats)</option>
+                        {activeOrdersForTable.map(o => (
+                          <option key={o.id} value={o.id}>Add to Order #{o.id} ({o.customer_name || 'Guest'})</option>
                         ))}
+                        {remainingSeats > 0 && (
+                          <option value="new">Create New Order ({remainingSeats} seats left)</option>
+                        )}
                       </select>
+                    </div>
+                  )}
+
+                  {!addToOrderId && (
+                    <>
 
                       {tableId !== '' && (
                         <>

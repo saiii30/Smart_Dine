@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Map,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
@@ -21,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext'
 const Tables = () => {
   const { user } = useAuth()
   const isStaff = user?.role === 'WAITER' || user?.role === 'KITCHEN'
+  const navigate = useNavigate()
   const [rows, setRows] = useState<DiningTable[]>([])
   const [waiters, setWaiters] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -120,6 +122,10 @@ const openTableModal = (shape: string) => {
   setSelectedShape(shape)
   setTableName(`T${rows.length + 1}`)
   setShowTableModal(true)
+}
+
+const handleAddMenu = (tableId: number) => {
+  navigate('/orders', { state: { openNewOrderForTable: tableId }, preventScrollReset: true })
 }
 
   return (
@@ -258,6 +264,7 @@ const openTableModal = (shape: string) => {
   onDeleteTable={deleteTable}
   onAddTable={addTable}
   userRole={user?.role}
+  onAddMenu={handleAddMenu}
 />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -301,6 +308,12 @@ const openTableModal = (shape: string) => {
                     <Trash2 className="w-5 h-5" />
                   </button>
                 )}
+                <button
+                  onClick={() => handleAddMenu(t.id)}
+                  className="p-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 font-bold text-sm"
+                >
+                  Add Menu
+                </button>
               </div>
             </div>
           ))}

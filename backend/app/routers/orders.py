@@ -127,7 +127,13 @@ async def create_order(
         if not tbl:
             raise HTTPException(status_code=404, detail="Table not found")
 
-        if body.seat_count > tbl.capacity:
+        active_orders = db.query(models.Order).filter(
+            models.Order.table_id == body.table_id,
+            models.Order.status.notin_([models.OrderStatus.COMPLETED.value, models.OrderStatus.CANCELLED.value])
+        ).all()
+        occupied_seats = sum((o.seat_count or 1) for o in active_orders)
+
+        if occupied_seats + body.seat_count > tbl.capacity:
             raise HTTPException(
                 status_code=400,
                 detail="Not enough seats available in this table"
