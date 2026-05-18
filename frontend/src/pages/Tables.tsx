@@ -15,15 +15,17 @@ import { useNavigate } from 'react-router-dom'
 
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
-import type { DiningTable } from '../types'
+import type { DiningTable, Order } from '../types'
 import FloorPlan from '../components/FloorPlan'
 import { useAuth } from '../contexts/AuthContext'
+import { useOrderSocket } from '../hooks/useOrderSocket'
 
 const Tables = () => {
   const { user } = useAuth()
   const isStaff = user?.role === 'WAITER' || user?.role === 'KITCHEN'
   const navigate = useNavigate()
   const [rows, setRows] = useState<DiningTable[]>([])
+  const [activeOrders, setActiveOrders] = useState<Order[]>([])
   const [waiters, setWaiters] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showTableModal, setShowTableModal] = useState(false)
@@ -32,12 +34,19 @@ const [tableName, setTableName] = useState('')
 
   const [view, setView] = useState<'grid' | 'floor'>('floor')
 
-  const load = useCallback(() => {
-    setLoading(true)
-    void api
-      .get<DiningTable[]>('/tables')
-      .then((r) => setRows(r.data))
-      .finally(() => setLoading(false))
+  const load = useCallback((quiet = false) => {
+    if (!quiet) setLoading(true)
+    Promise.all([
+      api.get<DiningTable[]>('/tables'),
+      api.get<Order[]>('/orders')
+    ])
+      .then(([tRes, oRes]) => {
+        setRows(tRes.data)
+        setActiveOrders(oRes.data.filter((o) => o.status !== 'completed' && o.status !== 'cancelled'))
+      })
+      .finally(() => {
+        if (!quiet) setLoading(false)
+      })
   }, [])
 
   const loadWaiters = useCallback(async () => {
@@ -53,6 +62,10 @@ const [tableName, setTableName] = useState('')
     load()
     loadWaiters()
   }, [load, loadWaiters])
+
+  useOrderSocket(() => {
+    load(true)
+  })
 
   const deleteTable = async (id: number) => {
     if (!confirm('Delete this table?')) return
@@ -124,8 +137,8 @@ const openTableModal = (shape: string) => {
   setShowTableModal(true)
 }
 
-const handleAddMenu = (tableId: number) => {
-  navigate('/orders', { state: { openNewOrderForTable: tableId }, preventScrollReset: true })
+const handleAddMenu = (tableId: number, seatCount?: number, seatName?: string) => {
+  navigate('/orders', { state: { openNewOrderForTable: tableId, seatCount, seatName }, preventScrollReset: true })
 }
 
   return (
@@ -260,7 +273,8 @@ const handleAddMenu = (tableId: number) => {
         <FloorPlan
   tables={rows}
   waiters={waiters}
-  onUpdate={load}
+          activeOrders={activeOrders}
+          onUpdate={() => load(true)}
   onDeleteTable={deleteTable}
   onAddTable={addTable}
   userRole={user?.role}
@@ -268,7 +282,20 @@ const handleAddMenu = (tableId: number) => {
 />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {rows.map((t) => (
+          {rows.map((t) => {
+            const tableOrders = activeOrders.filter(o => o.table_id === t.id)
+            const occupiedSeats = new Set<number>()
+            let isFull = false
+            tableOrders.forEach(o => {
+              if (!o.customer_name?.startsWith('Seat')) isFull = true
+              else {
+                const match = o.customer_name.match(/\d+/g)
+                if (match) match.forEach(m => occupiedSeats.add(parseInt(m, 10)))
+              }
+            })
+            const occCount = isFull ? t.capacity : Math.min(occupiedSeats.size, t.capacity)
+            
+            return (
             <div
               key={t.id}
               className="group relative bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden"
@@ -295,8 +322,8 @@ const handleAddMenu = (tableId: number) => {
 
               <div className="relative flex items-center justify-between mt-8 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-lg">
-                  <Users className="w-4 h-4 text-orange-500" />
-                  {t.capacity} Seats
+                  <Users className={`w-4 h-4 ${occCount > 0 ? 'text-emerald-500' : 'text-orange-500'}`} />
+                  {occCount > 0 ? `${occCount}/${t.capacity} Occupied` : `${t.capacity} Seats`}
                 </div>
                 
                 {!isStaff && (
@@ -309,14 +336,14 @@ const handleAddMenu = (tableId: number) => {
                   </button>
                 )}
                 <button
-                  onClick={() => handleAddMenu(t.id)}
+                  onClick={() => handleAddMenu(t.id, undefined, 'Full Table')}
                   className="p-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 font-bold text-sm"
                 >
                   Add Menu
                 </button>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 

@@ -9,17 +9,19 @@ type FloorPlanTable = any
 interface FloorPlanProps {
   tables: FloorPlanTable[]
   waiters: any[]
+  activeOrders?: any[]
   onUpdate: () => void
   onDeleteTable: (id: number) => void
   onAddTable: (shape: string) => void
   userRole?: string
-  onAddMenu?: (id: number) => void
+  onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
 }
 
 const VisualTable = ({
   table,
   allTables,
   waiters,
+  activeOrders,
   onUpdateCapacity,
   onAssignWaiter,
   onDeleteTable,
@@ -31,14 +33,16 @@ const VisualTable = ({
   table: FloorPlanTable
   allTables: FloorPlanTable[]
   waiters: any[]
+  activeOrders?: any[]
   onUpdateCapacity: (id: number, delta: number) => void
   onAssignWaiter: (id: number, waiterId: string) => void
   onDeleteTable: (id: number) => void
   onMergeTables: (sourceId: number, targetId: number) => void
   onSplitTable: (id: number) => void
   userRole?: string
-  onAddMenu?: (id: number) => void
+  onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
 }) => {
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([])
   const isStaff = userRole === 'WAITER' || userRole === 'KITCHEN'
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: table.id.toString(),
@@ -49,6 +53,21 @@ const VisualTable = ({
   const width = table.width || 100
   const height = table.height || 100
   const cap = table.capacity || 2
+
+  // Compute occupied seats
+  const tableOrders = activeOrders?.filter((o: any) => o.table_id === table.id) || []
+  const occupied = new Set<number>()
+  let isFullTable = false
+  tableOrders.forEach((o: any) => {
+    if (!o.customer_name?.startsWith('Seat')) isFullTable = true
+    else {
+      const match = o.customer_name.match(/\d+/g)
+      if (match) match.forEach((m: string) => occupied.add(parseInt(m, 10) - 1))
+    }
+  })
+  if (isFullTable) {
+    for (let i = 0; i < cap; i++) occupied.add(i)
+  }
 
   const style = {
     position: 'absolute' as const,
@@ -82,17 +101,33 @@ const VisualTable = ({
         rotate = isTop ? 0 : 180
       }
 
+      const isOccupied = occupied.has(i)
+      let baseFill = "#1e293b"
+      let topFill = "#334155"
+      
+      if (selectedSeats.includes(i)) {
+        baseFill = "#ea580c"
+        topFill = "#fb923c"
+      } else if (isOccupied) {
+        baseFill = "#047857"
+        topFill = "#10b981"
+      }
+
       chairs.push(
         <div
           key={`chair-${i}`}
-          className="absolute w-9 h-9 flex items-center justify-center transition-transform duration-300 drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)] z-0"
+          className="absolute w-9 h-9 flex items-center justify-center transition-transform duration-300 drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)] z-20 group/chair pointer-events-auto cursor-pointer"
           style={{ top: chairY, left: chairX, transform: `rotate(${rotate}deg)` }}
-          title="Chair"
+          title={`Seat ${i + 1}${isOccupied ? ' (Occupied)' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelectedSeats(prev => prev.includes(i) ? prev.filter(idx => idx !== i) : [...prev, i].sort((a, b) => a - b))
+          }}
         >
           {/* Elegant SVG Top-Down Chair Icon */}
-          <svg viewBox="0 0 64 64" className="w-full h-full overflow-visible">
-            <rect x="10" y="4" width="44" height="18" rx="9" fill="#1e293b" stroke="#0f172a" strokeWidth="2" />
-            <rect x="14" y="16" width="36" height="38" rx="8" fill="#334155" stroke="#1e293b" strokeWidth="2" />
+          <svg viewBox="0 0 64 64" className="w-full h-full overflow-visible pointer-events-none transition-colors duration-200">
+            <rect x="10" y="4" width="44" height="18" rx="9" fill={baseFill} stroke="#0f172a" strokeWidth="2" />
+            <rect x="14" y="16" width="36" height="38" rx="8" fill={topFill} stroke="#1e293b" strokeWidth="2" />
           </svg>
         </div>
       )
@@ -149,6 +184,11 @@ const VisualTable = ({
         {/* Glassmorphism Nametag */}
         <div className="flex flex-col items-center pointer-events-none z-10 bg-black/40 px-3 py-1.5 rounded-xl backdrop-blur-sm border border-white/10 shadow-xl">
           <span className="font-black text-amber-50 text-xl tracking-widest drop-shadow-md">T{table.table_number}</span>
+        {occupied.size > 0 && (
+          <span className="text-[10px] font-bold text-emerald-100 bg-emerald-600/90 px-2 py-0.5 rounded-md mt-1 mb-0.5 shadow-sm uppercase tracking-wider">
+            {occupied.size}/{cap} OCCUPIED
+          </span>
+        )}
           {table.waiter_name ? (
             <span className="text-[9px] font-bold text-amber-900 bg-amber-400 px-2 py-0.5 rounded-md mt-1 shadow-sm uppercase tracking-wider">👤 {table.waiter_name.split(' ')[0]}</span>
           ) : (
@@ -225,11 +265,19 @@ const VisualTable = ({
         )}
         <button
           onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => { e.stopPropagation(); onAddMenu?.(table.id); }}
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            if (selectedSeats.length > 0) {
+              onAddMenu?.(table.id, selectedSeats.length, `Seat ${selectedSeats.map(i => i + 1).join(', ')}`);
+              setSelectedSeats([]);
+            } else {
+              onAddMenu?.(table.id, undefined, 'Full Table'); 
+            }
+          }}
           className="w-full py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          Add Menu
+          {selectedSeats.length > 0 ? `Add Menu (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'Add Menu (Full Table)'}
         </button>
       </div>
     </div>
@@ -239,6 +287,7 @@ const VisualTable = ({
 export default function FloorPlan({
   tables,
   waiters,
+  activeOrders,
   onUpdate,
   onDeleteTable,
   onAddTable,
@@ -503,7 +552,7 @@ export default function FloorPlan({
       <div className="min-w-[800px] min-h-[700px] relative">
         <DndContext onDragEnd={handleDragEnd}>
           {localTables.map((table) => (
-            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} />
+            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} />
           ))}
         </DndContext>
       </div>

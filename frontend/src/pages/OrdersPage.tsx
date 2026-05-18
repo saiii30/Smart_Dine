@@ -59,19 +59,26 @@ const OrdersPage = () => {
       if (!initialized.current && location.state?.openNewOrderForTable) {
         initialized.current = true
         const tId = location.state.openNewOrderForTable
+        const sCount = location.state.seatCount
+        const sName = location.state.seatName
         
         try {
           const res = await api.get<Order[]>('/orders')
           setOrders(res.data)
           
           setTableId(tId)
+          if (sCount) setSeatCount(sCount)
+          if (sName) setCustomerName(sName)
           setOpen(true)
           
           const active = res.data.filter(o => o.table_id === tId && o.status !== 'completed' && o.status !== 'cancelled')
-          if (active.length > 0) {
-            setAddToOrderId(active[0].id)
+          
+          if (sName && sName.startsWith('Seat')) {
+            const seatOrder = active.find(o => o.customer_name === sName)
+            setAddToOrderId(seatOrder ? seatOrder.id : null)
           } else {
-            setAddToOrderId(null)
+            const fullTableOrder = active.find(o => !o.customer_name?.startsWith('Seat'))
+            setAddToOrderId(fullTableOrder ? fullTableOrder.id : null)
           }
         } catch (e) {}
         
@@ -706,70 +713,34 @@ const getOrderStatus = (order: Order) => {
 
                 <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 space-y-4">
                   <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-300 dark:border-slate-600">
-                    <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">Table</label>
+                    <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">
+                      {tableId ? 'Order For' : 'Order Type'}
+                    </label>
                     <span className="font-bold text-slate-800 dark:text-slate-100">
-                      {tableId ? `Table ${tables.find(t => t.id === tableId)?.table_number}` : 'Takeaway'}
+                      {tableId ? `Table ${tables.find(t => t.id === tableId)?.table_number} ${customerName ? `- ${customerName}` : ''}` : 'Takeaway'}
                     </span>
                   </div>
 
-                  {tableId !== '' && activeOrdersForTable.length > 0 && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">Select Order</label>
-                      <select 
-                        value={addToOrderId || 'new'}
-                        onChange={(e) => {
-                          if (e.target.value === 'new') setAddToOrderId(null)
-                          else setAddToOrderId(Number(e.target.value))
-                        }}
-                        className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 font-semibold outline-none focus:border-orange-500 transition-colors"
-                      >
-                        {activeOrdersForTable.map(o => (
-                          <option key={o.id} value={o.id}>Add to Order #{o.id} ({o.customer_name || 'Guest'})</option>
-                        ))}
-                        {remainingSeats > 0 && (
-                          <option value="new">Create New Order ({remainingSeats} seats left)</option>
-                        )}
-                      </select>
-                    </div>
-                  )}
-
                   {!addToOrderId && (
                     <>
-
-                      {tableId !== '' && (
-                        <>
-                          {remainingSeats > 0 ? (
-                            <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-300 dark:border-slate-600">
-                              <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">Seats</label>
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs text-slate-500 font-medium">{remainingSeats} available</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={remainingSeats}
-                                  value={seatCount}
-                                  className="w-16 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-center font-bold outline-none"
-                                  onChange={(e) => {
-                                    const value = Number(e.target.value) || 1
-                                    setSeatCount(Math.min(Math.max(1, value), remainingSeats))
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-sm text-red-600 font-medium bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-200 dark:border-red-800/50">
-                              Table is full (0 seats available).
-                            </div>
-                          )}
-                        </>
+                      {!tableId && (
+                        <input 
+                          placeholder="Customer Name (Optional)" 
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-sm outline-none focus:border-orange-500 transition-colors"
+                        />
                       )}
-
-                      <input 
-                        placeholder="Customer Name (Optional)" 
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-sm outline-none focus:border-orange-500 transition-colors"
-                      />
+                      {tableId !== '' && remainingSeats === 0 && (
+                        <div className="text-sm text-red-600 font-medium bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-200 dark:border-red-800/50">
+                          Table is full (0 seats available).
+                        </div>
+                      )}
+                      {tableId !== '' && remainingSeats > 0 && customerName === 'Full Table' && selectedTable && remainingSeats < selectedTable.capacity && (
+                        <div className="text-sm text-red-600 font-medium bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-200 dark:border-red-800/50 leading-snug">
+                          {selectedTable.capacity - remainingSeats} seat(s) already occupied. Cannot create a new Full Table order. Please select specific empty seats from the Floor Plan.
+                        </div>
+                      )}
                     </>
                   )}
 
@@ -780,7 +751,7 @@ const getOrderStatus = (order: Order) => {
 
                   <button 
                     onClick={addToOrderId ? addToOrder : submit}
-                    disabled={currentCart.length === 0 || (!addToOrderId && tableId !== '' && remainingSeats < seatCount)}
+                    disabled={currentCart.length === 0 || (!addToOrderId && tableId !== '' && remainingSeats === 0) || (!addToOrderId && tableId !== '' && customerName === 'Full Table' && !!selectedTable && remainingSeats < selectedTable.capacity)}
                     className="w-full py-4 bg-orange-600 hover:bg-orange-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                   >
                     <ChefHat className="w-5 h-5" />
