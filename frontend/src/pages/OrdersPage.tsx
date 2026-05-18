@@ -21,13 +21,14 @@ const OrdersPage = () => {
   const [orders, setOrders] = useState<Order[]>([])
   const [tables, setTables] = useState<DiningTable[]>([])
   const [menu, setMenu] = useState<MenuItem[]>([])
-  const [open, setOpen] = useState(false)
+ 
 
   const [tableId, setTableId] = useState<number | ''>('')
   const [seatCount, setSeatCount] = useState<number>(1)
   const [customerName, setCustomerName] = useState<string>('')
   const [cart, setCart] = useState<{ menu_item_id: number; name: string; price: number; quantity: number; special_instructions?: string }[]>([])
 
+  const [open, setOpen] = useState(false)
   const [addToOrderId, setAddToOrderId] = useState<number | null>(null)
   const [addCart, setAddCart] = useState<{ menu_item_id: number; name: string; price: number; quantity: number; special_instructions?: string }[]>([])
   const [menuSearch, setMenuSearch] = useState('')
@@ -69,7 +70,7 @@ const OrdersPage = () => {
           setTableId(tId)
           if (sCount) setSeatCount(sCount)
           if (sName) setCustomerName(sName)
-          setOpen(true)
+          
           
           const active = res.data.filter(o => o.table_id === tId && o.status !== 'completed' && o.status !== 'cancelled')
           
@@ -80,6 +81,7 @@ const OrdersPage = () => {
             const fullTableOrder = active.find(o => !o.customer_name?.startsWith('Seat'))
             setAddToOrderId(fullTableOrder ? fullTableOrder.id : null)
           }
+          setOpen(true)
         } catch (e) {}
         
         // Clear state without triggering a router navigation jump
@@ -135,25 +137,33 @@ const OrdersPage = () => {
     : 0
 
   const submit = async () => {
-    if (!cart.length) {
-      toast.error('Select items')
-      return
+    const finalSeatCount = customerName.startsWith('Seat') ? seatCount : Math.max(1, remainingSeats)
+
+    if (cart.length === 0) {
+      if (!tableId) {
+        toast.error('Select items or a table to seat customer')
+        return
+      }
+      await api.post('/orders/seat', {
+        table_id: tableId,
+        seat_count: finalSeatCount,
+        customer_name: customerName === 'Full Table' ? undefined : (customerName || undefined),
+      })
+      toast.success('Customer seated')
+    } else {
+      await api.post('/orders', {
+        table_id: tableId || null,
+        seat_count: tableId ? finalSeatCount : 1,
+        customer_name: customerName === 'Full Table' ? undefined : (customerName || undefined),
+        items: cart.map(item => ({
+          menu_item_id: item.menu_item_id,
+          quantity: item.quantity,
+          special_instructions: item.special_instructions || null,
+        })),
+      })
+      toast.success('Order placed')
     }
-
-  
-
-    await api.post('/orders', {
-      table_id: tableId || null,
-      seat_count: tableId ? seatCount : 1,
-      customer_name: customerName || undefined,
-      items: cart.map(item => ({
-        menu_item_id: item.menu_item_id,
-        quantity: item.quantity,
-        special_instructions: item.special_instructions || null,
-      })),
-    })
-
-    toast.success('Order placed')
+   
     setOpen(false)
     setShowMobileCart(false)
     setCart([])
@@ -178,6 +188,7 @@ const OrdersPage = () => {
 
     toast.success('Items added to order')
     setAddToOrderId(null)
+    setOpen(false)
     setShowMobileCart(false)
     setAddCart([])
     setTableId('')
@@ -198,7 +209,7 @@ const getOrderStatus = (order: Order) => {
   )
 
   if (activeItems.length === 0) {
-    return 'cancelled'
+    return order.status === 'pending' ? 'pending' : 'cancelled'
   }
 
   const allServed = activeItems.every(
@@ -233,7 +244,7 @@ const getOrderStatus = (order: Order) => {
     return {
       readyCount,
       servedCount,
-      totalCount: activeItems.length || order.items.length,
+      totalCount: activeItems.length,
     }
   }
 
@@ -284,13 +295,7 @@ const getOrderStatus = (order: Order) => {
           <p className="text-slate-500">Real-time kitchen operations</p>
         </div>
 
-        <button
-          onClick={() => setOpen(true)}
-          className="px-5 py-2.5 rounded-xl bg-black text-white flex items-center justify-center gap-2 w-full sm:w-auto"
-        >
-          <ShoppingBag className="h-4 w-4" />
-          New Order
-        </button>
+       
       </div>
 
       {/* FILTERS */}
@@ -429,7 +434,7 @@ const getOrderStatus = (order: Order) => {
                     : 'bg-yellow-500'
                 }`}
                 style={{
-                  width: `${((progress.readyCount + progress.servedCount) / progress.totalCount) * 100}%`,
+                  width: `${progress.totalCount === 0 ? 0 : ((progress.readyCount + progress.servedCount) / progress.totalCount) * 100}%`,
                 }}
               />
             </div>
@@ -536,14 +541,7 @@ const getOrderStatus = (order: Order) => {
 
             {/* ADD ITEMS BUTTON */}
             <div className="flex gap-2 flex-wrap">
-              {o.status !== 'completed' && o.status !== 'cancelled' && (
-                <button
-                  onClick={() => setAddToOrderId(o.id)}
-                  className="mt-2 flex-1 text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
-                >
-                  + Add Items
-                </button>
-              )}
+              
               {o.status !== 'completed' && o.status !== 'cancelled' && (
                 <button
                   onClick={async () => {
@@ -575,210 +573,7 @@ const getOrderStatus = (order: Order) => {
       )}
 
       {/* MODAL */}
-      {(open || addToOrderId) && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white dark:bg-slate-950 w-full h-full sm:h-[95vh] sm:max-w-[1400px] sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
-            
-            {/* MODAL HEADER */}
-            <div className="flex items-center justify-between p-4 sm:px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-xl flex items-center justify-center">
-                  <ShoppingBag className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold leading-tight">
-                    {addToOrderId ? `Add Items to Order #${addToOrderId}` : 'New POS Order'}
-                  </h2>
-                  {addToOrderId && (
-                    <p className="text-xs text-slate-500 font-medium">
-                      {orders.find(o => o.id === addToOrderId)?.customer_name || 'Guest'}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setOpen(false)
-                  setAddToOrderId(null)
-                  setCart([])
-                  setAddCart([])
-                  setMenuSearch('')
-                  setTableId('')
-                  setCustomerName('')
-                  setSeatCount(1)
-                  setShowMobileCart(false)
-                }}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* MODAL BODY */}
-            <div className="flex-1 overflow-hidden flex w-full relative">
-              
-              {/* LEFT: Menu Area */}
-              <div className={`flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950/50 p-4 sm:p-6 ${showMobileCart ? 'hidden lg:block' : 'block'}`}>
-                <div className="mb-6">
-                  <input 
-                    placeholder="Search menu..." 
-                    value={menuSearch}
-                    onChange={e => setMenuSearch(e.target.value)}
-                    className="w-full max-w-sm px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 outline-none focus:border-orange-500 transition-colors"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {menu
-                    .filter(m => m.is_available)
-                    .filter(m => m.name.toLowerCase().includes(menuSearch.toLowerCase()))
-                    .map(m => (
-                      <div
-                        key={m.id}
-                        onClick={() => handleAddToCart(m)}
-                        className="group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer active:scale-[0.98] flex flex-col"
-                      >
-                        <div className="relative h-32 bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                          {m.image_url ? (
-                            <img src={m.image_url} alt={m.name} className="h-full w-full object-cover group-hover:scale-105 transition duration-500" />
-                          ) : (
-                            <div className="h-full flex items-center justify-center text-4xl">
-                              {m.is_veg ? '🥗' : '🍔'}
-                            </div>
-                          )}
-                          <div className="absolute top-2 right-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-bold shadow-sm">
-                            ₹{m.price}
-                          </div>
-                        </div>
-                        <div className="p-3 flex-1 flex flex-col">
-                          <div className="flex items-start justify-between gap-1 mb-1">
-                            <h3 className="font-bold text-sm leading-tight line-clamp-2">{m.name}</h3>
-                            <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${m.is_veg ? 'bg-green-500' : 'bg-red-500'}`} />
-                          </div>
-                          <p className="text-xs text-slate-500 mt-auto line-clamp-1">{m.category_name}</p>
-                        </div>
-                      </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* RIGHT: Cart Sidebar */}
-              <div className={`w-full lg:w-[400px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex-col h-full shrink-0 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] lg:shadow-none z-20 ${showMobileCart ? 'flex' : 'hidden lg:flex'}`}>
-                <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800">
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => setShowMobileCart(false)} 
-                      className="lg:hidden p-2 -ml-2 mr-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                    >
-                      <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-                    </button>
-                    <ShoppingCart className="w-5 h-5 text-orange-600" />
-                    <h2 className="text-lg font-bold">Current Order</h2>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {currentCart.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-10 space-y-3">
-                      <ShoppingBag className="w-10 h-10 opacity-20" />
-                      <p>Tap menu items to add to order</p>
-                    </div>
-                  ) : (
-                    currentCart.map((item) => (
-                      <div key={item.menu_item_id} className="p-3 border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/50">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 leading-tight">
-                            <div className="font-semibold text-sm">{item.name}</div>
-                            <div className="text-xs text-orange-600 font-bold mt-1">₹{(item.price * item.quantity).toFixed(2)}</div>
-                          </div>
-                          <div className="flex items-center gap-3 bg-white dark:bg-slate-900 rounded-lg p-1.5 border border-slate-200 dark:border-slate-700 shadow-sm">
-                            <button onClick={() => updateQuantity(item.menu_item_id, -1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-500"><Minus className="w-4 h-4" /></button>
-                            <span className="w-4 text-center text-sm font-bold">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.menu_item_id, 1)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-500"><Plus className="w-4 h-4" /></button>
-                          </div>
-                        </div>
-                        <input
-                          placeholder="Special instructions (e.g. no ice)"
-                          value={item.special_instructions || ''}
-                          onChange={(e) => {
-                            const setCurrentCart = addToOrderId ? setAddCart : setCart
-                            setCurrentCart(prev => prev.map(i => i.menu_item_id === item.menu_item_id ? { ...i, special_instructions: e.target.value } : i))
-                          }}
-                          className="w-full mt-3 p-2 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 outline-none focus:border-orange-500 transition-colors"
-                        />
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 space-y-4">
-                  <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-300 dark:border-slate-600">
-                    <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">
-                      {tableId ? 'Order For' : 'Order Type'}
-                    </label>
-                    <span className="font-bold text-slate-800 dark:text-slate-100">
-                      {tableId ? `Table ${tables.find(t => t.id === tableId)?.table_number} ${customerName ? `- ${customerName}` : ''}` : 'Takeaway'}
-                    </span>
-                  </div>
-
-                  {!addToOrderId && (
-                    <>
-                      {!tableId && (
-                        <input 
-                          placeholder="Customer Name (Optional)" 
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900 text-sm outline-none focus:border-orange-500 transition-colors"
-                        />
-                      )}
-                      {tableId !== '' && remainingSeats === 0 && (
-                        <div className="text-sm text-red-600 font-medium bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-200 dark:border-red-800/50">
-                          Table is full (0 seats available).
-                        </div>
-                      )}
-                      {tableId !== '' && remainingSeats > 0 && customerName === 'Full Table' && selectedTable && remainingSeats < selectedTable.capacity && (
-                        <div className="text-sm text-red-600 font-medium bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-200 dark:border-red-800/50 leading-snug">
-                          {selectedTable.capacity - remainingSeats} seat(s) already occupied. Cannot create a new Full Table order. Please select specific empty seats from the Floor Plan.
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  <div className="flex justify-between items-center py-2 px-1 border-t border-slate-200 dark:border-slate-700 pt-4">
-                    <span className="font-bold text-slate-500 text-sm uppercase tracking-wider">Total</span>
-                    <span className="text-2xl font-black text-slate-800 dark:text-slate-100">₹{cartTotal.toFixed(2)}</span>
-                  </div>
-
-                  <button 
-                    onClick={addToOrderId ? addToOrder : submit}
-                    disabled={currentCart.length === 0 || (!addToOrderId && tableId !== '' && remainingSeats === 0) || (!addToOrderId && tableId !== '' && customerName === 'Full Table' && !!selectedTable && remainingSeats < selectedTable.capacity)}
-                    className="w-full py-4 bg-orange-600 hover:bg-orange-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                  >
-                    <ChefHat className="w-5 h-5" />
-                    {addToOrderId ? 'Send to Kitchen' : 'Place Order'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* MOBILE BOTTOM CART TOGGLE */}
-            {!showMobileCart && (
-              <div className="lg:hidden p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 z-20">
-                <button 
-                  onClick={() => setShowMobileCart(true)}
-                  className="w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg flex items-center justify-between px-6 transition-all active:scale-[0.98]"
-                >
-                  <span className="flex items-center gap-2">
-                    <ShoppingBag className="w-5 h-5" />
-                    {currentCart.reduce((sum, i) => sum + i.quantity, 0)} Items
-                  </span>
-                  <span>View Cart • ₹{cartTotal.toFixed(2)}</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      
     </div>
   )
 }

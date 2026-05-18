@@ -26,8 +26,6 @@ def _table_out(t: models.DiningTable) -> schemas.DiningTableOut:
 @router.get("", response_model=list[schemas.DiningTableOut])
 def list_tables(db: Session = Depends(get_db), user: models.User = Depends(get_current_active_user)):
     q = db.query(models.DiningTable)
-    if user.role == "WAITER":
-        q = q.filter(models.DiningTable.waiter_id == user.id)
     rows = q.order_by(models.DiningTable.id).all()
     return [_table_out(t) for t in rows]
 

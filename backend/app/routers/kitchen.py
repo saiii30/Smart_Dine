@@ -26,7 +26,8 @@ def kitchen_queue(
                     models.OrderStatus.READY.value,
                     "served",
                 ]
-            )
+            ),
+            models.Order.items.any()
         )
         .order_by(models.Order.id.asc())
         .limit(100)

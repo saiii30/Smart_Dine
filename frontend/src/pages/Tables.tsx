@@ -23,6 +23,7 @@ import { useOrderSocket } from '../hooks/useOrderSocket'
 const Tables = () => {
   const { user } = useAuth()
   const isStaff = user?.role === 'WAITER' || user?.role === 'KITCHEN'
+  const canPlaceOrder = user?.role === 'WAITER' || user?.role === 'MANAGER' || user?.role === 'CASHIER'
   const navigate = useNavigate()
   const [rows, setRows] = useState<DiningTable[]>([])
   const [activeOrders, setActiveOrders] = useState<Order[]>([])
@@ -41,13 +42,27 @@ const [tableName, setTableName] = useState('')
       api.get<Order[]>('/orders')
     ])
       .then(([tRes, oRes]) => {
-        setRows(tRes.data)
-        setActiveOrders(oRes.data.filter((o) => o.status !== 'completed' && o.status !== 'cancelled'))
+        let allTables = tRes.data
+        const active = oRes.data.filter((o) => o.status !== 'completed' && o.status !== 'cancelled')
+        
+        if (user?.role === 'WAITER') {
+          const myTableIds = new Set([
+            ...allTables.filter((t: any) => 
+              (user?.id && String(t.waiter_id) === String(user.id)) || 
+              (user?.full_name && t.waiter_name === user.full_name)
+            ).map(t => t.id),
+            ...active.map(o => o.table_id)
+          ])
+          allTables = allTables.filter(t => myTableIds.has(t.id))
+        }
+        
+        setRows(allTables)
+        setActiveOrders(active)
       })
       .finally(() => {
         if (!quiet) setLoading(false)
       })
-  }, [])
+  }, [user?.role, user?.id, user?.full_name])
 
   const loadWaiters = useCallback(async () => {
     try {
@@ -139,6 +154,20 @@ const openTableModal = (shape: string) => {
 
 const handleAddMenu = (tableId: number, seatCount?: number, seatName?: string) => {
   navigate('/orders', { state: { openNewOrderForTable: tableId, seatCount, seatName }, preventScrollReset: true })
+}
+
+const handleSeatCustomer = async (tableId: number, seatCount?: number, seatName?: string) => {
+  try {
+    await api.post('/orders/seat', {
+      table_id: tableId,
+      seat_count: seatCount || 1,
+      customer_name: seatName === 'Full Table' ? undefined : seatName,
+    })
+    toast.success('Customer seated successfully')
+    load(true)
+  } catch (err: any) {
+    toast.error(err.response?.data?.detail || 'Failed to seat customer')
+  }
 }
 
   return (
@@ -279,6 +308,7 @@ const handleAddMenu = (tableId: number, seatCount?: number, seatName?: string) =
   onAddTable={addTable}
   userRole={user?.role}
   onAddMenu={handleAddMenu}
+          onSeatCustomer={handleSeatCustomer}
 />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -335,12 +365,21 @@ const handleAddMenu = (tableId: number, seatCount?: number, seatName?: string) =
                     <Trash2 className="w-5 h-5" />
                   </button>
                 )}
-                <button
-                  onClick={() => handleAddMenu(t.id, undefined, 'Full Table')}
-                  className="p-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 font-bold text-sm"
-                >
-                  Add Menu
-                </button>
+                {canPlaceOrder ? (
+                  <button
+                    onClick={() => handleAddMenu(t.id, undefined, 'Full Table')}
+                    className="p-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 font-bold text-sm"
+                  >
+                    Add Menu
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleSeatCustomer(t.id, t.capacity, 'Full Table')}
+                    className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all duration-200 font-bold text-sm"
+                  >
+                    Seat Customer
+                  </button>
+                )}
               </div>
             </div>
           )})}

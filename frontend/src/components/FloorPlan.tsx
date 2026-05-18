@@ -15,6 +15,7 @@ interface FloorPlanProps {
   onAddTable: (shape: string) => void
   userRole?: string
   onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
+  onSeatCustomer?: (id: number, seatCount?: number, seatName?: string) => void
 }
 
 const VisualTable = ({
@@ -29,6 +30,7 @@ const VisualTable = ({
   onSplitTable,
   userRole,
   onAddMenu,
+  onSeatCustomer,
 }: {
   table: FloorPlanTable
   allTables: FloorPlanTable[]
@@ -41,9 +43,11 @@ const VisualTable = ({
   onSplitTable: (id: number) => void
   userRole?: string
   onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
+  onSeatCustomer?: (id: number, seatCount?: number, seatName?: string) => void
 }) => {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([])
   const isStaff = userRole === 'WAITER' || userRole === 'KITCHEN'
+  const canPlaceOrder = userRole === 'WAITER' || userRole === 'MANAGER' || userRole === 'CASHIER'
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: table.id.toString(),
     disabled: isStaff, // Prevent Waiters from dragging tables
@@ -53,6 +57,10 @@ const VisualTable = ({
   const width = table.width || 100
   const height = table.height || 100
   const cap = table.capacity || 2
+
+  // Dynamically resolve waiter name on page refresh
+  const assignedWaiter = waiters.find(w => String(w.user_id) === String(table.waiter_id))
+  const displayWaiterName = table.waiter_name || assignedWaiter?.full_name
 
   // Compute occupied seats
   const tableOrders = activeOrders?.filter((o: any) => o.table_id === table.id) || []
@@ -189,8 +197,8 @@ const VisualTable = ({
             {occupied.size}/{cap} OCCUPIED
           </span>
         )}
-          {table.waiter_name ? (
-            <span className="text-[9px] font-bold text-amber-900 bg-amber-400 px-2 py-0.5 rounded-md mt-1 shadow-sm uppercase tracking-wider">👤 {table.waiter_name.split(' ')[0]}</span>
+      {displayWaiterName ? (
+        <span className="text-[9px] font-bold text-amber-900 bg-amber-400 px-2 py-0.5 rounded-md mt-1 shadow-sm uppercase tracking-wider">👤 {displayWaiterName.split(' ')[0]}</span>
           ) : (
             <span className="text-[9px] font-bold text-red-100 bg-red-500/90 px-2 py-0.5 rounded-md mt-1 shadow-sm uppercase tracking-wider">Unassigned</span>
           )}
@@ -202,6 +210,35 @@ const VisualTable = ({
 
       {/* Hover Controls */}
       <div className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 focus-within:opacity-100 transition-all duration-300 absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.4)] p-4 gap-3 text-sm flex flex-col items-center pointer-events-auto border border-white/10 min-w-[220px] z-[100] transform scale-95 group-hover:scale-100 group-focus:scale-100 focus-within:scale-100">
+        
+        {canPlaceOrder && tableOrders.length > 0 && (
+          <div className="w-full space-y-1.5 bg-slate-800/80 p-2 rounded-xl border border-white/5 shadow-inner">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Active Groups</label>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+              {tableOrders.map((o: any) => (
+                <div key={o.id} className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-white/5">
+                  <div className="flex flex-col max-w-[110px]">
+                    <span className="text-xs font-bold text-emerald-400 truncate" title={o.customer_name || 'Full Table'}>
+                      {o.customer_name || 'Full Table'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{o.seat_count} {o.seat_count > 1 ? 'Seats' : 'Seat'}</span>
+                  </div>
+                  <button 
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddMenu?.(table.id, o.seat_count, o.customer_name || 'Full Table');
+                    }}
+                    className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap"
+                  >
+                    + Add
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!isStaff && (
           <>
         
@@ -231,7 +268,7 @@ const VisualTable = ({
               className="w-full text-xs p-2 border border-slate-600 rounded-lg bg-slate-800 text-slate-200 font-medium cursor-pointer focus:ring-2 focus:ring-amber-500 outline-none transition-colors"
             >
               <option value="">No Waiter</option>
-              {waiters.map(w => <option key={w.user_id} value={w.user_id}>{w.full_name}</option>)}
+              {waiters.map(w => <option key={w.id} value={w.user_id}>{w.full_name}</option>)}
             </select>
           ) : (
             <div className="text-[10px] text-red-300 bg-red-900/30 p-2 rounded-lg text-center font-medium border border-red-500/30">
@@ -263,22 +300,42 @@ const VisualTable = ({
         </div>
           </>
         )}
-        <button
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => { 
-            e.stopPropagation(); 
-            if (selectedSeats.length > 0) {
-              onAddMenu?.(table.id, selectedSeats.length, `Seat ${selectedSeats.map(i => i + 1).join(', ')}`);
-              setSelectedSeats([]);
-            } else {
-              onAddMenu?.(table.id, undefined, 'Full Table'); 
-            }
-          }}
-          className="w-full py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          {selectedSeats.length > 0 ? `Add Menu (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'Add Menu (Full Table)'}
-        </button>
+        {canPlaceOrder && (
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              if (selectedSeats.length > 0) {
+                onAddMenu?.(table.id, selectedSeats.length, `Seat ${selectedSeats.map(i => i + 1).join(', ')}`);
+                setSelectedSeats([]);
+              } else {
+                onAddMenu?.(table.id, undefined, 'Full Table'); 
+              }
+            }}
+            className="w-full py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            {selectedSeats.length > 0 ? `New Order (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'New Order (Full Table)'}
+          </button>
+        )}
+        {!canPlaceOrder && (
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              if (selectedSeats.length > 0) {
+                onSeatCustomer?.(table.id, selectedSeats.length, `Seat ${selectedSeats.map(i => i + 1).join(', ')}`);
+                setSelectedSeats([]);
+              } else {
+                onSeatCustomer?.(table.id, cap, 'Full Table'); 
+              }
+            }}
+            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            {selectedSeats.length > 0 ? `Seat Customer (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'Seat Customer (Full Table)'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -293,6 +350,7 @@ export default function FloorPlan({
   onAddTable,
   userRole,
   onAddMenu,
+  onSeatCustomer,
 }: FloorPlanProps) {
   const [localTables, setLocalTables] = useState<FloorPlanTable[]>(tables)
   const [mergePrompt, setMergePrompt] = useState<{
@@ -552,7 +610,7 @@ export default function FloorPlan({
       <div className="min-w-[800px] min-h-[700px] relative">
         <DndContext onDragEnd={handleDragEnd}>
           {localTables.map((table) => (
-            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} />
+            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} />
           ))}
         </DndContext>
       </div>

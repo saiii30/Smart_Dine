@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from pydantic import BaseModel
 
 from app import models, schemas
 from app.auth import get_current_active_user, require_roles
@@ -52,7 +54,12 @@ async def list_orders(
 ):
     q = db.query(models.Order)
     if user.role == "WAITER":
-        q = q.filter(models.Order.waiter_id == user.id)
+        q = q.outerjoin(models.DiningTable, models.Order.table_id == models.DiningTable.id).filter(
+            or_(
+                models.Order.waiter_id == user.id,
+                models.DiningTable.waiter_id == user.id
+            )
+        )
     if status:
         q = q.filter(models.Order.status == status)
     orders = q.order_by(models.Order.id.desc()).limit(200).all()
@@ -116,6 +123,7 @@ async def create_order(
     total = round(subtotal + tax_amt - discount, 2)
 
     # TABLE VALIDATION (ONLY CHECK CAPACITY)
+    tbl = None
     if body.table_id:
 
         tbl = (
@@ -139,10 +147,18 @@ async def create_order(
                 detail="Not enough seats available in this table"
             )
 
+    assigned_waiter = None
+    if user.role == "WAITER":
+        assigned_waiter = user.id
+    elif tbl and tbl.waiter_id:
+        assigned_waiter = tbl.waiter_id
+    elif user.role in ("MANAGER", "ADMIN"):
+        assigned_waiter = user.id
+
     # CREATE ORDER
     order = models.Order(
         table_id=body.table_id,
-        waiter_id=user.id if user.role in ("WAITER", "MANAGER", "ADMIN") else None,
+        waiter_id=assigned_waiter,
         branch_id=body.branch_id or user.branch_id,
         status=models.OrderStatus.PENDING.value,
         special_instructions=body.special_instructions,
@@ -167,6 +183,58 @@ async def create_order(
 
     await emit_order(order.id, "order_created")
 
+    return _serialize_order(order)
+
+class SeatCustomerCreate(BaseModel):
+    table_id: int
+    seat_count: int = 1
+    customer_name: str | None = None
+    branch_id: int | None = None
+
+@router.post("/seat", response_model=schemas.OrderOut)
+async def seat_customer(
+    body: SeatCustomerCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_roles("ADMIN", "MANAGER", "WAITER", "CASHIER")),
+):
+    tbl = db.query(models.DiningTable).filter(models.DiningTable.id == body.table_id).first()
+    if not tbl:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    active_orders = db.query(models.Order).filter(
+        models.Order.table_id == body.table_id,
+        models.Order.status.notin_([models.OrderStatus.COMPLETED.value, models.OrderStatus.CANCELLED.value])
+    ).all()
+    occupied_seats = sum((o.seat_count or 1) for o in active_orders)
+
+    if occupied_seats + body.seat_count > tbl.capacity:
+        raise HTTPException(status_code=400, detail="Not enough seats available in this table")
+
+    assigned_waiter = None
+    if user.role == "WAITER":
+        assigned_waiter = user.id
+    elif tbl.waiter_id:
+        assigned_waiter = tbl.waiter_id
+    elif user.role in ("MANAGER", "ADMIN"):
+        assigned_waiter = user.id
+
+    order = models.Order(
+        table_id=body.table_id,
+        waiter_id=assigned_waiter,
+        branch_id=body.branch_id or user.branch_id,
+        status=models.OrderStatus.PENDING.value,
+        customer_name=body.customer_name,
+        seat_count=body.seat_count,
+        subtotal=0.0,
+        tax_rate=0.05,
+        discount_amount=0.0,
+        total_amount=0.0,
+    )
+
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    await emit_order(order.id, "order_created")
     return _serialize_order(order)
 
 @router.patch("/{order_id}/status", response_model=schemas.OrderOut)
