@@ -103,6 +103,9 @@ const OrdersPage = () => {
 
   // Filter logic
   const filteredOrders = orders.filter((o) => {
+    // Hide empty placeholder seating orders
+    if (o.items.length === 0) return false
+
     // Filter by status
     if (statusFilter && o.status !== statusFilter) return false
     
@@ -139,18 +142,7 @@ const OrdersPage = () => {
   const submit = async () => {
     const finalSeatCount = customerName.startsWith('Seat') ? seatCount : Math.max(1, remainingSeats)
 
-    if (cart.length === 0) {
-      if (!tableId) {
-        toast.error('Select items or a table to seat customer')
-        return
-      }
-      await api.post('/orders/seat', {
-        table_id: tableId,
-        seat_count: finalSeatCount,
-        customer_name: customerName === 'Full Table' ? undefined : (customerName || undefined),
-      })
-      toast.success('Customer seated')
-    } else {
+    if (cart.length > 0) {
       await api.post('/orders', {
         table_id: tableId || null,
         seat_count: tableId ? finalSeatCount : 1,
@@ -706,11 +698,11 @@ const getOrderStatus = (order: Order) => {
                 <div className="p-5 border-t border-slate-200 dark:border-slate-800 space-y-4">
                   <button 
                     onClick={addToOrderId ? addToOrder : submit}
-                    disabled={addToOrderId ? currentCart.length === 0 : false}
+                    disabled={currentCart.length === 0}
                     className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                   >
                     <ChefHat className="w-5 h-5" />
-                    {addToOrderId ? 'Send to Kitchen' : (currentCart.length === 0 ? 'Seat Customer' : 'Place Order')}
+                    {addToOrderId ? 'Send to Kitchen' : 'Place Order'}
                   </button>
                 </div>
               </div>

@@ -16,6 +16,7 @@ interface FloorPlanProps {
   userRole?: string
   onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
   onSeatCustomer?: (id: number, seatCount?: number, seatName?: string) => void
+  onClearEmptySeats?: (id: number) => void
 }
 
 const VisualTable = ({
@@ -31,6 +32,7 @@ const VisualTable = ({
   userRole,
   onAddMenu,
   onSeatCustomer,
+  onClearEmptySeats,
 }: {
   table: FloorPlanTable
   allTables: FloorPlanTable[]
@@ -44,6 +46,7 @@ const VisualTable = ({
   userRole?: string
   onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
   onSeatCustomer?: (id: number, seatCount?: number, seatName?: string) => void
+  onClearEmptySeats?: (id: number) => void
 }) => {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([])
   const isStaff = userRole === 'WAITER' || userRole === 'KITCHEN'
@@ -300,7 +303,7 @@ const VisualTable = ({
         </div>
           </>
         )}
-        {canPlaceOrder && (
+        {/* {canPlaceOrder && (
           <button
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => { 
@@ -317,24 +320,38 @@ const VisualTable = ({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
             {selectedSeats.length > 0 ? `New Order (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'New Order (Full Table)'}
           </button>
-        )}
+        )} */}
         {!canPlaceOrder && (
-          <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => { 
-              e.stopPropagation(); 
-              if (selectedSeats.length > 0) {
-                onSeatCustomer?.(table.id, selectedSeats.length, `Seat ${selectedSeats.map(i => i + 1).join(', ')}`);
-                setSelectedSeats([]);
-              } else {
-                onSeatCustomer?.(table.id, cap, 'Full Table'); 
-              }
-            }}
-            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-            {selectedSeats.length > 0 ? `Seat Customer (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'Seat Customer (Full Table)'}
-          </button>
+        <>
+          {tableOrders.some((o: any) => o.items.length === 0) && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => { e.stopPropagation(); onClearEmptySeats?.(table.id); }}
+              className="w-full py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 mb-2"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              Clear Empty Seats
+            </button>
+          )}
+          {cap > occupied.size && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                if (selectedSeats.length > 0) {
+                  onSeatCustomer?.(table.id, selectedSeats.length, `Seat ${selectedSeats.map(i => i + 1).join(', ')}`);
+                  setSelectedSeats([]);
+                } else {
+                  onSeatCustomer?.(table.id, cap - occupied.size, 'Full Table'); 
+                }
+              }}
+              className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+              {selectedSeats.length > 0 ? `Seat Customer (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'Seat Customer'}
+            </button>
+          )}
+        </>
         )}
       </div>
     </div>
@@ -351,6 +368,7 @@ export default function FloorPlan({
   userRole,
   onAddMenu,
   onSeatCustomer,
+  onClearEmptySeats,
 }: FloorPlanProps) {
   const [localTables, setLocalTables] = useState<FloorPlanTable[]>(tables)
   const [mergePrompt, setMergePrompt] = useState<{
@@ -610,7 +628,7 @@ export default function FloorPlan({
       <div className="min-w-[800px] min-h-[700px] relative">
         <DndContext onDragEnd={handleDragEnd}>
           {localTables.map((table) => (
-            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} />
+            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} onClearEmptySeats={onClearEmptySeats} />
           ))}
         </DndContext>
       </div>
