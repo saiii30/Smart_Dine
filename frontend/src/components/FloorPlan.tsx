@@ -16,7 +16,6 @@ interface FloorPlanProps {
   userRole?: string
   onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
   onSeatCustomer?: (id: number, seatCount?: number, seatName?: string) => void
-  onClearEmptySeats?: (id: number) => void
 }
 
 const VisualTable = ({
@@ -32,7 +31,6 @@ const VisualTable = ({
   userRole,
   onAddMenu,
   onSeatCustomer,
-  onClearEmptySeats,
 }: {
   table: FloorPlanTable
   allTables: FloorPlanTable[]
@@ -46,7 +44,6 @@ const VisualTable = ({
   userRole?: string
   onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
   onSeatCustomer?: (id: number, seatCount?: number, seatName?: string) => void
-  onClearEmptySeats?: (id: number) => void
 }) => {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([])
   const isStaff = userRole === 'WAITER' || userRole === 'KITCHEN'
@@ -303,7 +300,7 @@ const VisualTable = ({
         </div>
           </>
         )}
-        {canPlaceOrder && (
+        {/* {canPlaceOrder && (
           <button
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => { 
@@ -320,19 +317,9 @@ const VisualTable = ({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
             {selectedSeats.length > 0 ? `New Order (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'New Order (Full Table)'}
           </button>
-        )}
+        )} */}
         {!canPlaceOrder && (
         <>
-          {tableOrders.some((o: any) => o.items.length === 0) && (
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={(e) => { e.stopPropagation(); onClearEmptySeats?.(table.id); }}
-              className="w-full py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 mb-2"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              Clear Empty Seats
-            </button>
-          )}
           {cap > occupied.size && (
             <button
               onMouseDown={(e) => e.preventDefault()}
@@ -368,7 +355,6 @@ export default function FloorPlan({
   userRole,
   onAddMenu,
   onSeatCustomer,
-  onClearEmptySeats,
 }: FloorPlanProps) {
   const [localTables, setLocalTables] = useState<FloorPlanTable[]>(tables)
   const [mergePrompt, setMergePrompt] = useState<{
@@ -628,7 +614,7 @@ export default function FloorPlan({
       <div className="min-w-[800px] min-h-[700px] relative">
         <DndContext onDragEnd={handleDragEnd}>
           {localTables.map((table) => (
-            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} onClearEmptySeats={onClearEmptySeats} />
+            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} />
           ))}
         </DndContext>
       </div>

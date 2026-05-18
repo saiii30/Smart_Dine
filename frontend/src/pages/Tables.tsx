@@ -170,19 +170,6 @@ const handleSeatCustomer = async (tableId: number, seatCount?: number, seatName?
   }
 }
 
-const handleClearEmptyOrders = async (tableId: number) => {
-  try {
-    const emptyOrders = activeOrders.filter(o => o.table_id === tableId && o.items.length === 0)
-    await Promise.all(
-      emptyOrders.map(o => api.patch(`/orders/${o.id}/status`, null, { params: { status: 'cancelled' } }))
-    )
-    toast.success('Cleared empty seats')
-    load(true)
-  } catch (err) {
-    toast.error('Failed to clear seats')
-  }
-}
-
   return (
     <div className="space-y-8">
 
@@ -322,7 +309,6 @@ const handleClearEmptyOrders = async (tableId: number) => {
   userRole={user?.role}
   onAddMenu={handleAddMenu}
           onSeatCustomer={handleSeatCustomer}
-          onClearEmptySeats={handleClearEmptyOrders}
 />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -338,7 +324,6 @@ const handleClearEmptyOrders = async (tableId: number) => {
               }
             })
             const occCount = isFull ? t.capacity : Math.min(occupiedSeats.size, t.capacity)
-            const hasEmptyOrders = tableOrders.some(o => o.items.length === 0)
             
             return (
             <div
@@ -388,14 +373,7 @@ const handleClearEmptyOrders = async (tableId: number) => {
                     Add Menu
                   </button>
                 ) : (
-                hasEmptyOrders ? (
-                  <button
-                    onClick={() => handleClearEmptyOrders(t.id)}
-                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all duration-200 font-bold text-sm"
-                  >
-                    Clear Empty Seats
-                  </button>
-                ) : occCount < t.capacity ? (
+                occCount < t.capacity ? (
                   <button
                     onClick={() => handleSeatCustomer(t.id, t.capacity - occCount, 'Full Table')}
                     className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all duration-200 font-bold text-sm"

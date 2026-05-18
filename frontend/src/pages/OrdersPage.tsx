@@ -276,6 +276,13 @@ const getOrderStatus = (order: Order) => {
       }).filter((i) => i.quantity > 0)
     )
   }
+
+  const updateInstruction = (id: number, text: string) => {
+    const setCurrentCart = addToOrderId ? setAddCart : setCart
+    setCurrentCart((prev) =>
+      prev.map((i) => (i.menu_item_id === id ? { ...i, special_instructions: text } : i))
+    )
+  }
  
   return (
     <div className="space-y-8">
@@ -684,16 +691,25 @@ const getOrderStatus = (order: Order) => {
                   ) : (
                     <div className="space-y-4">
                       {currentCart.map((item, index) => (
-                        <div key={item.menu_item_id} className={`flex gap-4 items-center py-4 ${index < currentCart.length - 1 ? 'border-b border-slate-100 dark:border-slate-800' : ''}`}>
-                          <div className="flex-1">
-                            <div className="font-bold text-sm sm:text-base leading-tight pr-2">{item.name}</div>
-                            <div className="font-bold text-orange-600 mt-1">₹{item.price * item.quantity}</div>
+                        <div key={item.menu_item_id} className={`flex flex-col py-4 ${index < currentCart.length - 1 ? 'border-b border-slate-100 dark:border-slate-800' : ''}`}>
+                          <div className="flex gap-4 items-center">
+                            <div className="flex-1">
+                              <div className="font-bold text-sm sm:text-base leading-tight pr-2">{item.name}</div>
+                              <div className="font-bold text-orange-600 mt-1">₹{item.price * item.quantity}</div>
+                            </div>
+                            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg">
+                              <button onClick={() => updateQuantity(item.menu_item_id, -1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Minus className="w-4 h-4" /></button>
+                              <span className="font-bold min-w-[1.5rem] text-center">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.menu_item_id, 1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Plus className="w-4 h-4" /></button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg">
-                            <button onClick={() => updateQuantity(item.menu_item_id, -1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Minus className="w-4 h-4" /></button>
-                            <span className="font-bold">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.menu_item_id, 1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Plus className="w-4 h-4" /></button>
-                          </div>
+                          <input
+                            type="text"
+                            placeholder="Add note (e.g. extra spicy)..."
+                            value={item.special_instructions || ''}
+                            onChange={(e) => updateInstruction(item.menu_item_id, e.target.value)}
+                            className="mt-3 w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-orange-500 transition-colors"
+                          />
                         </div>
                       ))}
                     </div>
