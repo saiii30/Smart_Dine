@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { DiningTable, MenuItem, Order } from '../types'
 import { useOrderSocket } from '../hooks/useOrderSocket'
+import { useAuth } from '../contexts/AuthContext'
 import { ShoppingBag, Clock, ChefHat, X, Minus, Plus, ShoppingCart, ArrowLeft, Search } from 'lucide-react'
 
 const statusColor: Record<string, string> = {
@@ -16,11 +17,15 @@ const statusColor: Record<string, string> = {
 }
 
 const OrdersPage = () => {
+  const { user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [orders, setOrders] = useState<Order[]>([])
   const [tables, setTables] = useState<DiningTable[]>([])
   const [menu, setMenu] = useState<MenuItem[]>([])
+  const [schedule, setSchedule] = useState<any[]>([])
+  const [strictSchedule, setStrictSchedule] = useState(true)
+  const [currentTime, setCurrentTime] = useState(new Date())
  
 
   const [tableId, setTableId] = useState<number | ''>('')
@@ -48,6 +53,12 @@ const OrdersPage = () => {
     load()
     void api.get('/tables').then((r) => setTables(r.data))
     void api.get('/menu-items').then((r) => setMenu(r.data))
+    void api.get('/schedule').then((r) => setSchedule(r.data)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000)
+    return () => clearInterval(timer)
   }, [])
 
   useOrderSocket(() => {
@@ -122,6 +133,43 @@ const OrdersPage = () => {
     
     return true
   })
+
+  const activeItemIds = useMemo(() => {
+    if (!schedule || schedule.length === 0) return new Set(menu.map(m => m.id))
+
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const today = days[currentTime.getDay()]
+    const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes()
+
+    const parseTime = (ts: string) => {
+      const match = ts.match(/(\d+):(\d+)\s*(AM|PM)/i)
+      if (!match) return null
+      let [, h, m, ampm] = match
+      let hours = parseInt(h, 10)
+      if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
+      if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0
+      return hours * 60 + parseInt(m, 10)
+    }
+
+    const activeIds = new Set<number>()
+
+    schedule.forEach(slot => {
+      if (!slot.activeDays.includes(today)) return
+      let isTimeActive = true
+      if (slot.time && !slot.time.toLowerCase().includes('all day')) {
+        const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
+        const startMins = parseTime(startStr || '')
+        const endMins = parseTime(endStr || '')
+        if (startMins !== null && endMins !== null) {
+          isTimeActive = currentMins >= startMins && currentMins <= endMins
+        }
+      }
+      if (isTimeActive) {
+        slot.items.forEach((i: any) => activeIds.add(i.id))
+      }
+    })
+    return activeIds
+  }, [schedule, menu, currentTime])
 
   const selectedTable = tables.find((t) => t.id === tableId)
   const remainingSeats = selectedTable
@@ -619,7 +667,7 @@ const getOrderStatus = (order: Order) => {
               
               {/* Menu Section */}
               <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
-                <div className="p-4 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+                <div className="p-4 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3">
                   <div className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
@@ -630,21 +678,42 @@ const getOrderStatus = (order: Order) => {
                       onChange={(e) => setMenuSearch(e.target.value)}
                     />
                   </div>
+                  {schedule.length > 0 && user?.role !== 'WAITER' && (
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 cursor-pointer w-fit">
+                      <input 
+                        type="checkbox" 
+                        checked={strictSchedule} 
+                        onChange={e => setStrictSchedule(e.target.checked)}
+                        className="accent-orange-600 w-4 h-4"
+                      />
+                      Show Available Now Only
+                    </label>
+                  )}
                 </div>
                 
                 <div className="flex-1 overflow-auto p-4 sm:p-6 pb-32 lg:pb-6">
                   <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {menu
-                    .filter((m) =>
-                      m.name.toLowerCase().includes(menuSearch.toLowerCase())
-                    )
+                    .filter((m) => {
+                      const matchesSearch = m.name.toLowerCase().includes(menuSearch.toLowerCase())
+                      const isScheduled = schedule.length === 0 || activeItemIds.has(m.id)
+                      const enforceStrict = user?.role === 'WAITER' ? true : strictSchedule
+                      return matchesSearch && (!enforceStrict || isScheduled)
+                    })
                     .map((m) => (
                       <div
                         key={m.id}
-                        className="group flex flex-col bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer"
-                        onClick={() => handleAddToCart(m)}
+                        className={`group flex flex-col bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-all ${
+                          !m.is_available ? 'opacity-50 grayscale-[50%] cursor-not-allowed' : 'cursor-pointer hover:shadow-lg'
+                        }`}
+                        onClick={() => m.is_available && handleAddToCart(m)}
                       >
                         <div className="h-28 sm:h-32 bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
+                          {!m.is_available && (
+                            <div className="absolute inset-0 bg-white/40 dark:bg-black/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                              <span className="bg-red-600 text-white text-[10px] font-black tracking-widest px-3 py-1 rounded-lg shadow-lg rotate-12">OUT OF STOCK</span>
+                            </div>
+                          )}
                           {m.image_url ? (
                             <img src={m.image_url} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                           ) : (
