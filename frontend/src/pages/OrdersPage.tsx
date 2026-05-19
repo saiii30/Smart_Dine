@@ -698,18 +698,19 @@ const getOrderStatus = (order: Order) => {
                       const matchesSearch = m.name.toLowerCase().includes(menuSearch.toLowerCase())
                       const isScheduled = schedule.length === 0 || activeItemIds.has(m.id)
                       const enforceStrict = user?.role === 'WAITER' ? true : strictSchedule
+                      
                       return matchesSearch && (!enforceStrict || isScheduled)
                     })
                     .map((m) => (
                       <div
                         key={m.id}
                         className={`group flex flex-col bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-all ${
-                          !m.is_available ? 'opacity-50 grayscale-[50%] cursor-not-allowed' : 'cursor-pointer hover:shadow-lg'
+                          m.is_available === false ? 'opacity-50 grayscale-[50%] cursor-not-allowed' : 'cursor-pointer hover:shadow-lg'
                         }`}
-                        onClick={() => m.is_available && handleAddToCart(m)}
+                        onClick={() => m.is_available !== false && handleAddToCart(m)}
                       >
                         <div className="h-28 sm:h-32 bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
-                          {!m.is_available && (
+                          {m.is_available === false && (
                             <div className="absolute inset-0 bg-white/40 dark:bg-black/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
                               <span className="bg-red-600 text-white text-[10px] font-black tracking-widest px-3 py-1 rounded-lg shadow-lg rotate-12">OUT OF STOCK</span>
                             </div>

@@ -6,7 +6,7 @@ import type { MenuItem } from '../types'
 import { Search, Clock, CalendarDays, X, GripVertical, Trash2 } from 'lucide-react'
 
 // --- DRAGGABLE MENU ITEM ---
-const DraggableItem = ({ item }: { item: MenuItem }) => {
+const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: number, currentStatus: boolean) => void }) => {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: `menu-item-${item.id}`,
     data: item,
@@ -28,6 +28,18 @@ const DraggableItem = ({ item }: { item: MenuItem }) => {
       <div className="flex-1">
         <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{item.name}</h4>
         <p className="text-xs text-slate-500">{item.category_name}</p>
+        <div className="flex items-center gap-2 mt-1">
+          {item.is_available === false && (
+            <span className="inline-block bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded">OUT OF STOCK</span>
+          )}
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onToggle(item.id, item.is_available !== false); }}
+            className="text-[10px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded transition-colors cursor-pointer relative z-[100]"
+          >
+            {item.is_available !== false ? 'Mark Out of Stock' : 'Mark Available'}
+          </button>
+        </div>
       </div>
       <div className="flex flex-col items-end">
         <span className="font-bold text-orange-600 text-sm">₹{item.price}</span>
@@ -116,6 +128,9 @@ const DroppableSlot = ({
                 <div>
                   <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{item.name}</p>
                   <p className="text-[10px] text-slate-500">{item.category_name}</p>
+                  {item.is_available === false && (
+                    <span className="inline-block mt-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded">OUT OF STOCK</span>
+                  )}
                 </div>
               </div>
               <button
@@ -155,6 +170,21 @@ export default function MenuScheduler() {
       }
     })
   }, [])
+
+  const toggleStock = async (id: number, currentStatus: boolean) => {
+    try {
+      const newStatus = !currentStatus
+      await api.patch(`/menu-items/${id}`, { is_available: newStatus })
+      setMenuPool(prev => prev.map(m => m.id === id ? { ...m, is_available: newStatus } : m))
+      setSlots(prev => prev.map(slot => ({
+        ...slot,
+        items: slot.items.map((m: MenuItem) => m.id === id ? { ...m, is_available: newStatus } : m)
+      })))
+      toast.success(newStatus ? 'Item marked as Available' : 'Item marked Out of Stock')
+    } catch (err) {
+      toast.error('Failed to update stock status')
+    }
+  }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -302,7 +332,7 @@ export default function MenuScheduler() {
             {/* Draggable Items List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {filteredMenu.map(item => (
-                <DraggableItem key={item.id} item={item} />
+                <DraggableItem key={item.id} item={item} onToggle={toggleStock} />
               ))}
               {filteredMenu.length === 0 && (
                 <div className="text-center text-slate-400 py-10 text-sm">

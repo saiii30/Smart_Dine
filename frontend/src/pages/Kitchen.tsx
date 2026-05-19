@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
+import { DndContext, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/core'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
-import type { Order } from '../types'
+import type { Order, MenuItem } from '../types'
 import { useOrderSocket } from '../hooks/useOrderSocket'
-import { Clock, ChefHat } from 'lucide-react'
+import { Clock, ChefHat, GripVertical } from 'lucide-react'
 
 const statusColor: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -14,9 +15,79 @@ const statusColor: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700',
 }
 
+// --- DRAG AND DROP COMPONENTS ---
+const DraggableMenuCard = ({ item }: { item: MenuItem }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `item-${item.id}`,
+    data: item,
+  })
+
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 100, opacity: 0.9 }
+    : undefined
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={`p-3 bg-white dark:bg-slate-800 border rounded-xl shadow-sm flex items-center justify-between cursor-grab active:cursor-grabbing transition-shadow ${isDragging ? 'shadow-xl border-orange-500' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}
+    >
+      <div>
+        <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">{item.name}</h3>
+        <p className="text-[10px] text-slate-500 uppercase">{item.category_name}</p>
+      </div>
+      <GripVertical className="w-4 h-4 text-slate-400" />
+    </div>
+  )
+}
+
+const DroppableColumn = ({ id, title, items, isAvailableCol }: { id: string, title: string, items: MenuItem[], isAvailableCol: boolean }) => {
+  const { isOver, setNodeRef } = useDroppable({ id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 flex flex-col transition-colors overflow-hidden ${
+        isOver ? (isAvailableCol ? 'bg-green-50 dark:bg-green-900/10' : 'bg-red-50 dark:bg-red-900/10') : ''
+      }`}
+    >
+      <div className={`p-3 border-b text-center font-bold text-sm tracking-widest uppercase ${isAvailableCol ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/40 dark:text-green-400 dark:border-green-800' : 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-400 dark:border-red-800'}`}>
+        {title} ({items.length})
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+        {items.map(item => (
+          <DraggableMenuCard key={item.id} item={item} />
+        ))}
+        {items.length === 0 && (
+          <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium text-center px-4 opacity-70">
+            Drag items here
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const Kitchen = () => {
   const [orders, setOrders] = useState<Order[]>([])
   const audio = useRef<HTMLAudioElement | null>(null)
+  const [showStockModal, setShowStockModal] = useState(false)
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [menuSearch, setMenuSearch] = useState('')
+  const [schedule, setSchedule] = useState<any[]>([])
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const loadMenu = useCallback(() => {
+    void api.get<MenuItem[]>('/menu-items').then((r) => setMenuItems(r.data))
+    void api.get('/schedule').then((r) => setSchedule(r.data)).catch(() => {})
+  }, [])
 
   const load = useCallback(() => {
     void api.get<Order[]>('/kitchen/orders').then((r) => setOrders(r.data))
@@ -25,6 +96,68 @@ const Kitchen = () => {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (showStockModal) loadMenu()
+  }, [showStockModal, loadMenu])
+
+  const activeItemIds = useMemo(() => {
+    if (!schedule || schedule.length === 0) return new Set(menuItems.map(m => m.id))
+
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const today = days[currentTime.getDay()]
+    const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes()
+
+    const parseTime = (ts: string) => {
+      const match = ts.match(/(\d+):(\d+)\s*(AM|PM)/i)
+      if (!match) return null
+      let [, h, m, ampm] = match
+      let hours = parseInt(h, 10)
+      if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
+      if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0
+      return hours * 60 + parseInt(m, 10)
+    }
+
+    const activeIds = new Set<number>()
+
+    schedule.forEach(slot => {
+      if (!slot.activeDays.includes(today)) return
+      let isTimeActive = true
+      if (slot.time && !slot.time.toLowerCase().includes('all day')) {
+        const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
+        const startMins = parseTime(startStr || '')
+        const endMins = parseTime(endStr || '')
+        if (startMins !== null && endMins !== null) {
+          isTimeActive = currentMins >= startMins && currentMins <= endMins
+        }
+      }
+      if (isTimeActive) {
+        slot.items.forEach((i: any) => activeIds.add(i.id))
+      }
+    })
+    return activeIds
+  }, [schedule, menuItems, currentTime])
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over) return
+
+    const item = active.data.current as MenuItem
+    const targetStatus = over.id === 'col-available' ? true : false
+
+    if ((item.is_available !== false) !== targetStatus) {
+      // Optimistic UI update
+      setMenuItems(prev => prev.map(m => m.id === item.id ? { ...m, is_available: targetStatus } : m))
+      try {
+        await api.patch(`/menu-items/${item.id}`, { is_available: targetStatus })
+        toast.success(targetStatus ? `${item.name} is Available` : `${item.name} is Out of Stock`)
+      } catch {
+        // Revert on failure
+        setMenuItems(prev => prev.map(m => m.id === item.id ? { ...m, is_available: !targetStatus } : m))
+        toast.error('Failed to update stock')
+      }
+    }
+  }
 
   useOrderSocket((msg: { event?: string; order_id?: number }) => {
     if (msg.event === 'order_created') {
@@ -77,8 +210,16 @@ const Kitchen = () => {
           </h1>
           <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Live Kitchen Display</p>
         </div>
-        <div className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-4 py-2 rounded-xl text-sm font-black shadow-sm border border-amber-200 dark:border-amber-800/50">
-          {orders.length} ACTIVE
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowStockModal(true)}
+            className="bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:scale-105 transition-transform"
+          >
+            Manage Stock
+          </button>
+          <div className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-4 py-2 rounded-xl text-sm font-black shadow-sm border border-amber-200 dark:border-amber-800/50">
+            {orders.length} ACTIVE
+          </div>
         </div>
       </div>
 
@@ -233,6 +374,57 @@ const Kitchen = () => {
           <p className="mt-2 text-slate-500">
             No active kitchen orders
           </p>
+        </div>
+      )}
+
+      {/* MANAGE STOCK MODAL */}
+      {showStockModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-4xl h-[85vh] flex flex-col rounded-3xl shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
+              <div>
+                <h2 className="text-xl font-bold">Manage Stock</h2>
+                <p className="text-xs text-slate-500 mt-1">Drag items to mark them Available or Out of Stock</p>
+              </div>
+              <button onClick={() => setShowStockModal(false)} className="text-slate-500 hover:text-red-500 font-bold px-3 py-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-lg transition-colors">Close ✕</button>
+            </div>
+            
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <input 
+                type="text" 
+                placeholder="Search active items..." 
+                value={menuSearch}
+                onChange={(e) => setMenuSearch(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <DndContext onDragEnd={handleDragEnd}>
+              <div className="flex-1 overflow-hidden p-4 flex flex-col md:flex-row gap-4 bg-slate-100 dark:bg-slate-950">
+                
+                {/* AVAILABLE COLUMN */}
+                <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border-2 border-green-200 dark:border-green-900/30 overflow-hidden shadow-sm">
+                  <DroppableColumn 
+                    id="col-available" 
+                    title="Available" 
+                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && (schedule.length === 0 || activeItemIds.has(m.id)) && m.is_available !== false))} 
+                    isAvailableCol={true} 
+                  />
+                </div>
+
+                {/* OUT OF STOCK COLUMN */}
+                <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border-2 border-red-200 dark:border-red-900/30 overflow-hidden shadow-sm">
+                  <DroppableColumn 
+                    id="col-out-of-stock" 
+                    title="Out of Stock" 
+                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && (schedule.length === 0 || activeItemIds.has(m.id)) && m.is_available === false))} 
+                    isAvailableCol={false} 
+                  />
+                </div>
+
+              </div>
+            </DndContext>
+          </div>
         </div>
       )}
     </div>

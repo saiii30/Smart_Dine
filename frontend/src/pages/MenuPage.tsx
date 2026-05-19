@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 const MenuPage = () => {
   const { user } = useAuth()
   const isStaff = user?.role === 'WAITER' || user?.role === 'KITCHEN'
+  const canToggle = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'KITCHEN'
 
   const [items, setItems] = useState<MenuItem[]>([])
   const [categories, setCategories] = useState<any[]>([])
@@ -172,12 +173,12 @@ const MenuPage = () => {
               <div className="absolute top-3 right-3">
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    m.is_available
+                    m.is_available !== false
                       ? 'bg-emerald-500 text-white'
                       : 'bg-red-500 text-white'
                   }`}
                 >
-                  {m.is_available
+                  {m.is_available !== false
                     ? 'Available'
                     : 'Unavailable'}
                 </span>
@@ -220,14 +221,14 @@ const MenuPage = () => {
                   </span>
                 </div>
 
-                {!isStaff && (
+                {canToggle && (
                   <button
                     type="button"
                     className="text-sm font-medium text-orange-600 hover:text-orange-700"
                     onClick={async (e) => {
                       e.stopPropagation()
                       try {
-                        const nv = !m.is_available
+                        const nv = m.is_available === false ? true : false
 
                         await api.patch(
                           `/menu-items/${m.id}`,

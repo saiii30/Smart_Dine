@@ -145,6 +145,7 @@ class ScheduleItemIn(BaseModel):
     category_name: str | None = None
     price: float
     is_veg: bool
+    is_available: bool | None = True
 
 class ScheduleSlotIn(BaseModel):
     id: str
@@ -171,7 +172,8 @@ def get_schedule(db: Session = Depends(get_db)):
                     "name": mi.name,
                     "category_name": mi.category.name if mi.category else None,
                     "price": mi.price,
-                    "is_veg": mi.is_veg
+                    "is_veg": mi.is_veg,
+                    "is_available": getattr(mi, "is_available", True)
                 })
         result.append({
             "id": s.id,

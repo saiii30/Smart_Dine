@@ -11,8 +11,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from app.database import engine, Base
+from app.database import engine, Base, SessionLocal
 from app import models  # noqa: F401 — register ORM mappers
 
 from app.routers import (
@@ -88,6 +89,28 @@ app.include_router(feedback.router, prefix="/api")
 app.include_router(public_customer.router, prefix="/api")
 app.include_router(insights.router, prefix="/api")
 app.include_router(ws_orders.router)
+
+
+def reset_menu_availability():
+    """Resets all out-of-stock items back to Available at Midnight."""
+    db = SessionLocal()
+    try:
+        # Find all items that are currently unavailable and reset them
+        db.query(models.MenuItem).filter(models.MenuItem.is_available == False).update({"is_available": True})
+        db.commit()
+        logger.info("12:00 AM Reset Complete: All Out-of-Stock items are back in stock!")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error resetting menu availability: {e}")
+    finally:
+        db.close()
+
+@app.on_event("startup")
+def start_scheduler():
+    scheduler = AsyncIOScheduler()
+    # Schedule the reset task to run exactly at midnight (00:00) every day
+    scheduler.add_job(reset_menu_availability, 'cron', hour=0, minute=0)
+    scheduler.start()
 
 
 @app.get("/")
