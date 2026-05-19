@@ -168,6 +168,13 @@ className={`absolute w-9 h-9 flex items-center justify-center transition-transfo
       toast.error("Cannot merge table with itself")
       return
     }
+
+    const isTargetOccupied = activeOrders?.some((o: any) => o.table_id === target.id)
+    if (occupied.size > 0 || isTargetOccupied) {
+      toast.error("Cannot merge occupied tables! Finish active orders first.")
+      return
+    }
+
     if (confirm(`Merge Table ${target.table_number} into Table ${table.table_number}?\nThis combines seats and deletes the old table.`)) {
       onMergeTables(table.id, target.id)
     }
@@ -412,6 +419,15 @@ export default function FloorPlan({
     }
 
     if (nearbyTable) {
+      const isSourceOccupied = activeOrders?.some((o: any) => o.table_id === table.id)
+      const isTargetOccupied = activeOrders?.some((o: any) => o.table_id === nearbyTable.id)
+      
+      if (isSourceOccupied || isTargetOccupied) {
+        toast.error("Cannot merge occupied tables! Finish active orders first.")
+        setLocalTables((prev) => prev.map((t) => (t.id === id ? { ...t, pos_x: table.pos_x || 0, pos_y: table.pos_y || 0 } : t)))
+        return
+      }
+
       setMergePrompt({
         deletedTableId: table.id,
         keptTableId: nearbyTable.id,
