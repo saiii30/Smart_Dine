@@ -12,6 +12,7 @@ import RoleRoute from './components/RoleRoute'
 import Dashboard from './pages/Dashboard'
 import Tables from './pages/Tables'
 import MenuPage from './pages/MenuPage'
+import MenuScheduler from './pages/MenuScheduler'
 import OrdersPage from './pages/OrdersPage'
 import Kitchen from './pages/Kitchen'
 import Billing from './pages/Billing'
@@ -46,6 +47,14 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="tables" element={<Tables />} />
                 <Route path="menu" element={<MenuPage />} />
+            <Route
+              path="menu-scheduler"
+              element={
+                <RoleRoute roles={['ADMIN', 'MANAGER']}>
+                  <MenuScheduler />
+                </RoleRoute>
+              }
+            />
                 <Route
                   path="orders"
                   element={
