@@ -7,8 +7,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from app import models, schemas
+from app import schedule_models
 from app.auth import get_current_active_user, require_roles
 from app.database import get_db
 
@@ -135,3 +137,68 @@ async def upload_menu_image(
     db.commit()
     db.refresh(m)
     return {"image_url": m.image_url}
+
+
+class ScheduleItemIn(BaseModel):
+    id: int
+    name: str
+    category_name: str | None = None
+    price: float
+    is_veg: bool
+
+class ScheduleSlotIn(BaseModel):
+    id: str
+    name: str
+    time: str
+    activeDays: list[str]
+    items: list[ScheduleItemIn]
+
+class ScheduleSaveIn(BaseModel):
+    slots: list[ScheduleSlotIn]
+
+@router.get("/schedule")
+def get_schedule(db: Session = Depends(get_db)):
+    slots = db.query(schedule_models.MenuSlot).all()
+    result = []
+    for s in slots:
+        items = db.query(schedule_models.MenuSlotItem).filter(schedule_models.MenuSlotItem.slot_id == s.id).all()
+        menu_items = []
+        for i in items:
+            mi = db.query(models.MenuItem).filter(models.MenuItem.id == i.menu_item_id).first()
+            if mi:
+                menu_items.append({
+                    "id": mi.id,
+                    "name": mi.name,
+                    "category_name": mi.category.name if mi.category else None,
+                    "price": mi.price,
+                    "is_veg": mi.is_veg
+                })
+        result.append({
+            "id": s.id,
+            "name": s.name,
+            "time": s.time_window,
+            "activeDays": s.active_days.split(",") if s.active_days else [],
+            "items": menu_items
+        })
+    return result
+
+@router.post("/schedule")
+def save_schedule(
+    body: ScheduleSaveIn,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_roles("ADMIN", "MANAGER")),
+):
+    db.query(schedule_models.MenuSlotItem).delete()
+    db.query(schedule_models.MenuSlot).delete()
+    for s in body.slots:
+        slot = schedule_models.MenuSlot(
+            id=s.id,
+            name=s.name,
+            time_window=s.time,
+            active_days=",".join(s.activeDays)
+        )
+        db.add(slot)
+        for i in s.items:
+            db.add(schedule_models.MenuSlotItem(slot_id=s.id, menu_item_id=i.id))
+    db.commit()
+    return {"ok": True}

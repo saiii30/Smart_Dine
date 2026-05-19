@@ -44,10 +44,12 @@ const DroppableSlot = ({
   slot,
   onRemoveItem,
   onToggleDay,
+  onDeleteSlot,
 }: {
   slot: any
   onRemoveItem: (slotId: string, itemId: number) => void
   onToggleDay: (slotId: string, day: string) => void
+  onDeleteSlot: (slotId: string) => void
 }) => {
   const { isOver, setNodeRef } = useDroppable({ id: slot.id })
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -66,9 +68,14 @@ const DroppableSlot = ({
             <Clock className="w-5 h-5 text-orange-600" />
             {slot.name}
           </h3>
-          <span className="px-3 py-1 bg-white dark:bg-slate-700 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-600">
-            {slot.time}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-white dark:bg-slate-700 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-600">
+              {slot.time}
+            </span>
+            <button onClick={() => onDeleteSlot(slot.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors" title="Delete Slot">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         
         {/* Repeat Days Selector */}
@@ -141,7 +148,12 @@ export default function MenuScheduler() {
   useEffect(() => {
     // Load master menu
     api.get<MenuItem[]>('/menu-items').then(r => setMenuPool(r.data))
-    // TODO: Later load saved slots from backend here
+    // Load saved slots
+    api.get('/schedule').then(r => {
+      if (r.data && r.data.length > 0) {
+        setSlots(r.data)
+      }
+    })
   }, [])
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -188,14 +200,36 @@ export default function MenuScheduler() {
     }))
   }
 
+  const addSlot = () => {
+    const name = prompt('Enter slot name (e.g. "Tuesday Specials" or "Friday Dinner"):')
+    if (!name) return
+    const time = prompt('Enter time window (e.g. "09:00 AM - 11:00 AM"):') || 'All Day'
+    
+    setSlots(prev => [...prev, {
+      id: `slot-${Date.now()}`,
+      name,
+      time,
+      activeDays: ['Tue'], // Default example, they can click to change
+      items: []
+    }])
+  }
+
+  const deleteSlot = (slotId: string) => {
+    if (confirm('Are you sure you want to delete this time slot?')) {
+      setSlots(prev => prev.filter(s => s.id !== slotId))
+    }
+  }
+
   const saveSchedule = async () => {
     setIsSaving(true)
-    // NOTE: This is a placeholder for your future backend endpoint
-    // await api.post('/menu-schedule', { slots })
-    setTimeout(() => {
+    try {
+      await api.post('/schedule', { slots })
       toast.success('Menu Schedule saved successfully!')
+    } catch (err) {
+      toast.error('Failed to save schedule')
+    } finally {
       setIsSaving(false)
-    }, 800)
+    }
   }
 
   const filteredMenu = menuPool.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.category_name?.toLowerCase().includes(search.toLowerCase()))
@@ -210,13 +244,21 @@ export default function MenuScheduler() {
             <h1 className="text-3xl font-bold tracking-tight">Menu Scheduler</h1>
             <p className="text-slate-500 mt-1 text-sm">Drag items to time slots. Select days for repeats.</p>
           </div>
-          <button
-            onClick={saveSchedule}
-            disabled={isSaving}
-            className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70"
-          >
-            {isSaving ? 'Saving...' : 'Save Schedule'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={addSlot}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold rounded-xl shadow-sm transition-all"
+            >
+              + Add Custom Slot
+            </button>
+            <button
+              onClick={saveSchedule}
+              disabled={isSaving}
+              className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70"
+            >
+              {isSaving ? 'Saving...' : 'Save Schedule'}
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
@@ -230,6 +272,7 @@ export default function MenuScheduler() {
                   slot={slot} 
                   onRemoveItem={removeItemFromSlot} 
                   onToggleDay={toggleDay}
+                  onDeleteSlot={deleteSlot}
                 />
               ))}
             </div>
