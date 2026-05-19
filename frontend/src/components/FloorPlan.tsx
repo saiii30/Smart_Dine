@@ -50,7 +50,6 @@ const VisualTable = ({
   const canPlaceOrder = userRole === 'WAITER' || userRole === 'MANAGER' || userRole === 'CASHIER'
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: table.id.toString(),
-    disabled: isStaff, // Prevent Waiters from dragging tables
   })
 
   const shape = table.shape || 'rectangle'
@@ -124,13 +123,23 @@ const VisualTable = ({
       chairs.push(
         <div
           key={`chair-${i}`}
-          className="absolute w-9 h-9 flex items-center justify-center transition-transform duration-300 drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)] z-20 group/chair pointer-events-auto cursor-pointer"
+className={`absolute w-9 h-9 flex items-center justify-center transition-transform duration-300 drop-shadow-[0_6px_6px_rgba(0,0,0,0.5)] z-20 group/chair pointer-events-auto ${
+  userRole === 'WAITER' ? 'cursor-pointer' : 'cursor-default'
+}`}
           style={{ top: chairY, left: chairX, transform: `rotate(${rotate}deg)` }}
           title={`Seat ${i + 1}${isOccupied ? ' (Occupied)' : ''}`}
           onClick={(e) => {
-            e.stopPropagation()
-            setSelectedSeats(prev => prev.includes(i) ? prev.filter(idx => idx !== i) : [...prev, i].sort((a, b) => a - b))
-          }}
+  e.stopPropagation()
+
+  // Only waiter can select seats
+  if (userRole !== 'WAITER') return
+
+  setSelectedSeats(prev =>
+    prev.includes(i)
+      ? prev.filter(idx => idx !== i)
+      : [...prev, i].sort((a, b) => a - b)
+  )
+}}
         >
           {/* Elegant SVG Top-Down Chair Icon */}
           <svg viewBox="0 0 64 64" className="w-full h-full overflow-visible pointer-events-none transition-colors duration-200">
@@ -165,7 +174,7 @@ const VisualTable = ({
   }
 
   return (
-    <div ref={setNodeRef} style={style} tabIndex={!isStaff ? 0 : undefined} className={`group z-10 hover:z-30 focus:z-30 outline-none ${!isStaff ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+    <div ref={setNodeRef} style={style} tabIndex={0} className={`group z-10 hover:z-30 focus:z-30 outline-none cursor-grab active:cursor-grabbing`}>
       {/* Table Surface */}
       <div
         {...listeners}
@@ -318,7 +327,7 @@ const VisualTable = ({
             {selectedSeats.length > 0 ? `New Order (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'New Order (Full Table)'}
           </button>
         )} */}
-        {!canPlaceOrder && (
+        {userRole === 'WAITER' && (
         <>
           {cap > occupied.size && (
             <button
