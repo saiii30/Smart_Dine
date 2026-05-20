@@ -102,33 +102,53 @@ const Kitchen = () => {
     if (!schedule || schedule.length === 0) return new Set(menuItems.map(m => m.id))
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const today = days[currentTime.getDay()]
+    const currentDayIdx = currentTime.getDay()
+    const today = days[currentDayIdx]
+    const yesterday = days[(currentDayIdx + 6) % 7]
     const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes()
 
     const parseTime = (ts: string) => {
-      const match = ts.match(/(\d+):(\d+)\s*(AM|PM)/i)
-      if (!match) return null
-      let [, h, m, ampm] = match
-      let hours = parseInt(h, 10)
-      if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
-      if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0
-      return hours * 60 + parseInt(m, 10)
+      const match12 = ts.match(/(\d+)(?:[:.](\d+))?\s*(AM|PM)/i)
+      if (match12) {
+          let [, h, m, ampm] = match12
+          let hours = parseInt(h, 10)
+          if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
+          if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0
+          return hours * 60 + parseInt(m || '0', 10)
+      }
+      const match24 = ts.match(/^(\d{1,2})[:.](\d{2})$/)
+      if (match24) {
+           let [, h, m] = match24
+           return parseInt(h, 10) * 60 + parseInt(m, 10)
+      }
+      return null
     }
 
     const activeIds = new Set<number>()
 
     schedule.forEach(slot => {
-      if (!slot.activeDays.includes(today)) return
-      let isTimeActive = true
+      let isTimeActive = false
       if (slot.time && !slot.time.toLowerCase().includes('all day')) {
         const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
         const startMins = parseTime(startStr || '')
         const endMins = parseTime(endStr || '')
         if (startMins !== null && endMins !== null) {
-          isTimeActive = currentMins >= startMins && currentMins <= endMins
+          if (startMins <= endMins) {
+            if (slot.activeDays?.includes(today)) {
+              isTimeActive = currentMins >= startMins && currentMins <= endMins
+            }
+          } else {
+            const activeTonight = slot.activeDays?.includes(today) && currentMins >= startMins;
+            const activeFromLastNight = slot.activeDays?.includes(yesterday) && currentMins <= endMins;
+            isTimeActive = activeTonight || activeFromLastNight;
+          }
+        }
+      } else {
+        if (slot.activeDays?.includes(today)) {
+          isTimeActive = true
         }
       }
-      if (isTimeActive) {
+      if (isTimeActive && slot.items) {
         slot.items.forEach((i: any) => activeIds.add(i.id))
       }
     })

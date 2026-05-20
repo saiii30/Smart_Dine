@@ -90,7 +90,7 @@ def update_menu_item(
     item_id: int,
     body: schemas.MenuItemUpdate,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_roles("ADMIN", "MANAGER")),
+    _: models.User = Depends(require_roles("ADMIN", "MANAGER", "KITCHEN")),
 ):
     m = db.query(models.MenuItem).filter(models.MenuItem.id == item_id).first()
     if not m:
