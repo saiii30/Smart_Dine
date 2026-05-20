@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { MenuItem } from '../types'
 import { useAuth } from '../contexts/AuthContext'
+import { autoAssignItemToSlots } from '../utils/scheduleUtils'
 
 const MenuPage = () => {
   const { user } = useAuth()
@@ -23,6 +24,7 @@ const MenuPage = () => {
     price: '',
     category_id: '',
     is_veg: false,
+    available_times: '',
   })
 
   const load = () => {
@@ -57,7 +59,7 @@ const MenuPage = () => {
         return
       }
 
-      await api.post('/menu-items', {
+      const response = await api.post('/menu-items', {
         name: form.name,
         description: form.description,
         price: Number(form.price),
@@ -65,6 +67,45 @@ const MenuPage = () => {
         is_veg: form.is_veg,
         is_available: true,
       })
+
+      const newMenuItem = response.data as MenuItem
+
+      if (form.available_times) {
+        const timeInput = form.available_times
+        const assignToast = toast.loading('Assigning to schedule...')
+
+        try {
+          const schedulePromise = api.get('/schedule');
+          const settingsPromise = api.get('/settings');
+          const [scheduleRes, settingsRes] = await Promise.all([schedulePromise, settingsPromise]);
+          
+          let currentSlots = scheduleRes.data
+          if (!currentSlots || currentSlots.length === 0) {
+            const settings = settingsRes.data;
+            currentSlots = [
+              { id: 'slot-1', name: 'Breakfast', time: settings.breakfast_time || '09:00 AM - 11:00 AM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] },
+              { id: 'slot-2', name: 'Lunch', time: settings.lunch_time || '12:00 PM - 04:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] },
+              { id: 'slot-3', name: 'Dinner', time: settings.dinner_time || '05:00 PM - 10:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] },
+            ];
+          }
+
+          const { newSlots, assignedSlotNames, hasChanges } = autoAssignItemToSlots(newMenuItem, timeInput, currentSlots)
+
+          if (hasChanges) {
+            await api.post('/schedule', { slots: newSlots })
+            toast.success(`Assigned to: ${assignedSlotNames.join(', ')}`, { id: assignToast })
+          } else {
+            if (assignedSlotNames.length > 0) {
+              toast.success(`${newMenuItem.name} already in schedule: ${assignedSlotNames.join(', ')}`, { id: assignToast })
+            } else {
+              toast.error('Could not auto-assign. Check time format.', { id: assignToast })
+            }
+          }
+
+        } catch (scheduleError) {
+          toast.error('Failed to update schedule.', { id: assignToast })
+        }
+      }
 
       toast.success('Menu added successfully')
 
@@ -76,6 +117,7 @@ const MenuPage = () => {
         price: '',
         category_id: '',
         is_veg: false,
+        available_times: '',
       })
 
       load()
@@ -306,6 +348,20 @@ const MenuPage = () => {
                 })
               }
               className="w-full h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
+            />
+
+            <input
+              type="text"
+              placeholder="Available Times (e.g., 7 AM - 11 PM)"
+              value={form.available_times}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  available_times: e.target.value,
+                })
+              }
+              className="w-full h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
+              title="Optional: Auto-assign to schedule slots like Breakfast, Lunch, Dinner"
             />
 
             <select

@@ -3,10 +3,11 @@ import { DndContext, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/c
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { MenuItem } from '../types'
-import { Search, Clock, CalendarDays, X, GripVertical, Trash2 } from 'lucide-react'
+import { Search, Clock, CalendarDays, X, GripVertical, Trash2, CalendarClock } from 'lucide-react'
+import { autoAssignItemToSlots } from '../utils/scheduleUtils'
 
 // --- DRAGGABLE MENU ITEM ---
-const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: number, currentStatus: boolean) => void }) => {
+const DraggableItem = ({ item, onToggle, onAutoAssign }: { item: MenuItem, onToggle: (id: number, currentStatus: boolean) => void, onAutoAssign: (item: MenuItem) => void }) => {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: `menu-item-${item.id}`,
     data: item,
@@ -39,6 +40,13 @@ const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: numb
           >
             {item.is_available !== false ? 'Mark Out of Stock' : 'Mark Available'}
           </button>
+          {/* <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onAutoAssign(item); }}
+            className="text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded transition-colors cursor-pointer relative z-[100] flex items-center gap-1"
+          >
+            <CalendarClock className="w-3 h-3" /> Set Time
+          </button> */}
         </div>
       </div>
       <div className="flex flex-col items-end">
@@ -272,6 +280,29 @@ export default function MenuScheduler() {
     }
   }
 
+  const handleAutoAssign = (item: MenuItem) => {
+    const input = prompt(`Enter available time for ${item.name} \n(e.g., "7 AM - 11 PM" or "7 am to 11 am"):`)
+    if (!input) return
+
+    const { newSlots, assignedSlotNames, hasChanges } = autoAssignItemToSlots(item, input, slots)
+
+    if (assignedSlotNames.length === 0 && !hasChanges) {
+      toast.error('Invalid time format or no matching slots found.')
+      return
+    }
+    
+    setSlots(newSlots)
+
+    if (assignedSlotNames.length > 0) {
+      toast.success(`Set for ${item.name}: ${assignedSlotNames.join(', ')}`)
+    } else {
+      toast.success(`${item.name} removed from non-matching slots.`)
+    }
+    if (hasChanges) {
+       toast('Remember to Save Schedule!', { icon: '⚠️' })
+    }
+  }
+
   const saveSchedule = async () => {
     setIsSaving(true)
     try {
@@ -358,7 +389,7 @@ export default function MenuScheduler() {
             {/* Draggable Items List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {filteredMenu.map(item => (
-                <DraggableItem key={item.id} item={item} onToggle={toggleStock} />
+                <DraggableItem key={item.id} item={item} onToggle={toggleStock} onAutoAssign={handleAutoAssign} />
               ))}
               {filteredMenu.length === 0 && (
                 <div className="text-center text-slate-400 py-10 text-sm">
