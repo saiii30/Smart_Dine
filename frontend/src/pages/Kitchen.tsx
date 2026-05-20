@@ -95,11 +95,8 @@ const Kitchen = () => {
 
   useEffect(() => {
     load()
-  }, [load])
-
-  useEffect(() => {
-    if (showStockModal) loadMenu()
-  }, [showStockModal, loadMenu])
+    loadMenu()
+  }, [load, loadMenu])
 
   const activeItemIds = useMemo(() => {
     if (!schedule || schedule.length === 0) return new Set(menuItems.map(m => m.id))
@@ -234,6 +231,14 @@ const Kitchen = () => {
           const partialReady = progress.readyCount > 0 && progress.readyCount < progress.totalCount
           const allServed = progress.servedCount === progress.totalCount
           
+          // Group items by category (Kitchen Section)
+          const groupedItems = visibleItems.reduce((acc, i) => {
+            const section = menuItems.find(m => m.id === i.menu_item_id)?.category_name || 'Other'
+            if (!acc[section]) acc[section] = []
+            acc[section].push(i)
+            return acc
+          }, {} as Record<string, typeof visibleItems>)
+
           return (
             <div
               key={o.id}
@@ -289,62 +294,74 @@ const Kitchen = () => {
                 />
               </div>
               
-              {/* ITEMS */}
-              <div className="space-y-2 text-sm">
-                {visibleItems.map((li) => (
-                  <div
-                    key={li.id}
-                    className={`border rounded-lg p-2 space-y-2 transition-all ${
-                      li.status === 'served'
-                        ? 'bg-gray-100 dark:bg-gray-800/50 border-gray-400'
-                        : li.status === 'ready'
-                        ? 'bg-green-100 dark:bg-green-900/30 border-green-400'
-                        : li.status === 'preparing'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400'
-                        : 'bg-white/50 dark:bg-slate-800/50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex-1">
-                        <div className="font-medium">{li.menu_item_name}</div>
-                        <div className="text-xs opacity-60">×{li.quantity}</div>
-                        {li.special_instructions && (
-                          <p className="text-xs text-slate-600 italic mt-1">
-                            Note: {li.special_instructions}
-                          </p>
-                        )}
+              {/* ITEMS GROUPED BY SECTION */}
+              <div className="space-y-3 text-sm">
+                {Object.entries(groupedItems).map(([section, items]) => (
+                  <div key={section} className="bg-slate-50/50 dark:bg-slate-800/20 rounded-xl p-2 border border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 px-3 py-1.5 rounded-lg flex items-center gap-2 font-black text-xs uppercase tracking-widest border border-orange-200 dark:border-orange-500/30 shadow-sm">
+                        <ChefHat className="w-4 h-4" /> {section}
                       </div>
-                      {li.status === 'ready' && (
-                        <span className="text-xs px-2 py-1 bg-green-500 text-white rounded font-semibold">
-                          ✓ READY
-                        </span>
-                      )}
-                      {li.status === 'served' && (
-                        <span className="text-xs px-2 py-1 bg-gray-600 text-white rounded font-semibold">
-                          ✓ SERVED
-                        </span>
-                      )}
+                      <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700 rounded-full" />
                     </div>
-                    
-                    {/* Item status buttons */}
-                    <div className="flex gap-1 flex-wrap">
-                      {['preparing', 'ready', 'served'].map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          className={`px-2 py-1 rounded text-xs capitalize font-medium transition-all ${
-                            li.status === s
-                              ? s === 'ready'
-                                ? 'bg-green-500 text-white'
-                                : s === 'served'
-                                ? 'bg-gray-600 text-white'
-                                : 'bg-blue-500 text-white'
-                              : 'bg-white/80 dark:bg-slate-700 border border-gray-300 hover:bg-gray-100'
+                    <div className="space-y-2">
+                      {items.map((li) => (
+                        <div
+                          key={li.id}
+                          className={`border rounded-lg p-2 space-y-2 transition-all ${
+                            li.status === 'served'
+                              ? 'bg-gray-100 dark:bg-gray-800/50 border-gray-400'
+                              : li.status === 'ready'
+                              ? 'bg-green-100 dark:bg-green-900/30 border-green-400'
+                              : li.status === 'preparing'
+                              ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400'
+                              : 'bg-white/50 dark:bg-slate-800/50'
                           }`}
-                          onClick={() => bump(o.id, li.id, s)}
                         >
-                          {s === 'ready' || s === 'served' ? '✓' : ''} {s}
-                        </button>
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex-1">
+                              <div className="font-medium">{li.menu_item_name}</div>
+                              <div className="text-xs opacity-60">×{li.quantity}</div>
+                              {li.special_instructions && (
+                                <p className="text-xs text-slate-600 italic mt-1">
+                                  Note: {li.special_instructions}
+                                </p>
+                              )}
+                            </div>
+                            {li.status === 'ready' && (
+                              <span className="text-xs px-2 py-1 bg-green-500 text-white rounded font-semibold">
+                                ✓ READY
+                              </span>
+                            )}
+                            {li.status === 'served' && (
+                              <span className="text-xs px-2 py-1 bg-gray-600 text-white rounded font-semibold">
+                                ✓ SERVED
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Item status buttons */}
+                          <div className="flex gap-1 flex-wrap">
+                            {['preparing', 'ready', 'served'].map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                className={`px-2 py-1 rounded text-xs capitalize font-medium transition-all ${
+                                  li.status === s
+                                    ? s === 'ready'
+                                      ? 'bg-green-500 text-white'
+                                      : s === 'served'
+                                      ? 'bg-gray-600 text-white'
+                                      : 'bg-blue-500 text-white'
+                                    : 'bg-white/80 dark:bg-slate-700 border border-gray-300 hover:bg-gray-100'
+                                }`}
+                                onClick={() => bump(o.id, li.id, s)}
+                              >
+                                {s === 'ready' || s === 'served' ? '✓' : ''} {s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
