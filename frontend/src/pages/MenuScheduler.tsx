@@ -231,7 +231,7 @@ export default function MenuScheduler() {
     setSlots(prevSlots => prevSlots.map(slot => {
       if (slot.id === slotId) {
         // Prevent duplicates in the same slot
-        if (slot.items.find(i => i.id === draggedItem.id)) {
+        if (slot.items.find((i: MenuItem) => i.id === draggedItem.id)) {
           toast.error(`${draggedItem.name} is already in ${slot.name}`)
           return slot
         }
@@ -245,7 +245,7 @@ export default function MenuScheduler() {
   const removeItemFromSlot = (slotId: string, itemId: number) => {
     setSlots(prevSlots => prevSlots.map(slot => {
       if (slot.id === slotId) {
-        return { ...slot, items: slot.items.filter(i => i.id !== itemId) }
+        return { ...slot, items: slot.items.filter((i: MenuItem) => i.id !== itemId) }
       }
       return slot
     }))
@@ -257,7 +257,7 @@ export default function MenuScheduler() {
         const hasDay = slot.activeDays.includes(day)
         return {
           ...slot,
-          activeDays: hasDay ? slot.activeDays.filter(d => d !== day) : [...slot.activeDays, day]
+          activeDays: hasDay ? slot.activeDays.filter((d: string) => d !== day) : [...slot.activeDays, day]
         }
       }
       return slot
