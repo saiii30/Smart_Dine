@@ -162,6 +162,10 @@ export default function MenuScheduler() {
   const [isSaving, setIsSaving] = useState(false)
   const [slots, setSlots] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  
+  const [timeModalItem, setTimeModalItem] = useState<MenuItem | null>(null)
+  const [timeStart, setTimeStart] = useState('')
+  const [timeEnd, setTimeEnd] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -281,26 +285,36 @@ export default function MenuScheduler() {
   }
 
   const handleAutoAssign = (item: MenuItem) => {
-    const input = prompt(`Enter available time for ${item.name} \n(e.g., "7 AM - 11 PM" or "7 am to 11 am"):`)
-    if (!input) return
+    setTimeStart('')
+    setTimeEnd('')
+    setTimeModalItem(item)
+  }
 
-    const { newSlots, assignedSlotNames, hasChanges } = autoAssignItemToSlots(item, input, slots)
+  const confirmAutoAssign = () => {
+    if (!timeStart || !timeEnd) {
+      toast.error('Please select both start and end times')
+      return
+    }
+
+    const input = `${timeStart} - ${timeEnd}`
+    const { newSlots, assignedSlotNames, hasChanges } = autoAssignItemToSlots(timeModalItem!, input, slots)
 
     if (assignedSlotNames.length === 0 && !hasChanges) {
-      toast.error('Invalid time format or no matching slots found.')
+      toast.error('No matching schedule slots found for this time.')
       return
     }
     
     setSlots(newSlots)
 
     if (assignedSlotNames.length > 0) {
-      toast.success(`Set for ${item.name}: ${assignedSlotNames.join(', ')}`)
+      toast.success(`Set for ${timeModalItem!.name}: ${assignedSlotNames.join(', ')}`)
     } else {
-      toast.success(`${item.name} removed from non-matching slots.`)
+      toast.success(`${timeModalItem!.name} removed from non-matching slots.`)
     }
     if (hasChanges) {
        toast('Remember to Save Schedule!', { icon: '⚠️' })
     }
+    setTimeModalItem(null)
   }
 
   const saveSchedule = async () => {
@@ -402,6 +416,32 @@ export default function MenuScheduler() {
 
         </div>
       </div>
+
+      {/* Time Picker Modal */}
+      {timeModalItem && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <h2 className="text-xl font-bold mb-1">Set Available Time</h2>
+            <p className="text-sm text-slate-500 mb-5">Auto-assign "{timeModalItem.name}" to matching schedule slots (e.g. Breakfast/Lunch).</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">Start Time</label>
+                <input type="time" value={timeStart} onChange={e => setTimeStart(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none focus:ring-2 focus:ring-orange-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">End Time</label>
+                <input type="time" value={timeEnd} onChange={e => setTimeEnd(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none focus:ring-2 focus:ring-orange-500" />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-2">
+              <button onClick={() => setTimeModalItem(null)} className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors">Cancel</button>
+              <button onClick={confirmAutoAssign} className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-medium shadow-md transition-colors">Assign to Schedule</button>
+            </div>
+          </div>
+        </div>
+      )}
     </DndContext>
   )
 }

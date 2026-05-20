@@ -24,7 +24,8 @@ const MenuPage = () => {
     price: '',
     category_id: '',
     is_veg: false,
-    available_times: '',
+    available_time_start: '',
+    available_time_end: '',
   })
 
   const load = () => {
@@ -70,8 +71,11 @@ const MenuPage = () => {
 
       const newMenuItem = response.data as MenuItem
 
-      if (form.available_times) {
-        const timeInput = form.available_times
+      const timeInput = (form.available_time_start && form.available_time_end) 
+        ? `${form.available_time_start} - ${form.available_time_end}` 
+        : ''
+
+      if (timeInput) {
         const assignToast = toast.loading('Assigning to schedule...')
 
         try {
@@ -117,7 +121,8 @@ const MenuPage = () => {
         price: '',
         category_id: '',
         is_veg: false,
-        available_times: '',
+        available_time_start: '',
+        available_time_end: '',
       })
 
       load()
@@ -350,19 +355,30 @@ const MenuPage = () => {
               className="w-full h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
             />
 
-            <input
-              type="text"
-              placeholder="Available Times (e.g., 7 AM - 11 PM)"
-              value={form.available_times}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  available_times: e.target.value,
-                })
-              }
-              className="w-full h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
-              title="Optional: Auto-assign to schedule slots like Breakfast, Lunch, Dinner"
-            />
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">Start Time (Optional)</label>
+                <input
+                  type="time"
+                  value={form.available_time_start}
+                  onChange={(e) =>
+                    setForm({ ...form, available_time_start: e.target.value })
+                  }
+                  className="w-full h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">End Time (Optional)</label>
+                <input
+                  type="time"
+                  value={form.available_time_end}
+                  onChange={(e) =>
+                    setForm({ ...form, available_time_end: e.target.value })
+                  }
+                  className="w-full h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
+                />
+              </div>
+            </div>
 
             <select
               value={form.category_id}

@@ -2,98 +2,218 @@ import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import { useAuth } from '../contexts/AuthContext'
-
-interface AppSettings {
-  breakfast_time?: string
-  lunch_time?: string
-  dinner_time?: string
-  [key: string]: any
-}
+ 
+// Helper to convert "HH:mm" (24h) to "HH:mm AM/PM"
+const formatTo12h = (time24: string): string => {
+  if (!time24) return '';
+  const [h, m] = time24.split(':');
+  let hours = parseInt(h, 10);
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+  return `${hours.toString().padStart(2, '0')}:${m} ${ampm}`;
+};
+ 
+// Helper to parse "HH:mm AM/PM - HH:mm AM/PM" into { start: "HH:mm", end: "HH:mm" }
+const parseRangeTo24h = (rangeStr?: string): { start: string; end: string } => {
+  if (!rangeStr) return { start: '', end: '' };
+  const parts = rangeStr.split('-').map(s => s.trim());
+  if (parts.length !== 2) return { start: '', end: '' };
+ 
+  const to24h = (timeStr: string): string => {
+    const match12 = timeStr.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i);
+    if (match12) {
+      let [, h, m, ampm] = match12;
+      let hours = parseInt(h, 10);
+      if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+      if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+      return `${hours.toString().padStart(2, '0')}:${(m || '00').padStart(2, '0')}`;
+    }
+    return ''; // Return empty if format is not recognized
+  };
+ 
+  return { start: to24h(parts[0]), end: to24h(parts[1]) };
+};
 
 const Settings = () => {
   const { user } = useAuth()
-  const [settings, setSettings] = useState<AppSettings>({})
+
+  const [timeInputs, setTimeInputs] = useState({
+    breakfast_start: '',
+    breakfast_end: '',
+    lunch_start: '',
+    lunch_end: '',
+    dinner_start: '',
+    dinner_end: '',
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get('/settings')
-      .then(res => setSettings(res.data))
+    api
+      .get('/settings')
+      .then((res) => {
+        const dbSettings = res.data;
+        
+        const breakfast = parseRangeTo24h(dbSettings.breakfast_time);
+        const lunch = parseRangeTo24h(dbSettings.lunch_time);
+        const dinner = parseRangeTo24h(dbSettings.dinner_time);
+
+        setTimeInputs({
+          breakfast_start: breakfast.start || dbSettings.breakfast_start || '',
+          breakfast_end: breakfast.end || dbSettings.breakfast_end || '',
+          lunch_start: lunch.start || dbSettings.lunch_start || '',
+          lunch_end: lunch.end || dbSettings.lunch_end || '',
+          dinner_start: dinner.start || dbSettings.dinner_start || '',
+          dinner_end: dinner.end || dbSettings.dinner_end || '',
+        })
+      })
       .finally(() => setLoading(false))
   }, [])
 
   const handleSave = async () => {
+    const payload = {
+      breakfast_time: timeInputs.breakfast_start && timeInputs.breakfast_end ? `${formatTo12h(timeInputs.breakfast_start)} - ${formatTo12h(timeInputs.breakfast_end)}` : '',
+      lunch_time: timeInputs.lunch_start && timeInputs.lunch_end ? `${formatTo12h(timeInputs.lunch_start)} - ${formatTo12h(timeInputs.lunch_end)}` : '',
+      dinner_time: timeInputs.dinner_start && timeInputs.dinner_end ? `${formatTo12h(timeInputs.dinner_start)} - ${formatTo12h(timeInputs.dinner_end)}` : '',
+    };
+
     try {
-      await api.post('/settings', settings)
-      toast.success('Settings saved!')
-    } catch {
+      await api.post('/settings', payload)
+      toast.success('Settings saved successfully!')
+    } catch (error) {
       toast.error('Failed to save settings.')
     }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setSettings(prev => ({ ...prev, [name]: value }))
+    setTimeInputs((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
   }
 
   const isAdmin = user?.role === 'ADMIN'
 
   return (
-    <div className="max-w-4xl space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-slate-500 mt-1">Manage global application settings.</p>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+          Settings
+        </h1>
+
+        <p className="text-slate-500 mt-1">
+          Manage global application settings.
+        </p>
       </div>
 
+      {/* Schedule Settings */}
       {isAdmin && (
-        <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-6">
-          <h2 className="text-xl font-bold">Menu Schedule Times</h2>
-          <p className="text-sm text-slate-500">
-            Set the default time windows for meal periods in the Menu Scheduler.
-            These are used if no schedule has been saved yet.
-          </p>
+        <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-6 shadow-sm">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              Menu Schedule Times
+            </h2>
+
+            <p className="text-sm text-slate-500 mt-1">
+              Configure meal time ranges used in the Menu Scheduler.
+            </p>
+          </div>
+
           {loading ? (
-            <p>Loading settings...</p>
+            <div className="text-sm text-slate-500">
+              Loading settings...
+            </div>
           ) : (
-            <div className="grid md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Breakfast Time</label>
-                <input
-                  type="text"
-                  name="breakfast_time"
-                  value={settings.breakfast_time || ''}
-                  onChange={handleInputChange}
-                  placeholder="e.g., 09:00 AM - 11:00 AM"
-                  className="w-full mt-2 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
-                />
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Breakfast */}
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Breakfast Time
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    name="breakfast_start"
+                    value={timeInputs.breakfast_start || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+
+                  <span className="text-slate-500">to</span>
+
+                  <input
+                    type="time"
+                    name="breakfast_end"
+                    value={timeInputs.breakfast_end || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Lunch Time</label>
-                <input
-                  type="text"
-                  name="lunch_time"
-                  value={settings.lunch_time || ''}
-                  onChange={handleInputChange}
-                  placeholder="e.g., 12:00 PM - 04:00 PM"
-                  className="w-full mt-2 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
-                />
+
+              {/* Lunch */}
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Lunch Time
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    name="lunch_start"
+                    value={timeInputs.lunch_start || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+
+                  <span className="text-slate-500">to</span>
+
+                  <input
+                    type="time"
+                    name="lunch_end"
+                    value={timeInputs.lunch_end || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Dinner Time</label>
-                <input
-                  type="text"
-                  name="dinner_time"
-                  value={settings.dinner_time || ''}
-                  onChange={handleInputChange}
-                  placeholder="e.g., 05:00 PM - 10:00 PM"
-                  className="w-full mt-2 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
-                />
+
+              {/* Dinner */}
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Dinner Time
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    name="dinner_start"
+                    value={timeInputs.dinner_start || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+
+                  <span className="text-slate-500">to</span>
+
+                  <input
+                    type="time"
+                    name="dinner_end"
+                    value={timeInputs.dinner_end || ''}
+                    onChange={handleInputChange}
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
               </div>
             </div>
           )}
+
+          {/* Save Button */}
           <div className="flex justify-end">
             <button
               onClick={handleSave}
-              className="px-5 py-2.5 rounded-xl bg-orange-600 text-white font-medium hover:bg-orange-700"
+              className="px-5 py-2.5 rounded-xl bg-orange-600 text-white font-medium hover:bg-orange-700 transition"
             >
               Save Schedule Times
             </button>
@@ -101,17 +221,35 @@ const Settings = () => {
         </div>
       )}
 
-      <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2">
-        <h2 className="text-xl font-bold">Environment Configuration</h2>
+      {/* Environment Configuration */}
+      <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3 shadow-sm">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+          Environment Configuration
+        </h2>
+
         <p className="text-sm opacity-80">
-          Configure <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">VITE_BACKEND_URL</code>,{' '}
-          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">CORS_ORIGINS</code>, and{' '}
-          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">FRONTEND_PUBLIC_URL</code> on the API for QR links and
-          WebSocket URLs.
+          Configure{' '}
+          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">
+            VITE_BACKEND_URL
+          </code>
+          ,{' '}
+          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">
+            CORS_ORIGINS
+          </code>{' '}
+          and{' '}
+          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">
+            FRONTEND_PUBLIC_URL
+          </code>{' '}
+          on the API for QR links and WebSocket URLs.
         </p>
+
         <p className="text-sm opacity-80">
-          Default GST-style tax on new orders is 5% (editable at billing). Multi-branch records use the{' '}
-          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">branches</code> table.
+          Default GST-style tax on new orders is 5% (editable at billing).
+          Multi-branch records use the{' '}
+          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">
+            branches
+          </code>{' '}
+          table.
         </p>
       </div>
     </div>

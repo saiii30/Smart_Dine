@@ -1,13 +1,24 @@
 import type { MenuItem } from '../types'
 
 const parseTime = (ts: string): number | null => {
-    const match = ts.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i)
-    if (!match) return null
-    let [, h, m, ampm] = match
-    let hours = parseInt(h, 10)
-    if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
-    if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0 // Midnight case
-    return hours * 60 + parseInt(m || '0', 10)
+    // Try 12-hour format first (e.g. "09:00 AM" from schedule slots)
+    const match12 = ts.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i)
+    if (match12) {
+        let [, h, m, ampm] = match12
+        let hours = parseInt(h, 10)
+        if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
+        if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0 // Midnight case
+        return hours * 60 + parseInt(m || '0', 10)
+    }
+    
+    // Try 24-hour format (e.g. "14:30" from native <input type="time">)
+    const match24 = ts.match(/^(\d{1,2}):(\d{2})$/)
+    if (match24) {
+         let [, h, m] = match24
+         return parseInt(h, 10) * 60 + parseInt(m, 10)
+    }
+    
+    return null
 }
 
 const isOverlap = (itemStart: number, itemEnd: number, slotStart: number, slotEnd: number): boolean => {
