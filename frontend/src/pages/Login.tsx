@@ -10,14 +10,22 @@ const Login = () => {
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
+  
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErr('')
     setLoading(true)
     try {
-      await login({ email, password })
-      nav('/dashboard')
+      const user = await login({ email, password })
+
+      if (user.role === 'WAITER') {
+        nav('/tables')
+      } else if (user.role === 'KITCHEN') {
+        nav('/kitchen')
+      } else {
+        nav('/dashboard')
+      }
     } catch {
       setErr('Invalid email or password')
     } finally {

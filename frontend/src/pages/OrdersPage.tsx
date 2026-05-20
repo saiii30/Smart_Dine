@@ -589,7 +589,7 @@ const getOrderStatus = (order: Order) => {
             {/* ADD ITEMS BUTTON */}
             <div className="flex gap-2 flex-wrap">
               
-              {o.status !== 'completed' && o.status !== 'cancelled' && (
+              {o.status !== 'completed' && o.status !== 'cancelled' && user?.role !== 'KITCHEN' && (
                 <button
                   onClick={async () => {
                     await api.patch(`/orders/${o.id}/status`, null, {
