@@ -23,9 +23,7 @@ const Billing = () => {
       .then((r) =>
         setOrders(
           r.data.filter(
-            (o) =>
-              o.status !== 'completed' &&
-              o.status !== 'cancelled'
+            (o) => o.status === 'served'
           )
         )
       )
