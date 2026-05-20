@@ -22,8 +22,25 @@ const parseTime = (ts: string): number | null => {
 }
 
 const isOverlap = (itemStart: number, itemEnd: number, slotStart: number, slotEnd: number): boolean => {
-    // This handles simple, non-overnight time ranges
-    return itemStart <= slotEnd && itemEnd >= slotStart
+    // Case 1: Neither interval wraps around midnight.
+    if (itemStart <= itemEnd && slotStart <= slotEnd) {
+        return itemStart <= slotEnd && itemEnd >= slotStart;
+    }
+    // Case 2: The item interval wraps, the slot interval does not.
+    if (itemStart > itemEnd && slotStart <= slotEnd) {
+        // Check if slot overlaps with the late part of item (itemStart to midnight) OR the early part of item (midnight to itemEnd)
+        return slotStart <= itemEnd || slotEnd >= itemStart;
+    }
+    // Case 3: The slot interval wraps, the item interval does not.
+    if (itemStart <= itemEnd && slotStart > slotEnd) {
+        // Check if item overlaps with the late part of slot (slotStart to midnight) OR the early part of slot (midnight to slotEnd)
+        return itemStart <= slotEnd || itemEnd >= slotStart;
+    }
+    // Case 4: Both intervals wrap around midnight. They must overlap.
+    if (itemStart > itemEnd && slotStart > slotEnd) {
+        return true;
+    }
+    return false; // Should not be reached
 }
 
 export const autoAssignItemToSlots = (

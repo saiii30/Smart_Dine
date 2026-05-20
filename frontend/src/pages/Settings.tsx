@@ -28,6 +28,11 @@ const parseRangeTo24h = (rangeStr?: string): { start: string; end: string } => {
       if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
       return `${hours.toString().padStart(2, '0')}:${(m || '00').padStart(2, '0')}`;
     }
+    // Handle if it's already in 24h format
+    const match24 = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (match24) {
+      return timeStr;
+    }
     return ''; // Return empty if format is not recognized
   };
  
@@ -58,12 +63,12 @@ const Settings = () => {
         const dinner = parseRangeTo24h(dbSettings.dinner_time);
 
         setTimeInputs({
-          breakfast_start: breakfast.start || dbSettings.breakfast_start || '',
-          breakfast_end: breakfast.end || dbSettings.breakfast_end || '',
-          lunch_start: lunch.start || dbSettings.lunch_start || '',
-          lunch_end: lunch.end || dbSettings.lunch_end || '',
-          dinner_start: dinner.start || dbSettings.dinner_start || '',
-          dinner_end: dinner.end || dbSettings.dinner_end || '',
+          breakfast_start: breakfast.start,
+          breakfast_end: breakfast.end,
+          lunch_start: lunch.start,
+          lunch_end: lunch.end,
+          dinner_start: dinner.start,
+          dinner_end: dinner.end,
         })
       })
       .finally(() => setLoading(false))

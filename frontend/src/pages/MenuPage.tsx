@@ -83,9 +83,23 @@ const MenuPage = () => {
           const settingsPromise = api.get('/settings');
           const [scheduleRes, settingsRes] = await Promise.all([schedulePromise, settingsPromise]);
           
+          const settings = settingsRes.data;
           let currentSlots = scheduleRes.data
-          if (!currentSlots || currentSlots.length === 0) {
-            const settings = settingsRes.data;
+          if (currentSlots && currentSlots.length > 0) {
+            // If a schedule exists, ensure its times are updated from settings, as they might be stale.
+            currentSlots = currentSlots.map((slot: any) => {
+              if (slot.name === 'Breakfast' && settings.breakfast_time) {
+                return { ...slot, time: settings.breakfast_time };
+              }
+              if (slot.name === 'Lunch' && settings.lunch_time) {
+                return { ...slot, time: settings.lunch_time };
+              }
+              if (slot.name === 'Dinner' && settings.dinner_time) {
+                return { ...slot, time: settings.dinner_time };
+              }
+              return slot;
+            });
+          } else {
             currentSlots = [
               { id: 'slot-1', name: 'Breakfast', time: settings.breakfast_time || '09:00 AM - 11:00 AM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] },
               { id: 'slot-2', name: 'Lunch', time: settings.lunch_time || '12:00 PM - 04:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] },
