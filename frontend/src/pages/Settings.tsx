@@ -83,6 +83,29 @@ const Settings = () => {
 
     try {
       await api.post('/settings', payload)
+
+      // Automatically sync the updated times to the Menu Scheduler slots
+      try {
+        const schedRes = await api.get('/schedule')
+        if (schedRes.data && schedRes.data.length > 0) {
+          const updatedSlots = schedRes.data.map((slot: any) => {
+            if (slot.name === 'Breakfast' && payload.breakfast_time) {
+              return { ...slot, time: payload.breakfast_time }
+            }
+            if (slot.name === 'Lunch' && payload.lunch_time) {
+              return { ...slot, time: payload.lunch_time }
+            }
+            if (slot.name === 'Dinner' && payload.dinner_time) {
+              return { ...slot, time: payload.dinner_time }
+            }
+            return slot
+          })
+          await api.post('/schedule', { slots: updatedSlots })
+        }
+      } catch (err) {
+        console.error('Failed to sync schedule slots:', err)
+      }
+
       toast.success('Settings saved successfully!')
     } catch (error) {
       toast.error('Failed to save settings.')
