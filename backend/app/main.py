@@ -32,6 +32,7 @@ from app.routers import (
     public_customer,
     ws_orders,
     insights,
+    settings,
 )
 
 load_dotenv(find_dotenv())
@@ -89,6 +90,7 @@ app.include_router(feedback.router, prefix="/api")
 app.include_router(public_customer.router, prefix="/api")
 app.include_router(insights.router, prefix="/api")
 app.include_router(ws_orders.router)
+app.include_router(settings.router, prefix="/api")
 
 
 def reset_menu_availability():

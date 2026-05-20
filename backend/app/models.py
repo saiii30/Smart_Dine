@@ -277,3 +277,10 @@ class Feedback(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     order = relationship("Order", back_populates="feedback")
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key = Column(String(64), primary_key=True, index=True)
+    value = Column(JSON, nullable=True)

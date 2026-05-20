@@ -152,23 +152,45 @@ export default function MenuScheduler() {
   const [menuPool, setMenuPool] = useState<MenuItem[]>([])
   const [search, setSearch] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-
-  // Mock Initial Time Slots (You will later load this from backend)
-  const [slots, setSlots] = useState([
-    { id: 'slot-1', name: 'Breakfast', time: '09:00 AM - 11:00 AM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
-    { id: 'slot-2', name: 'Lunch', time: '12:00 PM - 04:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
-    { id: 'slot-3', name: 'Dinner', time: '05:00 PM - 10:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
-  ])
+  const [slots, setSlots] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     // Load master menu
-    api.get<MenuItem[]>('/menu-items').then(r => setMenuPool(r.data))
-    // Load saved slots
-    api.get('/schedule').then(r => {
-      if (r.data && r.data.length > 0) {
-        setSlots(r.data)
+    const menuPromise = api.get<MenuItem[]>('/menu-items').then(r => setMenuPool(r.data));
+
+    // Load saved slots and settings
+    const schedulePromise = api.get('/schedule');
+    const settingsPromise = api.get('/settings');
+
+    Promise.all([menuPromise, schedulePromise, settingsPromise]).then(([, scheduleRes, settingsRes]) => {
+      const settings = settingsRes.data;
+      if (scheduleRes.data && scheduleRes.data.length > 0) {
+        const updatedSlots = scheduleRes.data.map((slot: any) => {
+          if (slot.name === 'Breakfast' && settings.breakfast_time) {
+            return { ...slot, time: settings.breakfast_time };
+          }
+          if (slot.name === 'Lunch' && settings.lunch_time) {
+            return { ...slot, time: settings.lunch_time };
+          }
+          if (slot.name === 'Dinner' && settings.dinner_time) {
+            return { ...slot, time: settings.dinner_time };
+          }
+          return slot;
+        });
+        setSlots(updatedSlots);
+      } else {
+        const defaultSlots = [
+          { id: 'slot-1', name: 'Breakfast', time: settings.breakfast_time || '09:00 AM - 11:00 AM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
+          { id: 'slot-2', name: 'Lunch', time: settings.lunch_time || '12:00 PM - 04:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
+          { id: 'slot-3', name: 'Dinner', time: settings.dinner_time || '05:00 PM - 10:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
+        ];
+        setSlots(defaultSlots);
       }
-    })
+    }).catch(() => {
+      toast.error("Failed to load schedule configuration.")
+    }).finally(() => setLoading(false));
   }, [])
 
   const toggleStock = async (id: number, currentStatus: boolean) => {
@@ -295,17 +317,21 @@ export default function MenuScheduler() {
           
           {/* LEFT/CENTER: Time Slots */}
           <div className="flex-[2] overflow-y-auto pr-2 custom-scrollbar">
-            <div className="grid md:grid-cols-2 gap-6 pb-10">
-              {slots.map(slot => (
-                <DroppableSlot 
-                  key={slot.id} 
-                  slot={slot} 
-                  onRemoveItem={removeItemFromSlot} 
-                  onToggleDay={toggleDay}
-                  onDeleteSlot={deleteSlot}
-                />
-              ))}
-            </div>
+            {loading ? (
+              <div className="flex items-center justify-center h-full text-slate-500">Loading schedule...</div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-6 pb-10">
+                {slots.map(slot => (
+                  <DroppableSlot 
+                    key={slot.id} 
+                    slot={slot} 
+                    onRemoveItem={removeItemFromSlot} 
+                    onToggleDay={toggleDay}
+                    onDeleteSlot={deleteSlot}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* RIGHT PANEL: Menu Pool */}
