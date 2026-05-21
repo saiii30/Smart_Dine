@@ -369,13 +369,29 @@ export default function MenuScheduler() {
     }))
   }
 
-  const removeItemFromSlot = (slotId: string, itemId: number) => {
+  const removeItemFromSlot = async (slotId: string, itemId: number) => {
+    if (!confirm('Are you sure you want to remove this item from the slot?')) return;
+
     setSlots(prevSlots => prevSlots.map(slot => {
       if (slot.id === slotId) {
         return { ...slot, items: slot.items.filter((i: MenuItem) => i.id !== itemId) }
       }
       return slot
     }))
+
+    const updatedSaved = savedSchedule.map(s => {
+       if (s.id === slotId) {
+          return { ...s, items: s.items.filter((i: MenuItem) => i.id !== itemId) };
+       }
+       return s;
+    });
+    setSavedSchedule(updatedSaved);
+    try {
+       await api.post('/schedule', { slots: updatedSaved });
+       toast.success('Item removed successfully');
+    } catch {
+       toast.error('Failed to update database');
+    }
   }
 
   const addSlot = async () => {
@@ -441,22 +457,81 @@ export default function MenuScheduler() {
     }
   }
 
-  const handleRemoveFromDb = async (slotId: string, itemId: number) => {
-    if (!confirm('Remove this item from the schedule?')) return;
-    const updated = savedSchedule.map(s => {
-       if (s.id === slotId) {
-          return { ...s, items: s.items.filter((i: MenuItem) => i.id !== itemId) };
-       }
-       return s;
-    });
-    
-    setSavedSchedule(updated);
-    
-    try {
-       await api.post('/schedule', { slots: updated });
-       toast.success('Item removed from schedule');
-    } catch {
-       toast.error('Failed to remove');
+  const handleRemoveFromDb = async (slotId: string, item: MenuItem) => {
+    let dayToRemove = viewDay;
+    if (dayToRemove === 'Today') {
+      dayToRemove = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+    }
+
+    if (viewDay === 'All Days') {
+      if (!confirm(`Remove ${item.name} from the schedule completely?`)) return;
+      const updated = savedSchedule.map(s => {
+         if (s.id === slotId) {
+            return { ...s, items: s.items.filter((i: MenuItem) => i.id !== item.id) };
+         }
+         return s;
+      });
+      
+      setSavedSchedule(updated);
+      
+      try {
+         await api.post('/schedule', { slots: updated });
+         toast.success(`${item.name} removed from schedule completely`);
+      } catch {
+         toast.error('Failed to remove');
+      }
+    } else {
+      if (!confirm(`Remove ${item.name} from ${dayToRemove}?`)) return;
+      
+      let desc = item.description || '';
+      let meta = { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], start: '', end: '' };
+      let baseDesc = desc;
+
+      if (desc.includes('|META|')) {
+         const parts = desc.split('|META|');
+         baseDesc = parts[0].trim();
+         try { meta = JSON.parse(parts[1]); } catch(e) {}
+         if (!meta.days || meta.days.length === 0) {
+             meta.days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+         }
+      }
+      
+      const newDays = meta.days.filter((d: string) => d !== dayToRemove);
+      meta.days = newDays;
+      
+      const newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
+
+      try {
+         await api.patch(`/menu-items/${item.id}`, { description: newDesc });
+         
+         const updated = savedSchedule.map(s => {
+            if (s.id === slotId) {
+               if (newDays.length === 0) {
+                   return { ...s, items: s.items.filter((i: MenuItem) => i.id !== item.id) };
+               } else {
+                   return { 
+                       ...s, 
+                       items: s.items.map((i: MenuItem) => i.id === item.id ? { ...i, description: newDesc } : i) 
+                   };
+               }
+            }
+            return s;
+         });
+
+         setSavedSchedule(updated);
+
+         if (newDays.length === 0) {
+             await api.post('/schedule', { slots: updated });
+             toast.success(`${item.name} removed completely (no days left)`);
+         } else {
+             toast.success(`${item.name} removed from ${dayToRemove}`);
+         }
+
+         setMenuPool(prev => prev.map(m => m.id === item.id ? { ...m, description: newDesc } : m));
+
+      } catch {
+         toast.error('Failed to update database');
+      }
     }
   }
 
@@ -654,9 +729,9 @@ export default function MenuScheduler() {
                             <div className="flex items-center gap-3">
                               <span className="font-black text-orange-600">₹{item.price}</span>
                               <button 
-                                onClick={() => handleRemoveFromDb(slot.id, item.id)}
+                                onClick={() => handleRemoveFromDb(slot.id, item)}
                                 className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
-                                title="Remove from schedule completely"
+                                title={viewDay === 'All Days' ? "Remove from schedule completely" : `Remove from ${viewDay === 'Today' ? today : viewDay}`}
                               >
                                 <X className="w-4 h-4" />
                               </button>
