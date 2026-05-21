@@ -133,11 +133,12 @@ const OrdersPage = () => {
     return true
   })
 
-  const activeItemIds = useMemo(() => {
-    if (!schedule || schedule.length === 0) return new Set<number>()
+  const { activeIds: activeItemIds, slotOosIds } = useMemo(() => {
+    if (!schedule || schedule.length === 0) return { activeIds: new Set<number>(), slotOosIds: new Set<number>() }
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     const today = days[currentTime.getDay()]
+    const yesterday = days[(currentTime.getDay() + 6) % 7]
     const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes()
 
     const parseTime = (ts: string) => {
@@ -160,6 +161,7 @@ const OrdersPage = () => {
     }
 
     const activeIds = new Set<number>()
+    const slotOosIds = new Set<number>()
 
     schedule.forEach(slot => {
       slot.items.forEach((i: any) => {
@@ -176,33 +178,55 @@ const OrdersPage = () => {
            } catch(e) {}
         }
 
-        if (!itemDays.includes(today)) return;
-
-        let isTimeActive = false;
-        let timeToParse = slot.time;
-        if (itemStart && itemEnd) {
-           timeToParse = `${itemStart} - ${itemEnd}`;
-        }
-
-        if (timeToParse && !timeToParse.toLowerCase().includes('all day')) {
-           const [startStr, endStr] = timeToParse.split('-').map((s: string) => s.trim())
+        let isSlotTimeActive = false;
+        if (slot.time && !slot.time.toLowerCase().includes('all day')) {
+           const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
            const startMins = parseTime(startStr || '')
            const endMins = parseTime(endStr || '')
            if (startMins !== null && endMins !== null) {
               if (startMins <= endMins) {
-                 isTimeActive = currentMins >= startMins && currentMins <= endMins
+                 isSlotTimeActive = currentMins >= startMins && currentMins <= endMins
               } else {
-                 isTimeActive = currentMins >= startMins || currentMins <= endMins
+                 isSlotTimeActive = currentMins >= startMins || currentMins <= endMins
               }
            }
         } else {
-           isTimeActive = true;
+           isSlotTimeActive = true;
         }
 
-        if (isTimeActive) activeIds.add(i.id)
+        let isItemActive = false;
+        const itemTimeStr = (itemStart && itemEnd) ? `${itemStart} - ${itemEnd}` : '';
+        if (!itemTimeStr) {
+            isItemActive = itemDays.includes(today);
+        } else {
+            const startMins = parseTime(itemStart);
+            const endMins = parseTime(itemEnd);
+            if (startMins !== null && endMins !== null) {
+                if (startMins <= endMins) {
+                    isItemActive = itemDays.includes(today) && currentMins >= startMins && currentMins <= endMins;
+                } else {
+                    const activeTonight = itemDays.includes(today) && currentMins >= startMins;
+                    const activeFromLastNight = itemDays.includes(yesterday) && currentMins <= endMins;
+                    isItemActive = activeTonight || activeFromLastNight;
+                }
+            } else {
+                isItemActive = itemDays.includes(today);
+            }
+        }
+
+        if (isSlotTimeActive && isItemActive) {
+           activeIds.add(i.id)
+           const key = `${today}_${slot.name}`;
+           if (i.description && i.description.includes('|META|')) {
+              try {
+                  const meta = JSON.parse(i.description.split('|META|')[1]);
+                  if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
+              } catch(e) {}
+           }
+        }
       })
     })
-    return activeIds
+    return { activeIds, slotOosIds }
   }, [schedule, menu, currentTime])
 
   const selectedTable = tables.find((t) => t.id === tableId)
@@ -723,16 +747,20 @@ const getOrderStatus = (order: Order) => {
                       
                       return matchesSearch && isScheduled
                     })
-                    .map((m) => (
+                    .map((m) => {
+                      const isGlobalOos = m.is_available === false;
+                      const isSlotOos = slotOosIds.has(m.id);
+                      const isOos = isGlobalOos || isSlotOos;
+                      return (
                       <div
                         key={m.id}
                         className={`group flex flex-col bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-all ${
-                          m.is_available === false ? 'opacity-50 grayscale-[50%] cursor-not-allowed' : 'cursor-pointer hover:shadow-lg'
+                          isOos ? 'opacity-50 grayscale-[50%] cursor-not-allowed' : 'cursor-pointer hover:shadow-lg'
                         }`}
-                        onClick={() => m.is_available !== false && handleAddToCart(m)}
+                        onClick={() => !isOos && handleAddToCart(m)}
                       >
                         <div className="h-28 sm:h-32 bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
-                          {m.is_available === false && (
+                          {isOos && (
                             <div className="absolute inset-0 bg-white/40 dark:bg-black/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
                               <span className="bg-red-600 text-white text-[10px] font-black tracking-widest px-3 py-1 rounded-lg shadow-lg rotate-12">OUT OF STOCK</span>
                             </div>
@@ -758,7 +786,7 @@ const getOrderStatus = (order: Order) => {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
               </div>

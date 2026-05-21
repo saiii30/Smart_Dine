@@ -99,8 +99,8 @@ const Kitchen = () => {
     loadMenu()
   }, [load, loadMenu])
 
-  const activeItemIds = useMemo(() => {
-    if (!schedule || schedule.length === 0) return new Set<number>()
+  const { activeIds: activeItemIds, slotOosIds } = useMemo(() => {
+    if (!schedule || schedule.length === 0) return { activeIds: new Set<number>(), slotOosIds: new Set<number>() }
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     const currentDayIdx = currentTime.getDay()
@@ -126,6 +126,7 @@ const Kitchen = () => {
     }
 
     const activeIds = new Set<number>()
+    const slotOosIds = new Set<number>()
 
     schedule.forEach(slot => {
       slot.items.forEach((i: any) => {
@@ -142,37 +143,55 @@ const Kitchen = () => {
            } catch(e) {}
         }
 
-        let isTimeActive = false;
-        let timeToParse = slot.time;
-        if (itemStart && itemEnd) {
-           timeToParse = `${itemStart} - ${itemEnd}`;
-        }
-
-        if (timeToParse && !timeToParse.toLowerCase().includes('all day')) {
-           const [startStr, endStr] = timeToParse.split('-').map((s: string) => s.trim())
+        let isSlotTimeActive = false;
+        if (slot.time && !slot.time.toLowerCase().includes('all day')) {
+           const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
            const startMins = parseTime(startStr || '')
            const endMins = parseTime(endStr || '')
            if (startMins !== null && endMins !== null) {
               if (startMins <= endMins) {
-                 if (itemDays.includes(today)) {
-                    isTimeActive = currentMins >= startMins && currentMins <= endMins
-                 }
+                 isSlotTimeActive = currentMins >= startMins && currentMins <= endMins
               } else {
-                 const activeTonight = itemDays.includes(today) && currentMins >= startMins;
-                 const activeFromLastNight = itemDays.includes(yesterday) && currentMins <= endMins;
-                 isTimeActive = activeTonight || activeFromLastNight;
+                 isSlotTimeActive = currentMins >= startMins || currentMins <= endMins
               }
            }
         } else {
-           if (itemDays.includes(today)) {
-              isTimeActive = true
-           }
+           isSlotTimeActive = true;
         }
 
-        if (isTimeActive) activeIds.add(i.id)
+        let isItemActive = false;
+        const itemTimeStr = (itemStart && itemEnd) ? `${itemStart} - ${itemEnd}` : '';
+        if (!itemTimeStr) {
+            isItemActive = itemDays.includes(today);
+        } else {
+            const startMins = parseTime(itemStart);
+            const endMins = parseTime(itemEnd);
+            if (startMins !== null && endMins !== null) {
+                if (startMins <= endMins) {
+                    isItemActive = itemDays.includes(today) && currentMins >= startMins && currentMins <= endMins;
+                } else {
+                    const activeTonight = itemDays.includes(today) && currentMins >= startMins;
+                    const activeFromLastNight = itemDays.includes(yesterday) && currentMins <= endMins;
+                    isItemActive = activeTonight || activeFromLastNight;
+                }
+            } else {
+                isItemActive = itemDays.includes(today);
+            }
+        }
+
+        if (isSlotTimeActive && isItemActive) {
+           activeIds.add(i.id)
+           const key = `${today}_${slot.name}`;
+           if (i.description && i.description.includes('|META|')) {
+              try {
+                  const meta = JSON.parse(i.description.split('|META|')[1]);
+                  if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
+              } catch(e) {}
+           }
+        }
       })
     })
-    return activeIds
+    return { activeIds, slotOosIds }
   }, [schedule, menuItems, currentTime])
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -182,17 +201,128 @@ const Kitchen = () => {
     const item = active.data.current as MenuItem
     const targetStatus = over.id === 'col-available' ? true : false
 
-    if ((item.is_available !== false) !== targetStatus) {
-      // Optimistic UI update
-      setMenuItems(prev => prev.map(m => m.id === item.id ? { ...m, is_available: targetStatus } : m))
-      try {
-        await api.patch(`/menu-items/${item.id}`, { is_available: targetStatus })
-        toast.success(targetStatus ? `${item.name} is Available` : `${item.name} is Out of Stock`)
-      } catch {
-        // Revert on failure
-        setMenuItems(prev => prev.map(m => m.id === item.id ? { ...m, is_available: !targetStatus } : m))
-        toast.error('Failed to update stock')
+    let newDesc = item.description || '';
+    let meta: any = { days: [], start: '', end: '', oos: [] };
+    let baseDesc = newDesc;
+
+    if (newDesc.includes('|META|')) {
+        try {
+            const parts = newDesc.split('|META|');
+            baseDesc = parts[0].trim();
+            meta = JSON.parse(parts[1]);
+            if (!meta.oos) meta.oos = [];
+        } catch(e) {}
+    } else {
+        meta.oos = [];
+    }
+
+    const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+    
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const currentDayIdx = currentTime.getDay()
+    const today = days[currentDayIdx]
+    const yesterday = days[(currentDayIdx + 6) % 7]
+    const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes()
+
+    const parseTime = (ts: string) => {
+      const match12 = ts.match(/(\d+)(?:[:.](\d+))?\s*(AM|PM)/i)
+      if (match12) {
+          let [, h, m, ampm] = match12
+          let hours = parseInt(h, 10)
+          if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
+          if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0
+          return hours * 60 + parseInt(m || '0', 10)
       }
+      const match24 = ts.match(/^(\d{1,2})[:.](\d{2})$/)
+      if (match24) {
+           let [, h, m] = match24
+           return parseInt(h, 10) * 60 + parseInt(m, 10)
+      }
+      return null
+    }
+
+    const activeSlotsForThisItem = schedule.filter(slot => {
+        if (!slot.items.some((i: any) => i.id === item.id)) return false;
+        
+        let itemDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        let itemStart = ''
+        let itemEnd = ''
+
+        if (item.description && item.description.includes('|META|')) {
+           try {
+             const m = JSON.parse(item.description.split('|META|')[1]);
+             if (m.days && m.days.length > 0) itemDays = m.days;
+             if (m.start) itemStart = m.start;
+             if (m.end) itemEnd = m.end;
+           } catch(e) {}
+        }
+
+        let isSlotTimeActive = false;
+        if (slot.time && !slot.time.toLowerCase().includes('all day')) {
+           const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
+           const startMins = parseTime(startStr || '')
+           const endMins = parseTime(endStr || '')
+           if (startMins !== null && endMins !== null) {
+              if (startMins <= endMins) {
+                 isSlotTimeActive = currentMins >= startMins && currentMins <= endMins
+              } else {
+                 isSlotTimeActive = currentMins >= startMins || currentMins <= endMins
+              }
+           }
+        } else {
+           isSlotTimeActive = true;
+        }
+
+        let isItemActive = false;
+        const itemTimeStr = (itemStart && itemEnd) ? `${itemStart} - ${itemEnd}` : '';
+        if (!itemTimeStr) {
+            isItemActive = itemDays.includes(today);
+        } else {
+            const startMins = parseTime(itemStart);
+            const endMins = parseTime(itemEnd);
+            if (startMins !== null && endMins !== null) {
+                if (startMins <= endMins) {
+                    isItemActive = itemDays.includes(today) && currentMins >= startMins && currentMins <= endMins;
+                } else {
+                    const activeTonight = itemDays.includes(today) && currentMins >= startMins;
+                    const activeFromLastNight = itemDays.includes(yesterday) && currentMins <= endMins;
+                    isItemActive = activeTonight || activeFromLastNight;
+                }
+            } else {
+                isItemActive = itemDays.includes(today);
+            }
+        }
+        return isSlotTimeActive && isItemActive;
+    });
+
+    if (targetStatus) {
+        activeSlotsForThisItem.forEach(s => {
+            const key = `${todayStr}_${s.name}`;
+            meta.oos = meta.oos.filter((k: string) => k !== key);
+        });
+    } else {
+        activeSlotsForThisItem.forEach(s => {
+            const key = `${todayStr}_${s.name}`;
+            if (!meta.oos.includes(key)) meta.oos.push(key);
+        });
+    }
+
+    newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
+
+    const globalStatus = targetStatus ? true : item.is_available; 
+
+    if (item.description === newDesc && item.is_available === globalStatus) return;
+
+    // Optimistic UI update
+    setMenuItems(prev => prev.map(m => m.id === item.id ? { ...m, is_available: globalStatus, description: newDesc } : m))
+    try {
+      await api.patch(`/menu-items/${item.id}`, { is_available: globalStatus, description: newDesc })
+      toast.success(targetStatus ? `${item.name} is Available` : `${item.name} is Out of Stock for current slot`)
+      loadMenu()
+    } catch {
+      // Revert on failure
+      setMenuItems(prev => prev.map(m => m.id === item.id ? { ...m, is_available: item.is_available, description: item.description } : m))
+      toast.error('Failed to update stock')
     }
   }
 
@@ -493,7 +623,7 @@ const Kitchen = () => {
                   <DroppableColumn 
                     id="col-available" 
                     title="Available" 
-                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && activeItemIds.has(m.id) && m.is_available !== false))} 
+                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && activeItemIds.has(m.id) && m.is_available !== false && !slotOosIds.has(m.id)))} 
                     isAvailableCol={true} 
                   />
                 </div>
@@ -503,7 +633,7 @@ const Kitchen = () => {
                   <DroppableColumn 
                     id="col-out-of-stock" 
                     title="Out of Stock" 
-                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && activeItemIds.has(m.id) && m.is_available === false))} 
+                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && activeItemIds.has(m.id) && (m.is_available === false || slotOosIds.has(m.id))))} 
                     isAvailableCol={false} 
                   />
                 </div>

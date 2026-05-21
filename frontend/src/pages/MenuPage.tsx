@@ -64,7 +64,19 @@ const MenuPage = () => {
         return
       }
 
-      const meta = { days: selectedDays, start: form.available_time_start, end: form.available_time_end };
+      let existingOos: string[] = [];
+      if (editId) {
+          const m = items.find(i => i.id === editId);
+          if (m && m.description && m.description.includes('|META|')) {
+              try {
+                  const parsed = JSON.parse(m.description.split('|META|')[1]);
+                  if (parsed.oos) existingOos = parsed.oos;
+              } catch(e) {}
+          }
+      }
+
+      const meta: any = { days: selectedDays, start: form.available_time_start, end: form.available_time_end };
+      if (existingOos.length > 0) meta.oos = existingOos;
       const baseDesc = form.description.split('|META|')[0].trim();
       const finalDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
 

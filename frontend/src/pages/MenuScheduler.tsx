@@ -6,7 +6,7 @@ import type { MenuItem } from '../types'
 import { Search, Clock, X, GripVertical, Trash2, CalendarDays } from 'lucide-react'
 
 // --- DRAGGABLE MENU ITEM ---
-const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: number, currentStatus: boolean) => void }) => {
+const DraggableItem = ({ item }: { item: MenuItem }) => {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: `menu-item-${item.id}`,
     data: item,
@@ -54,18 +54,6 @@ const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: numb
         <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{item.name}</h4>
         <p className="text-xs text-slate-500">{item.category_name}</p>
         {restrictions && <p className="text-[10px] text-orange-600 font-bold mt-0.5 bg-orange-50 dark:bg-orange-900/20 w-fit px-1.5 py-0.5 rounded">{restrictions}</p>}
-        <div className="flex items-center gap-2 mt-1">
-          {item.is_available === false && (
-            <span className="inline-block bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded">OUT OF STOCK</span>
-          )}
-          <button
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onToggle(item.id, item.is_available !== false); }}
-            className="text-[10px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded transition-colors cursor-pointer relative z-[100]"
-          >
-            {item.is_available !== false ? 'Mark Out of Stock' : 'Mark Available'}
-          </button>
-        </div>
       </div>
       <div className="flex flex-col items-end">
         <span className="font-bold text-orange-600 text-sm">₹{item.price}</span>
@@ -147,24 +135,26 @@ const DroppableSlot = ({
                } catch(e) {}
             }
             return (
-            <div key={`${item.id}-${idx}`} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-md bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-sm">
+            <div key={`${item.id}-${idx}`} className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className="w-8 h-8 shrink-0 rounded-md bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-sm mt-0.5">
                   {item.is_veg ? '🥗' : '🍗'}
                 </div>
-                <div>
-                  <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{item.name}</p>
-                  <p className="text-[10px] text-slate-500">{item.category_name}</p>
-                  {restrictions && <p className="text-[9px] text-orange-600 font-bold mt-0.5 bg-orange-50 dark:bg-orange-900/20 w-fit px-1 py-0.5 rounded">{restrictions}</p>}
-                  {item.is_available === false && (
-                    <span className="inline-block mt-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded">OUT OF STOCK</span>
-                  )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
+                  <p className="text-[10px] text-slate-500 truncate">{item.category_name}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {restrictions && <p className="text-[9px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 w-fit px-1 py-0.5 rounded">{restrictions}</p>}
+                    {item.is_available === false && (
+                      <span className="text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold px-1.5 py-0.5 rounded">OUT OF STOCK</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <button
                 onClick={() => onRemoveItem(slot.id, item.id)}
-                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
-                title="Remove from slot (e.g. if unavailable in Kitchen)"
+                className="shrink-0 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
+                title="Remove from slot"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -243,20 +233,59 @@ export default function MenuScheduler() {
     }).finally(() => setLoading(false));
   }, [])
 
-  const toggleStock = async (id: number, currentStatus: boolean) => {
+  const toggleSlotStock = async (item: MenuItem, slotName: string) => {
+    if (item.is_available === false) {
+         toast.error('Item is marked Out of Stock globally. Make it available in Kitchen first.');
+         return;
+    }
+
+    let desc = item.description || '';
+    let meta: any = { days: [], start: '', end: '', oos: [] };
+    let baseDesc = desc;
+
+    if (desc.includes('|META|')) {
+       const parts = desc.split('|META|');
+       baseDesc = parts[0].trim();
+       try { meta = JSON.parse(parts[1]); } catch(e) {}
+       if (!meta.oos) meta.oos = [];
+    }
+
+    let daysToApply = [viewDay];
+    if (viewDay === 'All Days') {
+        daysToApply = meta.days && meta.days.length > 0 ? meta.days : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    } else if (viewDay === 'Today') {
+        daysToApply = [today];
+    }
+
+    let isCurrentlyOOS = false;
+    if (viewDay === 'All Days') {
+        isCurrentlyOOS = daysToApply.every(d => meta.oos.includes(`${d}_${slotName}`));
+    } else {
+        isCurrentlyOOS = meta.oos.includes(`${daysToApply[0]}_${slotName}`);
+    }
+
+    const markOOS = !isCurrentlyOOS;
+
+    daysToApply.forEach(d => {
+        const key = `${d}_${slotName}`;
+        if (markOOS) {
+            if (!meta.oos.includes(key)) meta.oos.push(key);
+        } else {
+            meta.oos = meta.oos.filter((k: string) => k !== key);
+        }
+    });
+
+    const newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
+
     try {
-      const newStatus = !currentStatus
-      await api.patch(`/menu-items/${id}`, { is_available: newStatus })
-      setMenuPool(prev => prev.map(m => m.id === id ? { ...m, is_available: newStatus } : m))
-      setSlots(prev => prev.map(slot => ({
-        ...slot,
-        items: slot.items.map((m: MenuItem) => m.id === id ? { ...m, is_available: newStatus } : m)
-      })))
-      setSavedSchedule(prev => prev.map(slot => ({
-        ...slot,
-        items: slot.items.map((m: MenuItem) => m.id === id ? { ...m, is_available: newStatus } : m)
-      })))
-      toast.success(newStatus ? 'Item marked as Available' : 'Item marked Out of Stock')
+      await api.patch(`/menu-items/${item.id}`, { description: newDesc })
+      
+      const updateItem = (i: MenuItem) => i.id === item.id ? { ...i, description: newDesc } : i;
+      setSavedSchedule(prev => prev.map(s => ({ ...s, items: s.items.map(updateItem) })));
+      setSlots(prev => prev.map(s => ({ ...s, items: s.items.map(updateItem) })));
+      setMenuPool(prev => prev.map(updateItem));
+
+      toast.success(markOOS ? `Marked Out of Stock for ${viewDay}` : `Marked Available for ${viewDay}`);
     } catch (err) {
       toast.error('Failed to update stock status')
     }
@@ -608,7 +637,7 @@ export default function MenuScheduler() {
             {/* Draggable Items List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {filteredMenu.map(item => (
-                <DraggableItem key={item.id} item={item} onToggle={toggleStock} />
+                <DraggableItem key={item.id} item={item} />
               ))}
               {filteredMenu.length === 0 && (
                 <div className="text-center text-slate-400 py-10 text-sm">
@@ -683,26 +712,58 @@ export default function MenuScheduler() {
                                else if (time) restrictions = time
                              } catch(e) {}
                           }
+
+                          const isSlotOOS = (() => {
+                              if (item.is_available === false) return true;
+                              if (!item.description || !item.description.includes('|META|')) return false;
+                              try {
+                                  const meta = JSON.parse(item.description.split('|META|')[1]);
+                                  if (!meta.oos) return false;
+                                  let checkDay = viewDay;
+                                  if (checkDay === 'Today') checkDay = today;
+                                  if (checkDay === 'All Days') {
+                                      const activeDays = meta.days && meta.days.length > 0 ? meta.days : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                                      return activeDays.every((d: string) => meta.oos.includes(`${d}_${slot.name}`));
+                                  }
+                                  return meta.oos.includes(`${checkDay}_${slot.name}`);
+                              } catch(e) { return false; }
+                          })();
+
                           return (
-                          <div key={item.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg">
-                                {item.is_veg ? '🥗' : '🍗'}
+                          <div key={item.id} className="flex flex-col bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <div className="w-10 h-10 shrink-0 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg">
+                                  {item.is_veg ? '🥗' : '🍗'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
+                                  <p className="text-[11px] font-medium text-slate-500 truncate">{item.category_name}</p>
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {restrictions && <p className="text-[10px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 w-fit px-1.5 py-0.5 rounded">{restrictions}</p>}
+                                    {isSlotOOS && (
+                                      <p className="text-[10px] text-red-600 font-bold bg-red-50 dark:bg-red-900/20 w-fit px-1.5 py-0.5 rounded">OUT OF STOCK</p>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{item.name}</p>
-                                <p className="text-[11px] font-medium text-slate-500">{item.category_name}</p>
-                                {restrictions && <p className="text-[10px] text-orange-600 font-bold mt-0.5 bg-orange-50 dark:bg-orange-900/20 w-fit px-1.5 py-0.5 rounded">{restrictions}</p>}
+                              <div className="shrink-0 text-right">
+                                <span className="font-black text-orange-600">₹{item.price}</span>
                               </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className="font-black text-orange-600">₹{item.price}</span>
+                            <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                              <button
+                                onClick={() => toggleSlotStock(item, slot.name)}
+                                className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-colors ${!isSlotOOS ? 'text-orange-600 hover:text-orange-700 bg-orange-50 dark:bg-orange-900/20' : 'text-emerald-600 hover:text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20'}`}
+                              >
+                                {!isSlotOOS ? 'Mark Out of Stock' : 'Mark Available'}
+                              </button>
                               <button 
                                 onClick={() => handleRemoveFromDb(slot.id, item)}
-                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
+                                className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 text-slate-500 hover:text-red-600 bg-slate-100 hover:bg-red-50 dark:bg-slate-700/50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                                 title={viewDay === 'All Days' ? "Remove from schedule completely" : `Remove from ${viewDay === 'Today' ? today : viewDay}`}
                               >
-                                <X className="w-4 h-4" />
+                                <X className="w-3 h-3" /> Remove
                               </button>
                             </div>
                           </div>
