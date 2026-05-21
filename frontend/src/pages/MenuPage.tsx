@@ -64,98 +64,27 @@ const MenuPage = () => {
         return
       }
 
-      let updatedItem: MenuItem;
+      const meta = { days: selectedDays, start: form.available_time_start, end: form.available_time_end };
+      const baseDesc = form.description.split('|META|')[0].trim();
+      const finalDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
 
       if (editId) {
-        const response = await api.patch(`/menu-items/${editId}`, {
+        await api.patch(`/menu-items/${editId}`, {
           name: form.name,
-          description: form.description,
+          description: finalDesc,
           price: Number(form.price),
           category_id: Number(form.category_id),
           is_veg: form.is_veg,
         })
-        updatedItem = response.data as MenuItem;
       } else {
-        const response = await api.post('/menu-items', {
+        await api.post('/menu-items', {
           name: form.name,
-          description: form.description,
+          description: finalDesc,
           price: Number(form.price),
           category_id: Number(form.category_id),
           is_veg: form.is_veg,
           is_available: true,
         })
-  
-        updatedItem = response.data as MenuItem;
-      }
-
-      const formatTo12h = (time24: string): string => {
-        if (!time24) return '';
-        const [h, m] = time24.split(':');
-        let hours = parseInt(h, 10);
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12 || 12;
-        return `${hours.toString().padStart(2, '0')}:${m} ${ampm}`;
-      };
-
-      const timeInput = (form.available_time_start && form.available_time_end) 
-        ? `${formatTo12h(form.available_time_start)} - ${formatTo12h(form.available_time_end)}` 
-        : 'All Day'
-
-      if (timeInput !== 'All Day' || selectedDays.length < 7) {
-        const assignToast = toast.loading('Assigning to schedule...')
-
-        try {
-          const schedulePromise = api.get('/schedule');
-          const [scheduleRes] = await Promise.all([schedulePromise]);
-          
-          let currentSlots = scheduleRes.data || [];
-
-          if (editId) {
-            currentSlots = currentSlots.map((s: any) => ({
-              ...s,
-              items: s.items.filter((i: any) => i.id !== editId)
-            }))
-          }
-
-          const existingSlot = currentSlots.find((s: any) => 
-            s.time === timeInput && 
-            s.activeDays.length === selectedDays.length && 
-            s.activeDays.every((d: string) => selectedDays.includes(d)) &&
-            !['Breakfast', 'Lunch', 'Dinner'].includes(s.name)
-          )
-
-          if (existingSlot) {
-            existingSlot.items.push(updatedItem)
-          } else {
-            currentSlots.push({
-              id: `slot-${Date.now()}`,
-              name: `${updatedItem.name} Custom Slot`,
-              time: timeInput,
-              activeDays: selectedDays,
-              items: [updatedItem]
-            })
-          }
-          await api.post('/schedule', { slots: currentSlots })
-          toast.success(`Assigned to custom schedule`, { id: assignToast })
-
-        } catch (scheduleError) {
-          toast.error('Failed to update schedule.', { id: assignToast })
-        }
-      } else if (editId) {
-        try {
-          const scheduleRes = await api.get('/schedule');
-          let currentSlots = scheduleRes.data || [];
-          let changed = false;
-          currentSlots = currentSlots.map((s: any) => {
-            const initLen = s.items.length;
-            s.items = s.items.filter((i: any) => i.id !== editId);
-            if (initLen !== s.items.length) changed = true;
-            return s;
-          });
-          if (changed) {
-            await api.post('/schedule', { slots: currentSlots });
-          }
-        } catch (e) {}
       }
 
       toast.success(editId ? 'Menu updated successfully' : 'Menu added successfully')
@@ -311,7 +240,7 @@ const MenuPage = () => {
               </div>
 
               <div className="text-sm text-slate-500 line-clamp-2 min-h-[40px]">
-                {m.description || 'No description'}
+                {m.description ? m.description.split('|META|')[0].trim() || 'No description' : 'No description'}
               </div>
 
               <div className="flex items-center justify-between">
@@ -340,36 +269,22 @@ const MenuPage = () => {
                           let start = '';
                           let end = '';
                           let days = ALL_DAYS;
+                          let desc = m.description || '';
 
-                          try {
-                            const res = await api.get('/schedule');
-                            const slots = res.data || [];
-                            const itemSlot = slots.find((s: any) => s.items.some((i: any) => i.id === m.id));
-                            if (itemSlot) {
-                               days = itemSlot.activeDays || ALL_DAYS;
-                               if (itemSlot.time && itemSlot.time !== 'All Day') {
-                                  const parts = itemSlot.time.split('-');
-                                  if (parts.length === 2) {
-                                      const parseTo24 = (t: string) => {
-                                         const match = t.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i);
-                                         if (match) {
-                                             let h = parseInt(match[1]);
-                                             if (match[3].toUpperCase() === 'PM' && h < 12) h += 12;
-                                             if (match[3].toUpperCase() === 'AM' && h === 12) h = 0;
-                                             return `${h.toString().padStart(2, '0')}:${match[2] || '00'}`;
-                                         }
-                                         return t.trim();
-                                      };
-                                      start = parseTo24(parts[0]);
-                                      end = parseTo24(parts[1]);
-                                  }
-                               }
-                            }
-                          } catch (err) {}
+                          if (m.description && m.description.includes('|META|')) {
+                            try {
+                              const parts = m.description.split('|META|');
+                              desc = parts[0].trim();
+                              const meta = JSON.parse(parts[1]);
+                              if (meta.days) days = meta.days;
+                              if (meta.start) start = meta.start;
+                              if (meta.end) end = meta.end;
+                            } catch(e) {}
+                          }
 
                           setForm({
                             name: m.name,
-                            description: m.description || '',
+                            description: desc,
                             price: String(m.price),
                             category_id: String(m.category_id || ''),
                             is_veg: m.is_veg,

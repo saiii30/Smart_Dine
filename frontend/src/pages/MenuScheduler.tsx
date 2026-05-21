@@ -3,11 +3,10 @@ import { DndContext, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/c
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { MenuItem } from '../types'
-import { Search, Clock, CalendarDays, X, GripVertical, Trash2, CalendarClock } from 'lucide-react'
-import { autoAssignItemToSlots } from '../utils/scheduleUtils'
+import { Search, Clock, X, GripVertical, Trash2 } from 'lucide-react'
 
 // --- DRAGGABLE MENU ITEM ---
-const DraggableItem = ({ item, onToggle, onAutoAssign }: { item: MenuItem, onToggle: (id: number, currentStatus: boolean) => void, onAutoAssign: (item: MenuItem) => void }) => {
+const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: number, currentStatus: boolean) => void }) => {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: `menu-item-${item.id}`,
     data: item,
@@ -40,13 +39,6 @@ const DraggableItem = ({ item, onToggle, onAutoAssign }: { item: MenuItem, onTog
           >
             {item.is_available !== false ? 'Mark Out of Stock' : 'Mark Available'}
           </button>
-          {/* <button
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onAutoAssign(item); }}
-            className="text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded transition-colors cursor-pointer relative z-[100] flex items-center gap-1"
-          >
-            <CalendarClock className="w-3 h-3" /> Set Time
-          </button> */}
         </div>
       </div>
       <div className="flex flex-col items-end">
@@ -138,10 +130,6 @@ export default function MenuScheduler() {
   const [isSaving, setIsSaving] = useState(false)
   const [slots, setSlots] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  
-  const [timeModalItem, setTimeModalItem] = useState<MenuItem | null>(null)
-  const [timeStart, setTimeStart] = useState('')
-  const [timeEnd, setTimeEnd] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -196,6 +184,24 @@ export default function MenuScheduler() {
     }
   }
 
+  const parseTime = (ts: string) => {
+    if (!ts) return null;
+    const match12 = ts.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i)
+    if (match12) {
+        let [, h, m, ampm] = match12
+        let hours = parseInt(h, 10)
+        if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
+        if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0
+        return hours * 60 + parseInt(m || '0', 10)
+    }
+    const match24 = ts.match(/^(\d{1,2}):(\d{2})$/)
+    if (match24) {
+         let [, h, m] = match24
+         return parseInt(h, 10) * 60 + parseInt(m, 10)
+    }
+    return null
+  }
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     
@@ -204,17 +210,78 @@ export default function MenuScheduler() {
     const slotId = over.id as string
     const draggedItem = active.data.current as MenuItem
 
-    setSlots(prevSlots => prevSlots.map(slot => {
-      if (slot.id === slotId) {
-        // Prevent duplicates in the same slot
-        if (slot.items.find((i: MenuItem) => i.id === draggedItem.id)) {
-          toast.error(`${draggedItem.name} is already in ${slot.name}`)
-          return slot
+    const slot = slots.find(s => s.id === slotId);
+    if (!slot) return;
+
+    let meta = { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], start: '', end: '' };
+    if (draggedItem.description && draggedItem.description.includes('|META|')) {
+       try { meta = JSON.parse(draggedItem.description.split('|META|')[1]); } catch(e) {}
+    }
+
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+    
+    let isDayValid = true;
+    if (meta.days && meta.days.length > 0 && meta.days.length < 7) {
+        if (!meta.days.includes(today)) {
+            isDayValid = false;
         }
-        toast.success(`Added ${draggedItem.name} to ${slot.name}`)
-        return { ...slot, items: [...slot.items, draggedItem] }
+    }
+
+    let isTimeValid = true;
+    let intendedSlotName = '';
+    
+    if (meta.start && meta.end) {
+        const itemStart = parseTime(meta.start);
+        const itemEnd = parseTime(meta.end);
+        const sStart = parseTime(slot.time?.split('-')[0]?.trim() || '');
+        const sEnd = parseTime(slot.time?.split('-')[1]?.trim() || '');
+
+        // Attempt to find which slot it was intended for
+        const matchingSlot = slots.find(s => {
+            const msStart = parseTime(s.time?.split('-')[0]?.trim() || '');
+            const msEnd = parseTime(s.time?.split('-')[1]?.trim() || '');
+            if (msStart === null || msEnd === null || itemStart === null || itemEnd === null) return false;
+            return (itemStart >= msStart && itemStart <= msEnd) || 
+                   (itemEnd >= msStart && itemEnd <= msEnd) || 
+                   (msStart >= itemStart && msStart <= itemEnd);
+        });
+        if (matchingSlot) intendedSlotName = matchingSlot.name;
+
+        if (itemStart !== null && itemEnd !== null && sStart !== null && sEnd !== null) {
+            const overlaps = (itemStart >= sStart && itemStart <= sEnd) || 
+                             (itemEnd >= sStart && itemEnd <= sEnd) || 
+                             (sStart >= itemStart && sStart <= itemEnd);
+            if (!overlaps) {
+                isTimeValid = false;
+            }
+        }
+    }
+
+    if (!isDayValid || !isTimeValid) {
+        const dayMsg = (meta.days && meta.days.length > 0 && meta.days.length < 7) ? `${meta.days.join(', ')}` : '';
+        const slotMsg = intendedSlotName ? `${intendedSlotName}` : '';
+        
+        let errorMsg = `${draggedItem.name} is allocated for `;
+        if (dayMsg && slotMsg) errorMsg += `${dayMsg} ${slotMsg} only`;
+        else if (dayMsg) errorMsg += `${dayMsg} only`;
+        else if (slotMsg) errorMsg += `${slotMsg} only`;
+        else errorMsg = `${draggedItem.name} cannot be added to this slot`;
+
+        toast.error(errorMsg);
+        return;
+    }
+
+    setSlots(prevSlots => prevSlots.map(s => {
+      if (s.id === slotId) {
+        // Prevent duplicates in the same slot
+        if (s.items.find((i: MenuItem) => i.id === draggedItem.id)) {
+          toast.error(`${draggedItem.name} is already in ${s.name}`)
+          return s
+        }
+        toast.success(`Added ${draggedItem.name} to ${s.name}`)
+        return { ...s, items: [...s.items, draggedItem] }
       }
-      return slot
+      return s
     }))
   }
 
@@ -236,7 +303,7 @@ export default function MenuScheduler() {
       id: `slot-${Date.now()}`,
       name,
       time,
-      activeDays: ['Tue'], // Default example, they can click to change
+      activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       items: []
     }
     const newSlots = [...slots, newSlot]
@@ -244,9 +311,9 @@ export default function MenuScheduler() {
     
     try {
       await api.post('/schedule', { slots: newSlots })
-      toast.success('Custom slot created & saved')
+      toast.success('Custom slot created')
     } catch (err) {
-      toast.error('Failed to create in DB')
+      toast.error('Failed to save to DB')
     }
   }
 
@@ -261,39 +328,6 @@ export default function MenuScheduler() {
         toast.error('Failed to delete in DB')
       }
     }
-  }
-
-  const handleAutoAssign = (item: MenuItem) => {
-    setTimeStart('')
-    setTimeEnd('')
-    setTimeModalItem(item)
-  }
-
-  const confirmAutoAssign = () => {
-    if (!timeStart || !timeEnd) {
-      toast.error('Please select both start and end times')
-      return
-    }
-
-    const input = `${timeStart} - ${timeEnd}`
-    const { newSlots, assignedSlotNames, hasChanges } = autoAssignItemToSlots(timeModalItem!, input, slots)
-
-    if (assignedSlotNames.length === 0 && !hasChanges) {
-      toast.error('No matching schedule slots found for this time.')
-      return
-    }
-    
-    setSlots(newSlots)
-
-    if (assignedSlotNames.length > 0) {
-      toast.success(`Set for ${timeModalItem!.name}: ${assignedSlotNames.join(', ')}`)
-    } else {
-      toast.success(`${timeModalItem!.name} removed from non-matching slots.`)
-    }
-    if (hasChanges) {
-       toast('Remember to Save Schedule!', { icon: '⚠️' })
-    }
-    setTimeModalItem(null)
   }
 
   const saveSchedule = async () => {
@@ -381,7 +415,7 @@ export default function MenuScheduler() {
             {/* Draggable Items List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {filteredMenu.map(item => (
-                <DraggableItem key={item.id} item={item} onToggle={toggleStock} onAutoAssign={handleAutoAssign} />
+                <DraggableItem key={item.id} item={item} onToggle={toggleStock} />
               ))}
               {filteredMenu.length === 0 && (
                 <div className="text-center text-slate-400 py-10 text-sm">
@@ -395,31 +429,6 @@ export default function MenuScheduler() {
         </div>
       </div>
 
-      {/* Time Picker Modal */}
-      {timeModalItem && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
-            <h2 className="text-xl font-bold mb-1">Set Available Time</h2>
-            <p className="text-sm text-slate-500 mb-5">Auto-assign "{timeModalItem.name}" to matching schedule slots (e.g. Breakfast/Lunch).</p>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">Start Time</label>
-                <input type="time" value={timeStart} onChange={e => setTimeStart(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none focus:ring-2 focus:ring-orange-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">End Time</label>
-                <input type="time" value={timeEnd} onChange={e => setTimeEnd(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none focus:ring-2 focus:ring-orange-500" />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6 pt-2">
-              <button onClick={() => setTimeModalItem(null)} className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors">Cancel</button>
-              <button onClick={confirmAutoAssign} className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-medium shadow-md transition-colors">Assign to Schedule</button>
-            </div>
-          </div>
-        </div>
-      )}
     </DndContext>
   )
 }
