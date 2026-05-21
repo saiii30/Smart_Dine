@@ -394,30 +394,7 @@ export default function MenuScheduler() {
     }
   }
 
-  const addSlot = async () => {
-    const name = prompt('Enter slot name (e.g. "Tuesday Specials" or "Friday Dinner"):')
-    if (!name) return
-    const time = prompt('Enter time window (e.g. "09:00 AM - 11:00 AM"):') || 'All Day'
-    
-    const newSlot = {
-      id: `slot-${Date.now()}`,
-      name,
-      time,
-      activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      items: []
-    }
-    const newSaved = [...savedSchedule, newSlot]
-    const newStaging = [...slots, newSlot]
-    setSavedSchedule(newSaved)
-    setSlots(newStaging)
-    
-    try {
-      await api.post('/schedule', { slots: newSaved })
-      toast.success('Custom slot created')
-    } catch (err) {
-      toast.error('Failed to save to DB')
-    }
-  }
+
 
   const deleteSlot = async (slotId: string) => {
     if (confirm('Are you sure you want to delete this time slot?')) {
@@ -576,12 +553,12 @@ export default function MenuScheduler() {
           <div className="flex items-center gap-3">
             {activeTab === 'manage' && (
               <>
-                <button
+                {/* <button
                   onClick={addSlot}
                   className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold rounded-xl shadow-sm transition-all"
                 >
                   + Add Custom Slot
-                </button>
+                </button> */}
                 <button
                   onClick={saveSchedule}
                   disabled={isSaving}
