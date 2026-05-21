@@ -3,7 +3,7 @@ import { DndContext, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/c
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { MenuItem } from '../types'
-import { Search, Clock, X, GripVertical, Trash2 } from 'lucide-react'
+import { Search, Clock, X, GripVertical, Trash2, CalendarDays } from 'lucide-react'
 
 // --- DRAGGABLE MENU ITEM ---
 const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: number, currentStatus: boolean) => void }) => {
@@ -130,6 +130,22 @@ export default function MenuScheduler() {
   const [isSaving, setIsSaving] = useState(false)
   const [slots, setSlots] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'manage' | 'today'>('manage')
+
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'short' })
+
+  const getTodayItems = (slotItems: MenuItem[]) => {
+    return slotItems.filter((item) => {
+      let days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      if (item.description && item.description.includes('|META|')) {
+         try {
+           const meta = JSON.parse(item.description.split('|META|')[1]);
+           if (meta.days && meta.days.length > 0) days = meta.days;
+         } catch(e) {}
+      }
+      return days.includes(today);
+    });
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -352,29 +368,60 @@ export default function MenuScheduler() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Menu Scheduler</h1>
-            <p className="text-slate-500 mt-1 text-sm">Drag items to time slots.</p>
+            <p className="text-slate-500 mt-1 text-sm">Manage slots or view today's menu.</p>
           </div>
+
+          {/* TABS */}
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 self-start sm:self-auto">
+            <button
+              onClick={() => setActiveTab('manage')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                activeTab === 'manage'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              Manage Schedule
+            </button>
+            <button
+              onClick={() => setActiveTab('today')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
+                activeTab === 'today'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <CalendarDays className="w-4 h-4" />
+              Today's Menu
+            </button>
+          </div>
+
           <div className="flex items-center gap-3">
-            <button
-              onClick={addSlot}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold rounded-xl shadow-sm transition-all"
-            >
-              + Add Custom Slot
-            </button>
-            <button
-              onClick={saveSchedule}
-              disabled={isSaving}
-              className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70"
-            >
-              {isSaving ? 'Saving...' : 'Save Schedule'}
-            </button>
+            {activeTab === 'manage' && (
+              <>
+                <button
+                  onClick={addSlot}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold rounded-xl shadow-sm transition-all"
+                >
+                  + Add Custom Slot
+                </button>
+                <button
+                  onClick={saveSchedule}
+                  disabled={isSaving}
+                  className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70"
+                >
+                  {isSaving ? 'Saving...' : 'Save Schedule'}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
-          
-          {/* LEFT/CENTER: Time Slots */}
-          <div className="flex-[2] overflow-y-auto pr-2 custom-scrollbar">
+        {activeTab === 'manage' ? (
+          <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+            
+            {/* LEFT/CENTER: Time Slots */}
+            <div className="flex-[2] overflow-y-auto pr-2 custom-scrollbar">
             {loading ? (
               <div className="flex items-center justify-center h-full text-slate-500">Loading schedule...</div>
             ) : (
@@ -427,6 +474,52 @@ export default function MenuScheduler() {
           </div>
 
         </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {slots.map(slot => {
+                const todayItems = getTodayItems(slot.items);
+                return (
+                  <div key={slot.id} className="flex flex-col bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <div className="bg-slate-50 dark:bg-slate-800 p-4 border-b border-slate-200 dark:border-slate-700">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                          <Clock className="w-5 h-5 text-orange-600" />
+                          {slot.name}
+                        </h3>
+                        <span className="px-3 py-1 bg-white dark:bg-slate-700 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200 dark:border-slate-600">
+                          {slot.time}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-1 p-4 flex flex-col gap-3">
+                      {todayItems.length === 0 ? (
+                        <div className="flex-1 flex items-center justify-center text-slate-400 text-sm font-medium p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                          No items scheduled for today.
+                        </div>
+                      ) : (
+                        todayItems.map((item: MenuItem) => (
+                          <div key={item.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg">
+                                {item.is_veg ? '🥗' : '🍗'}
+                              </div>
+                              <div>
+                                <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{item.name}</p>
+                                <p className="text-[11px] font-medium text-slate-500">{item.category_name}</p>
+                              </div>
+                            </div>
+                            <span className="font-black text-orange-600">₹{item.price}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
     </DndContext>
