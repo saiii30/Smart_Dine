@@ -63,16 +63,13 @@ const DraggableItem = ({ item, onToggle, onAutoAssign }: { item: MenuItem, onTog
 const DroppableSlot = ({
   slot,
   onRemoveItem,
-  onToggleDay,
   onDeleteSlot,
 }: {
   slot: any
   onRemoveItem: (slotId: string, itemId: number) => void
-  onToggleDay: (slotId: string, day: string) => void
   onDeleteSlot: (slotId: string) => void
 }) => {
   const { isOver, setNodeRef } = useDroppable({ id: slot.id })
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
   return (
     <div
@@ -96,27 +93,6 @@ const DroppableSlot = ({
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
-        </div>
-        
-        {/* Repeat Days Selector */}
-        <div className="flex items-center gap-1">
-          <CalendarDays className="w-4 h-4 text-slate-400 mr-2" />
-          {days.map((d) => {
-            const isActive = slot.activeDays.includes(d)
-            return (
-              <button
-                key={d}
-                onClick={() => onToggleDay(slot.id, d)}
-                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-colors ${
-                  isActive
-                    ? 'bg-orange-500 text-white shadow-sm'
-                    : 'bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600'
-                }`}
-              >
-                {d}
-              </button>
-            )
-          })}
         </div>
       </div>
 
@@ -251,36 +227,39 @@ export default function MenuScheduler() {
     }))
   }
 
-  const toggleDay = (slotId: string, day: string) => {
-    setSlots(prevSlots => prevSlots.map(slot => {
-      if (slot.id === slotId) {
-        const hasDay = slot.activeDays.includes(day)
-        return {
-          ...slot,
-          activeDays: hasDay ? slot.activeDays.filter((d: string) => d !== day) : [...slot.activeDays, day]
-        }
-      }
-      return slot
-    }))
-  }
-
-  const addSlot = () => {
+  const addSlot = async () => {
     const name = prompt('Enter slot name (e.g. "Tuesday Specials" or "Friday Dinner"):')
     if (!name) return
     const time = prompt('Enter time window (e.g. "09:00 AM - 11:00 AM"):') || 'All Day'
     
-    setSlots(prev => [...prev, {
+    const newSlot = {
       id: `slot-${Date.now()}`,
       name,
       time,
       activeDays: ['Tue'], // Default example, they can click to change
       items: []
-    }])
+    }
+    const newSlots = [...slots, newSlot]
+    setSlots(newSlots)
+    
+    try {
+      await api.post('/schedule', { slots: newSlots })
+      toast.success('Custom slot created & saved')
+    } catch (err) {
+      toast.error('Failed to create in DB')
+    }
   }
 
-  const deleteSlot = (slotId: string) => {
+  const deleteSlot = async (slotId: string) => {
     if (confirm('Are you sure you want to delete this time slot?')) {
-      setSlots(prev => prev.filter(s => s.id !== slotId))
+      const newSlots = slots.filter(s => s.id !== slotId)
+      setSlots(newSlots)
+      try {
+        await api.post('/schedule', { slots: newSlots })
+        toast.success('Slot deleted permanently')
+      } catch (err) {
+        toast.error('Failed to delete in DB')
+      }
     }
   }
 
@@ -339,7 +318,7 @@ export default function MenuScheduler() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Menu Scheduler</h1>
-            <p className="text-slate-500 mt-1 text-sm">Drag items to time slots. Select days for repeats.</p>
+            <p className="text-slate-500 mt-1 text-sm">Drag items to time slots.</p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -371,7 +350,6 @@ export default function MenuScheduler() {
                     key={slot.id} 
                     slot={slot} 
                     onRemoveItem={removeItemFromSlot} 
-                    onToggleDay={toggleDay}
                     onDeleteSlot={deleteSlot}
                   />
                 ))}
