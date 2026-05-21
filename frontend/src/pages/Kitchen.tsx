@@ -100,7 +100,7 @@ const Kitchen = () => {
   }, [load, loadMenu])
 
   const activeItemIds = useMemo(() => {
-    if (!schedule || schedule.length === 0) return new Set(menuItems.map(m => m.id))
+    if (!schedule || schedule.length === 0) return new Set<number>()
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     const currentDayIdx = currentTime.getDay()
@@ -128,30 +128,49 @@ const Kitchen = () => {
     const activeIds = new Set<number>()
 
     schedule.forEach(slot => {
-      let isTimeActive = false
-      if (slot.time && !slot.time.toLowerCase().includes('all day')) {
-        const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
-        const startMins = parseTime(startStr || '')
-        const endMins = parseTime(endStr || '')
-        if (startMins !== null && endMins !== null) {
-          if (startMins <= endMins) {
-            if (slot.activeDays?.includes(today)) {
-              isTimeActive = currentMins >= startMins && currentMins <= endMins
-            }
-          } else {
-            const activeTonight = slot.activeDays?.includes(today) && currentMins >= startMins;
-            const activeFromLastNight = slot.activeDays?.includes(yesterday) && currentMins <= endMins;
-            isTimeActive = activeTonight || activeFromLastNight;
-          }
+      slot.items.forEach((i: any) => {
+        let itemDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        let itemStart = ''
+        let itemEnd = ''
+
+        if (i.description && i.description.includes('|META|')) {
+           try {
+             const meta = JSON.parse(i.description.split('|META|')[1]);
+             if (meta.days && meta.days.length > 0) itemDays = meta.days;
+             if (meta.start) itemStart = meta.start;
+             if (meta.end) itemEnd = meta.end;
+           } catch(e) {}
         }
-      } else {
-        if (slot.activeDays?.includes(today)) {
-          isTimeActive = true
+
+        let isTimeActive = false;
+        let timeToParse = slot.time;
+        if (itemStart && itemEnd) {
+           timeToParse = `${itemStart} - ${itemEnd}`;
         }
-      }
-      if (isTimeActive && slot.items) {
-        slot.items.forEach((i: any) => activeIds.add(i.id))
-      }
+
+        if (timeToParse && !timeToParse.toLowerCase().includes('all day')) {
+           const [startStr, endStr] = timeToParse.split('-').map((s: string) => s.trim())
+           const startMins = parseTime(startStr || '')
+           const endMins = parseTime(endStr || '')
+           if (startMins !== null && endMins !== null) {
+              if (startMins <= endMins) {
+                 if (itemDays.includes(today)) {
+                    isTimeActive = currentMins >= startMins && currentMins <= endMins
+                 }
+              } else {
+                 const activeTonight = itemDays.includes(today) && currentMins >= startMins;
+                 const activeFromLastNight = itemDays.includes(yesterday) && currentMins <= endMins;
+                 isTimeActive = activeTonight || activeFromLastNight;
+              }
+           }
+        } else {
+           if (itemDays.includes(today)) {
+              isTimeActive = true
+           }
+        }
+
+        if (isTimeActive) activeIds.add(i.id)
+      })
     })
     return activeIds
   }, [schedule, menuItems, currentTime])
@@ -474,7 +493,7 @@ const Kitchen = () => {
                   <DroppableColumn 
                     id="col-available" 
                     title="Available" 
-                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && (schedule.length === 0 || activeItemIds.has(m.id)) && m.is_available !== false))} 
+                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && activeItemIds.has(m.id) && m.is_available !== false))} 
                     isAvailableCol={true} 
                   />
                 </div>
@@ -484,7 +503,7 @@ const Kitchen = () => {
                   <DroppableColumn 
                     id="col-out-of-stock" 
                     title="Out of Stock" 
-                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && (schedule.length === 0 || activeItemIds.has(m.id)) && m.is_available === false))} 
+                    items={menuItems.filter(m => (m.name.toLowerCase().includes(menuSearch.toLowerCase()) && activeItemIds.has(m.id) && m.is_available === false))} 
                     isAvailableCol={false} 
                   />
                 </div>

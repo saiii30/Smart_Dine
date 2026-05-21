@@ -24,7 +24,6 @@ const OrdersPage = () => {
   const [tables, setTables] = useState<DiningTable[]>([])
   const [menu, setMenu] = useState<MenuItem[]>([])
   const [schedule, setSchedule] = useState<any[]>([])
-  const [strictSchedule, setStrictSchedule] = useState(true)
   const [currentTime, setCurrentTime] = useState(new Date())
  
 
@@ -135,7 +134,7 @@ const OrdersPage = () => {
   })
 
   const activeItemIds = useMemo(() => {
-    if (!schedule || schedule.length === 0) return new Set(menu.map(m => m.id))
+    if (!schedule || schedule.length === 0) return new Set<number>()
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     const today = days[currentTime.getDay()]
@@ -163,25 +162,45 @@ const OrdersPage = () => {
     const activeIds = new Set<number>()
 
     schedule.forEach(slot => {
-      if (!slot.activeDays.includes(today)) return
-      let isTimeActive = true
-      if (slot.time && !slot.time.toLowerCase().includes('all day')) {
-        const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
-        const startMins = parseTime(startStr || '')
-        const endMins = parseTime(endStr || '')
-        if (startMins !== null && endMins !== null) {
-          if (startMins <= endMins) {
-            // Simple case: 10:00 AM - 5:00 PM
-            isTimeActive = currentMins >= startMins && currentMins <= endMins;
-          } else {
-            // Overnight case: 10:00 PM - 2:00 AM
-            isTimeActive = currentMins >= startMins || currentMins <= endMins;
-          }
+      slot.items.forEach((i: any) => {
+        let itemDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        let itemStart = ''
+        let itemEnd = ''
+
+        if (i.description && i.description.includes('|META|')) {
+           try {
+             const meta = JSON.parse(i.description.split('|META|')[1]);
+             if (meta.days && meta.days.length > 0) itemDays = meta.days;
+             if (meta.start) itemStart = meta.start;
+             if (meta.end) itemEnd = meta.end;
+           } catch(e) {}
         }
-      }
-      if (isTimeActive) {
-        slot.items.forEach((i: any) => activeIds.add(i.id))
-      }
+
+        if (!itemDays.includes(today)) return;
+
+        let isTimeActive = false;
+        let timeToParse = slot.time;
+        if (itemStart && itemEnd) {
+           timeToParse = `${itemStart} - ${itemEnd}`;
+        }
+
+        if (timeToParse && !timeToParse.toLowerCase().includes('all day')) {
+           const [startStr, endStr] = timeToParse.split('-').map((s: string) => s.trim())
+           const startMins = parseTime(startStr || '')
+           const endMins = parseTime(endStr || '')
+           if (startMins !== null && endMins !== null) {
+              if (startMins <= endMins) {
+                 isTimeActive = currentMins >= startMins && currentMins <= endMins
+              } else {
+                 isTimeActive = currentMins >= startMins || currentMins <= endMins
+              }
+           }
+        } else {
+           isTimeActive = true;
+        }
+
+        if (isTimeActive) activeIds.add(i.id)
+      })
     })
     return activeIds
   }, [schedule, menu, currentTime])
@@ -693,17 +712,6 @@ const getOrderStatus = (order: Order) => {
                       onChange={(e) => setMenuSearch(e.target.value)}
                     />
                   </div>
-                  {schedule.length > 0 && user?.role !== 'WAITER' && (
-                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 cursor-pointer w-fit">
-                      <input 
-                        type="checkbox" 
-                        checked={strictSchedule} 
-                        onChange={e => setStrictSchedule(e.target.checked)}
-                        className="accent-orange-600 w-4 h-4"
-                      />
-                      Show Available Now Only
-                    </label>
-                  )}
                 </div>
                 
                 <div className="flex-1 overflow-auto p-4 sm:p-6 pb-32 lg:pb-6">
@@ -711,10 +719,9 @@ const getOrderStatus = (order: Order) => {
                   {menu
                     .filter((m) => {
                       const matchesSearch = m.name.toLowerCase().includes(menuSearch.toLowerCase())
-                      const isScheduled = schedule.length === 0 || activeItemIds.has(m.id)
-                      const enforceStrict = user?.role === 'WAITER' ? true : strictSchedule
+                      const isScheduled = activeItemIds.has(m.id)
                       
-                      return matchesSearch && (!enforceStrict || isScheduled)
+                      return matchesSearch && isScheduled
                     })
                     .map((m) => (
                       <div
