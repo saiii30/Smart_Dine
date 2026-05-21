@@ -302,34 +302,13 @@ export default function MenuScheduler() {
        try { meta = JSON.parse(draggedItem.description.split('|META|')[1]); } catch(e) {}
     }
 
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
-    
-    let isDayValid = true;
-    if (meta.days && meta.days.length > 0 && meta.days.length < 7) {
-        if (!meta.days.includes(today)) {
-            isDayValid = false;
-        }
-    }
-
     let isTimeValid = true;
-    let intendedSlotName = '';
     
     if (meta.start && meta.end) {
         const itemStart = parseTime(meta.start);
         const itemEnd = parseTime(meta.end);
         const sStart = parseTime(slot.time?.split('-')[0]?.trim() || '');
         const sEnd = parseTime(slot.time?.split('-')[1]?.trim() || '');
-
-        // Attempt to find which slot it was intended for
-        const matchingSlot = savedSchedule.find(s => {
-            const msStart = parseTime(s.time?.split('-')[0]?.trim() || '');
-            const msEnd = parseTime(s.time?.split('-')[1]?.trim() || '');
-            if (msStart === null || msEnd === null || itemStart === null || itemEnd === null) return false;
-            return (itemStart >= msStart && itemStart <= msEnd) || 
-                   (itemEnd >= msStart && itemEnd <= msEnd) || 
-                   (msStart >= itemStart && msStart <= itemEnd);
-        });
-        if (matchingSlot) intendedSlotName = matchingSlot.name;
 
         if (itemStart !== null && itemEnd !== null && sStart !== null && sEnd !== null) {
             const overlaps = (itemStart >= sStart && itemStart <= sEnd) || 
@@ -341,14 +320,27 @@ export default function MenuScheduler() {
         }
     }
 
-    if (!isDayValid || !isTimeValid) {
+    if (!isTimeValid) {
         const dayMsg = (meta.days && meta.days.length > 0 && meta.days.length < 7) ? `${meta.days.join(', ')}` : '';
-        const slotMsg = intendedSlotName ? `${intendedSlotName}` : '';
+        let timeMsg = '';
+        if (meta.start && meta.end) {
+            const formatTo12h = (t: string) => {
+                const match = t.match(/^(\d{1,2}):(\d{2})$/);
+                if (match) {
+                    let h = parseInt(match[1], 10);
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    h = h % 12 || 12;
+                    return `${h.toString().padStart(2, '0')}:${match[2]} ${ampm}`;
+                }
+                return t;
+            };
+            timeMsg = `${formatTo12h(meta.start)} and ${formatTo12h(meta.end)}`;
+        }
         
         let errorMsg = `${draggedItem.name} is allocated for `;
-        if (dayMsg && slotMsg) errorMsg += `${dayMsg} ${slotMsg} only`;
+        if (dayMsg && timeMsg) errorMsg += `${dayMsg} between ${timeMsg} only`;
         else if (dayMsg) errorMsg += `${dayMsg} only`;
-        else if (slotMsg) errorMsg += `${slotMsg} only`;
+        else if (timeMsg) errorMsg += `between ${timeMsg} only`;
         else errorMsg = `${draggedItem.name} cannot be added to this slot`;
 
         toast.error(errorMsg);
