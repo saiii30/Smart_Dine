@@ -113,6 +113,10 @@ def delete_menu_item(
     m = db.query(models.MenuItem).filter(models.MenuItem.id == item_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Not found")
+        
+    # FIX: Delete the item from all schedule slots so new items don't inherit it!
+    db.query(schedule_models.MenuSlotItem).filter(schedule_models.MenuSlotItem.menu_item_id == item_id).delete()
+
     db.delete(m)
     db.commit()
     return {"ok": True}
