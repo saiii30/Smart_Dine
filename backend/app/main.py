@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+import json
 
 from dotenv import load_dotenv, find_dotenv
 from fastapi import FastAPI, Request
@@ -97,10 +98,25 @@ def reset_menu_availability():
     """Resets all out-of-stock items back to Available at Midnight."""
     db = SessionLocal()
     try:
-        # Find all items that are currently unavailable and reset them
+        # 1. Reset global is_available flag
         db.query(models.MenuItem).filter(models.MenuItem.is_available.is_(False)).update({"is_available": True})
+        
+        # 2. Reset slot-specific OOS tracking from metadata
+        items = db.query(models.MenuItem).filter(models.MenuItem.description.like('%|META|%')).all()
+        for item in items:
+            try:
+                parts = item.description.split('|META|')
+                base_desc = parts[0].strip()
+                meta = json.loads(parts[1])
+                if 'oos' in meta and len(meta['oos']) > 0:
+                    meta['oos'] = []
+                    new_desc = f"{base_desc} |META|{json.dumps(meta)}" if base_desc else f"|META|{json.dumps(meta)}"
+                    item.description = new_desc
+            except Exception:
+                pass
+
         db.commit()
-        logger.info("12:00 AM Reset Complete: All Out-of-Stock items are back in stock!")
+        logger.info("11:20 PM Reset Complete: All Out-of-Stock items are back in stock!")
     except Exception as e:
         db.rollback()
         logger.error(f"Error resetting menu availability: {e}")
@@ -110,7 +126,7 @@ def reset_menu_availability():
 @app.on_event("startup")
 def start_scheduler():
     scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
-    # Schedule the reset task to run exactly at midnight (00:00) every day
+     # Schedule the reset task to run exactly at midnight (00:00) every day
     scheduler.add_job(reset_menu_availability, 'cron', hour=0, minute=0)
     scheduler.start()
 
