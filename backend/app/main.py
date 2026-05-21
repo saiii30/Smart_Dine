@@ -98,7 +98,7 @@ def reset_menu_availability():
     db = SessionLocal()
     try:
         # Find all items that are currently unavailable and reset them
-        db.query(models.MenuItem).filter(models.MenuItem.is_available == False).update({"is_available": True})
+        db.query(models.MenuItem).filter(models.MenuItem.is_available.is_(False)).update({"is_available": True})
         db.commit()
         logger.info("12:00 AM Reset Complete: All Out-of-Stock items are back in stock!")
     except Exception as e:
@@ -109,7 +109,7 @@ def reset_menu_availability():
 
 @app.on_event("startup")
 def start_scheduler():
-    scheduler = AsyncIOScheduler()
+    scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
     # Schedule the reset task to run exactly at midnight (00:00) every day
     scheduler.add_job(reset_menu_availability, 'cron', hour=0, minute=0)
     scheduler.start()
