@@ -3,12 +3,12 @@ import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { MenuItem } from '../types'
 import { useAuth } from '../contexts/AuthContext'
-import { autoAssignItemToSlots } from '../utils/scheduleUtils'
+import { Trash2, Pencil } from 'lucide-react'
 
 const MenuPage = () => {
   const { user } = useAuth()
   const isStaff = user?.role === 'WAITER' || user?.role === 'KITCHEN'
-  const canToggle = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'KITCHEN'
+  const canDelete = user?.role === 'ADMIN' || user?.role === 'MANAGER'
 
   const [items, setItems] = useState<MenuItem[]>([])
   const [categories, setCategories] = useState<any[]>([])
@@ -16,7 +16,11 @@ const MenuPage = () => {
   const [q, setQ] = useState('')
   const [veg, setVeg] = useState(false)
 
+  const ALL_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const [selectedDays, setSelectedDays] = useState<string[]>(ALL_DAYS)
+
   const [showAdd, setShowAdd] = useState(false)
+  const [editId, setEditId] = useState<number | null>(null)
 
   const [form, setForm] = useState({
     name: '',
@@ -49,7 +53,7 @@ const MenuPage = () => {
 
   const search = () => load()
 
-  const createMenu = async () => {
+  const saveMenu = async () => {
     try {
       if (
         !form.name ||
@@ -60,74 +64,104 @@ const MenuPage = () => {
         return
       }
 
-      const response = await api.post('/menu-items', {
-        name: form.name,
-        description: form.description,
-        price: Number(form.price),
-        category_id: Number(form.category_id),
-        is_veg: form.is_veg,
-        is_available: true,
-      })
+      let updatedItem: MenuItem;
 
-      const newMenuItem = response.data as MenuItem
+      if (editId) {
+        const response = await api.patch(`/menu-items/${editId}`, {
+          name: form.name,
+          description: form.description,
+          price: Number(form.price),
+          category_id: Number(form.category_id),
+          is_veg: form.is_veg,
+        })
+        updatedItem = response.data as MenuItem;
+      } else {
+        const response = await api.post('/menu-items', {
+          name: form.name,
+          description: form.description,
+          price: Number(form.price),
+          category_id: Number(form.category_id),
+          is_veg: form.is_veg,
+          is_available: true,
+        })
+  
+        updatedItem = response.data as MenuItem;
+      }
+
+      const formatTo12h = (time24: string): string => {
+        if (!time24) return '';
+        const [h, m] = time24.split(':');
+        let hours = parseInt(h, 10);
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        return `${hours.toString().padStart(2, '0')}:${m} ${ampm}`;
+      };
 
       const timeInput = (form.available_time_start && form.available_time_end) 
-        ? `${form.available_time_start} - ${form.available_time_end}` 
-        : ''
+        ? `${formatTo12h(form.available_time_start)} - ${formatTo12h(form.available_time_end)}` 
+        : 'All Day'
 
-      if (timeInput) {
+      if (timeInput !== 'All Day' || selectedDays.length < 7) {
         const assignToast = toast.loading('Assigning to schedule...')
 
         try {
           const schedulePromise = api.get('/schedule');
-          const settingsPromise = api.get('/settings');
-          const [scheduleRes, settingsRes] = await Promise.all([schedulePromise, settingsPromise]);
+          const [scheduleRes] = await Promise.all([schedulePromise]);
           
-          const settings = settingsRes.data;
-          let currentSlots = scheduleRes.data
-          if (currentSlots && currentSlots.length > 0) {
-            // If a schedule exists, ensure its times are updated from settings, as they might be stale.
-            currentSlots = currentSlots.map((slot: any) => {
-              if (slot.name === 'Breakfast' && settings.breakfast_time) {
-                return { ...slot, time: settings.breakfast_time };
-              }
-              if (slot.name === 'Lunch' && settings.lunch_time) {
-                return { ...slot, time: settings.lunch_time };
-              }
-              if (slot.name === 'Dinner' && settings.dinner_time) {
-                return { ...slot, time: settings.dinner_time };
-              }
-              return slot;
-            });
-          } else {
-            currentSlots = [
-              { id: 'slot-1', name: 'Breakfast', time: settings.breakfast_time || '09:00 AM - 11:00 AM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] },
-              { id: 'slot-2', name: 'Lunch', time: settings.lunch_time || '12:00 PM - 04:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] },
-              { id: 'slot-3', name: 'Dinner', time: settings.dinner_time || '05:00 PM - 10:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] },
-            ];
+          let currentSlots = scheduleRes.data || [];
+
+          if (editId) {
+            currentSlots = currentSlots.map((s: any) => ({
+              ...s,
+              items: s.items.filter((i: any) => i.id !== editId)
+            }))
           }
 
-          const { newSlots, assignedSlotNames, hasChanges } = autoAssignItemToSlots(newMenuItem, timeInput, currentSlots)
+          const existingSlot = currentSlots.find((s: any) => 
+            s.time === timeInput && 
+            s.activeDays.length === selectedDays.length && 
+            s.activeDays.every((d: string) => selectedDays.includes(d)) &&
+            !['Breakfast', 'Lunch', 'Dinner'].includes(s.name)
+          )
 
-          if (hasChanges) {
-            await api.post('/schedule', { slots: newSlots })
-            toast.success(`Assigned to: ${assignedSlotNames.join(', ')}`, { id: assignToast })
+          if (existingSlot) {
+            existingSlot.items.push(updatedItem)
           } else {
-            if (assignedSlotNames.length > 0) {
-              toast.success(`${newMenuItem.name} already in schedule: ${assignedSlotNames.join(', ')}`, { id: assignToast })
-            } else {
-              toast.error('Could not auto-assign. Check time format.', { id: assignToast })
-            }
+            currentSlots.push({
+              id: `slot-${Date.now()}`,
+              name: `${updatedItem.name} Custom Slot`,
+              time: timeInput,
+              activeDays: selectedDays,
+              items: [updatedItem]
+            })
           }
+          await api.post('/schedule', { slots: currentSlots })
+          toast.success(`Assigned to custom schedule`, { id: assignToast })
 
         } catch (scheduleError) {
           toast.error('Failed to update schedule.', { id: assignToast })
         }
+      } else if (editId) {
+        try {
+          const scheduleRes = await api.get('/schedule');
+          let currentSlots = scheduleRes.data || [];
+          let changed = false;
+          currentSlots = currentSlots.map((s: any) => {
+            const initLen = s.items.length;
+            s.items = s.items.filter((i: any) => i.id !== editId);
+            if (initLen !== s.items.length) changed = true;
+            return s;
+          });
+          if (changed) {
+            await api.post('/schedule', { slots: currentSlots });
+          }
+        } catch (e) {}
       }
 
-      toast.success('Menu added successfully')
+      toast.success(editId ? 'Menu updated successfully' : 'Menu added successfully')
 
       setShowAdd(false)
+      setEditId(null)
 
       setForm({
         name: '',
@@ -138,14 +172,13 @@ const MenuPage = () => {
         available_time_start: '',
         available_time_end: '',
       })
+      setSelectedDays(ALL_DAYS)
 
       load()
     } catch (err: any) {
       console.log(err.response?.data)
-
       toast.error(
-        err.response?.data?.detail ||
-          'Failed to create menu'
+        err.response?.data?.detail || (editId ? 'Failed to update menu' : 'Failed to create menu')
       )
     }
   }
@@ -185,7 +218,19 @@ const MenuPage = () => {
           {!isStaff && (
             <button
               type="button"
-              onClick={() => setShowAdd(true)}
+              onClick={() => {
+                setEditId(null)
+                setForm({
+                  name: '',
+                  description: '',
+                  price: '',
+                  category_id: '',
+                  is_veg: false,
+                  available_time_start: '',
+                  available_time_end: '',
+                })
+                setShowAdd(true)
+              }}
               className="h-11 px-5 rounded-xl bg-orange-600 text-white font-medium shadow-lg"
             >
               Add Menu
@@ -282,33 +327,83 @@ const MenuPage = () => {
                   </span>
                 </div>
 
-                {canToggle && (
-                  <button
-                    type="button"
-                    className="text-sm font-medium text-orange-600 hover:text-orange-700"
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      try {
-                        const nv = m.is_available === false ? true : false
+                <div className="flex items-center gap-3">
+                  {canDelete && (
+                    <>
+                      <button
+                        type="button"
+                        className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 transition-colors"
+                        title="Edit Menu Item"
+                        onClick={async (e) => {
+                          e.stopPropagation()
 
-                        await api.patch(
-                          `/menu-items/${m.id}`,
-                          {
-                            is_available: nv,
+                          let start = '';
+                          let end = '';
+                          let days = ALL_DAYS;
+
+                          try {
+                            const res = await api.get('/schedule');
+                            const slots = res.data || [];
+                            const itemSlot = slots.find((s: any) => s.items.some((i: any) => i.id === m.id));
+                            if (itemSlot) {
+                               days = itemSlot.activeDays || ALL_DAYS;
+                               if (itemSlot.time && itemSlot.time !== 'All Day') {
+                                  const parts = itemSlot.time.split('-');
+                                  if (parts.length === 2) {
+                                      const parseTo24 = (t: string) => {
+                                         const match = t.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i);
+                                         if (match) {
+                                             let h = parseInt(match[1]);
+                                             if (match[3].toUpperCase() === 'PM' && h < 12) h += 12;
+                                             if (match[3].toUpperCase() === 'AM' && h === 12) h = 0;
+                                             return `${h.toString().padStart(2, '0')}:${match[2] || '00'}`;
+                                         }
+                                         return t.trim();
+                                      };
+                                      start = parseTo24(parts[0]);
+                                      end = parseTo24(parts[1]);
+                                  }
+                               }
+                            }
+                          } catch (err) {}
+
+                          setForm({
+                            name: m.name,
+                            description: m.description || '',
+                            price: String(m.price),
+                            category_id: String(m.category_id || ''),
+                            is_veg: m.is_veg,
+                            available_time_start: start,
+                            available_time_end: end,
+                          })
+                          setSelectedDays(days)
+                          setEditId(m.id)
+                          setShowAdd(true)
+                        }}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-colors"
+                        title="Delete Menu Item"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (!confirm(`Are you sure you want to delete "${m.name}"?`)) return
+                          try {
+                            await api.delete(`/menu-items/${m.id}`)
+                            toast.success('Deleted successfully')
+                            load()
+                          } catch {
+                            toast.error('Failed to delete')
                           }
-                        )
-
-                        toast.success('Updated')
-
-                        load()
-                      } catch {
-                        toast.error('Failed')
-                      }
-                    }}
-                  >
-                    Toggle
-                  </button>
-                )}
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -323,11 +418,11 @@ const MenuPage = () => {
           <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[90vh] overflow-y-auto">
             <div>
               <h2 className="text-2xl font-bold">
-                Add New Menu
+                {editId ? 'Edit Menu Item' : 'Add New Menu'}
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Create new restaurant item
+                {editId ? 'Update restaurant item details' : 'Create new restaurant item'}
               </p>
             </div>
 
@@ -368,6 +463,34 @@ const MenuPage = () => {
               }
               className="w-full h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
             />
+
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold text-slate-500 ml-1">Available Days</label>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDays(selectedDays.length === 7 ? [] : ALL_DAYS)}
+                  className="text-[10px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-md transition-colors"
+                >
+                  {selectedDays.length === 7 ? 'Clear All' : 'All Days'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ALL_DAYS.map(day => {
+                  const isActive = selectedDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setSelectedDays(prev => isActive ? prev.filter(d => d !== day) : [...prev, day])}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${isActive ? 'bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                    >
+                      {day}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
 
             <div className="flex items-center gap-3">
               <div className="flex-1">
@@ -433,7 +556,19 @@ const MenuPage = () => {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowAdd(false)}
+                onClick={() => {
+                  setShowAdd(false)
+                  setEditId(null)
+                  setForm({
+                    name: '',
+                    description: '',
+                    price: '',
+                    category_id: '',
+                    is_veg: false,
+                    available_time_start: '',
+                    available_time_end: '',
+                  })
+                }}
                 className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700"
               >
                 Cancel
@@ -441,10 +576,10 @@ const MenuPage = () => {
 
               <button
                 type="button"
-                onClick={createMenu}
+                onClick={saveMenu}
                 className="px-5 py-2.5 rounded-xl bg-orange-600 text-white font-medium"
               >
-                Create Menu
+                {editId ? 'Update Menu' : 'Create Menu'}
               </button>
             </div>
           </div>
