@@ -12,6 +12,31 @@ const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: numb
     data: item,
   })
 
+  let restrictions = ''
+  if (item.description && item.description.includes('|META|')) {
+     try {
+       const meta = JSON.parse(item.description.split('|META|')[1]);
+       const days = (meta.days && meta.days.length > 0 && meta.days.length < 7) ? meta.days.join(', ') : ''
+       let time = ''
+       if (meta.start && meta.end) {
+           const formatTo12h = (t: string) => {
+              const match = t.match(/^(\d{1,2}):(\d{2})$/)
+              if (match) {
+                 let h = parseInt(match[1], 10)
+                 const ampm = h >= 12 ? 'PM' : 'AM'
+                 h = h % 12 || 12
+                 return `${h}:${match[2]} ${ampm}`
+              }
+              return t
+           }
+           time = `${formatTo12h(meta.start)}-${formatTo12h(meta.end)}`
+       }
+       if (days && time) restrictions = `${days} • ${time}`
+       else if (days) restrictions = days
+       else if (time) restrictions = time
+     } catch(e) {}
+  }
+
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
     : undefined
@@ -28,6 +53,7 @@ const DraggableItem = ({ item, onToggle }: { item: MenuItem, onToggle: (id: numb
       <div className="flex-1">
         <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{item.name}</h4>
         <p className="text-xs text-slate-500">{item.category_name}</p>
+        {restrictions && <p className="text-[10px] text-orange-600 font-bold mt-0.5 bg-orange-50 dark:bg-orange-900/20 w-fit px-1.5 py-0.5 rounded">{restrictions}</p>}
         <div className="flex items-center gap-2 mt-1">
           {item.is_available === false && (
             <span className="inline-block bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded">OUT OF STOCK</span>
@@ -95,7 +121,32 @@ const DroppableSlot = ({
             Drag items here...
           </div>
         ) : (
-          slot.items.map((item: MenuItem, idx: number) => (
+          slot.items.map((item: MenuItem, idx: number) => {
+            let restrictions = ''
+            if (item.description && item.description.includes('|META|')) {
+               try {
+                 const meta = JSON.parse(item.description.split('|META|')[1]);
+                 const days = (meta.days && meta.days.length > 0 && meta.days.length < 7) ? meta.days.join(', ') : ''
+                 let time = ''
+                 if (meta.start && meta.end) {
+                     const formatTo12h = (t: string) => {
+                        const match = t.match(/^(\d{1,2}):(\d{2})$/)
+                        if (match) {
+                           let h = parseInt(match[1], 10)
+                           const ampm = h >= 12 ? 'PM' : 'AM'
+                           h = h % 12 || 12
+                           return `${h}:${match[2]} ${ampm}`
+                        }
+                        return t
+                     }
+                     time = `${formatTo12h(meta.start)}-${formatTo12h(meta.end)}`
+                 }
+                 if (days && time) restrictions = `${days} • ${time}`
+                 else if (days) restrictions = days
+                 else if (time) restrictions = time
+               } catch(e) {}
+            }
+            return (
             <div key={`${item.id}-${idx}`} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-md bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-sm">
@@ -104,6 +155,7 @@ const DroppableSlot = ({
                 <div>
                   <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{item.name}</p>
                   <p className="text-[10px] text-slate-500">{item.category_name}</p>
+                  {restrictions && <p className="text-[9px] text-orange-600 font-bold mt-0.5 bg-orange-50 dark:bg-orange-900/20 w-fit px-1 py-0.5 rounded">{restrictions}</p>}
                   {item.is_available === false && (
                     <span className="inline-block mt-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded">OUT OF STOCK</span>
                   )}
@@ -117,7 +169,7 @@ const DroppableSlot = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
-          ))
+          )})
         )}
       </div>
     </div>
@@ -129,12 +181,14 @@ export default function MenuScheduler() {
   const [search, setSearch] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [slots, setSlots] = useState<any[]>([])
+  const [savedSchedule, setSavedSchedule] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'manage' | 'today'>('manage')
+  const [viewDay, setViewDay] = useState<string>('Today')
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short' })
 
-  const getTodayItems = (slotItems: MenuItem[]) => {
+  const getItemsForViewDay = (slotItems: MenuItem[]) => {
     return slotItems.filter((item) => {
       let days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       if (item.description && item.description.includes('|META|')) {
@@ -143,7 +197,9 @@ export default function MenuScheduler() {
            if (meta.days && meta.days.length > 0) days = meta.days;
          } catch(e) {}
       }
-      return days.includes(today);
+      if (viewDay === 'All Days') return true;
+      if (viewDay === 'Today') return days.includes(today);
+      return days.includes(viewDay);
     });
   }
 
@@ -171,14 +227,16 @@ export default function MenuScheduler() {
           }
           return slot;
         });
-        setSlots(updatedSlots);
+        setSavedSchedule(updatedSlots);
+        setSlots(updatedSlots.map((s: any) => ({ ...s, items: [] })));
       } else {
         const defaultSlots = [
           { id: 'slot-1', name: 'Breakfast', time: settings.breakfast_time || '09:00 AM - 11:00 AM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
           { id: 'slot-2', name: 'Lunch', time: settings.lunch_time || '12:00 PM - 04:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
           { id: 'slot-3', name: 'Dinner', time: settings.dinner_time || '05:00 PM - 10:00 PM', activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], items: [] as MenuItem[] },
         ];
-        setSlots(defaultSlots);
+        setSavedSchedule(defaultSlots);
+        setSlots(defaultSlots.map(s => ({ ...s, items: [] })));
       }
     }).catch(() => {
       toast.error("Failed to load schedule configuration.")
@@ -191,6 +249,10 @@ export default function MenuScheduler() {
       await api.patch(`/menu-items/${id}`, { is_available: newStatus })
       setMenuPool(prev => prev.map(m => m.id === id ? { ...m, is_available: newStatus } : m))
       setSlots(prev => prev.map(slot => ({
+        ...slot,
+        items: slot.items.map((m: MenuItem) => m.id === id ? { ...m, is_available: newStatus } : m)
+      })))
+      setSavedSchedule(prev => prev.map(slot => ({
         ...slot,
         items: slot.items.map((m: MenuItem) => m.id === id ? { ...m, is_available: newStatus } : m)
       })))
@@ -229,6 +291,12 @@ export default function MenuScheduler() {
     const slot = slots.find(s => s.id === slotId);
     if (!slot) return;
 
+    const dbSlot = savedSchedule.find(s => s.id === slotId);
+    if (dbSlot && dbSlot.items.find((i: MenuItem) => i.id === draggedItem.id)) {
+        toast.error(`${draggedItem.name} is already assigned to ${dbSlot.name}`);
+        return;
+    }
+
     let meta = { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], start: '', end: '' };
     if (draggedItem.description && draggedItem.description.includes('|META|')) {
        try { meta = JSON.parse(draggedItem.description.split('|META|')[1]); } catch(e) {}
@@ -253,7 +321,7 @@ export default function MenuScheduler() {
         const sEnd = parseTime(slot.time?.split('-')[1]?.trim() || '');
 
         // Attempt to find which slot it was intended for
-        const matchingSlot = slots.find(s => {
+        const matchingSlot = savedSchedule.find(s => {
             const msStart = parseTime(s.time?.split('-')[0]?.trim() || '');
             const msEnd = parseTime(s.time?.split('-')[1]?.trim() || '');
             if (msStart === null || msEnd === null || itemStart === null || itemEnd === null) return false;
@@ -294,7 +362,7 @@ export default function MenuScheduler() {
           toast.error(`${draggedItem.name} is already in ${s.name}`)
           return s
         }
-        toast.success(`Added ${draggedItem.name} to ${s.name}`)
+        toast.success(`Staged ${draggedItem.name} for ${s.name}`)
         return { ...s, items: [...s.items, draggedItem] }
       }
       return s
@@ -322,11 +390,13 @@ export default function MenuScheduler() {
       activeDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       items: []
     }
-    const newSlots = [...slots, newSlot]
-    setSlots(newSlots)
+    const newSaved = [...savedSchedule, newSlot]
+    const newStaging = [...slots, newSlot]
+    setSavedSchedule(newSaved)
+    setSlots(newStaging)
     
     try {
-      await api.post('/schedule', { slots: newSlots })
+      await api.post('/schedule', { slots: newSaved })
       toast.success('Custom slot created')
     } catch (err) {
       toast.error('Failed to save to DB')
@@ -335,10 +405,12 @@ export default function MenuScheduler() {
 
   const deleteSlot = async (slotId: string) => {
     if (confirm('Are you sure you want to delete this time slot?')) {
-      const newSlots = slots.filter(s => s.id !== slotId)
-      setSlots(newSlots)
+      const newSaved = savedSchedule.filter(s => s.id !== slotId)
+      const newStaging = slots.filter(s => s.id !== slotId)
+      setSavedSchedule(newSaved)
+      setSlots(newStaging)
       try {
-        await api.post('/schedule', { slots: newSlots })
+        await api.post('/schedule', { slots: newSaved })
         toast.success('Slot deleted permanently')
       } catch (err) {
         toast.error('Failed to delete in DB')
@@ -349,12 +421,42 @@ export default function MenuScheduler() {
   const saveSchedule = async () => {
     setIsSaving(true)
     try {
-      await api.post('/schedule', { slots })
+      const merged = savedSchedule.map(dbSlot => {
+         const stageSlot = slots.find(s => s.id === dbSlot.id);
+         if (stageSlot && stageSlot.items.length > 0) {
+             const newItems = stageSlot.items.filter((si: MenuItem) => !dbSlot.items.some((di: MenuItem) => di.id === si.id));
+             return { ...dbSlot, items: [...dbSlot.items, ...newItems] };
+         }
+         return dbSlot;
+      });
+
+      await api.post('/schedule', { slots: merged })
+      setSavedSchedule(merged)
+      setSlots(merged.map(s => ({ ...s, items: [] })))
       toast.success('Menu Schedule saved successfully!')
     } catch (err) {
       toast.error('Failed to save schedule')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleRemoveFromDb = async (slotId: string, itemId: number) => {
+    if (!confirm('Remove this item from the schedule?')) return;
+    const updated = savedSchedule.map(s => {
+       if (s.id === slotId) {
+          return { ...s, items: s.items.filter((i: MenuItem) => i.id !== itemId) };
+       }
+       return s;
+    });
+    
+    setSavedSchedule(updated);
+    
+    try {
+       await api.post('/schedule', { slots: updated });
+       toast.success('Item removed from schedule');
+    } catch {
+       toast.error('Failed to remove');
     }
   }
 
@@ -368,7 +470,7 @@ export default function MenuScheduler() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Menu Scheduler</h1>
-            <p className="text-slate-500 mt-1 text-sm">Manage slots or view today's menu.</p>
+            <p className="text-slate-500 mt-1 text-sm">Manage slot staging or view scheduled menu.</p>
           </div>
 
           {/* TABS */}
@@ -392,7 +494,7 @@ export default function MenuScheduler() {
               }`}
             >
               <CalendarDays className="w-4 h-4" />
-              Today's Menu
+              View Schedule
             </button>
           </div>
 
@@ -476,9 +578,23 @@ export default function MenuScheduler() {
         </div>
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
+            
+            {/* Filter Header */}
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-2 custom-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+               {['Today','Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                  <button 
+                    key={day}
+                    onClick={() => setViewDay(day)}
+                    className={`shrink-0 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${viewDay === day ? 'bg-orange-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-orange-300'}`}
+                  >
+                    {day}
+                  </button>
+               ))}
+            </div>
+
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {slots.map(slot => {
-                const todayItems = getTodayItems(slot.items);
+              {savedSchedule.map(slot => {
+                const viewItems = getItemsForViewDay(slot.items);
                 return (
                   <div key={slot.id} className="flex flex-col bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <div className="bg-slate-50 dark:bg-slate-800 p-4 border-b border-slate-200 dark:border-slate-700">
@@ -493,12 +609,37 @@ export default function MenuScheduler() {
                       </div>
                     </div>
                     <div className="flex-1 p-4 flex flex-col gap-3">
-                      {todayItems.length === 0 ? (
+                      {viewItems.length === 0 ? (
                         <div className="flex-1 flex items-center justify-center text-slate-400 text-sm font-medium p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                          No items scheduled for today.
+                          No items scheduled for {viewDay.toLowerCase()}.
                         </div>
                       ) : (
-                        todayItems.map((item: MenuItem) => (
+                        viewItems.map((item: MenuItem) => {
+                          let restrictions = ''
+                          if (item.description && item.description.includes('|META|')) {
+                             try {
+                               const meta = JSON.parse(item.description.split('|META|')[1]);
+                               const days = (meta.days && meta.days.length > 0 && meta.days.length < 7) ? meta.days.join(', ') : ''
+                               let time = ''
+                               if (meta.start && meta.end) {
+                                   const formatTo12h = (t: string) => {
+                                      const match = t.match(/^(\d{1,2}):(\d{2})$/)
+                                      if (match) {
+                                         let h = parseInt(match[1], 10)
+                                         const ampm = h >= 12 ? 'PM' : 'AM'
+                                         h = h % 12 || 12
+                                         return `${h}:${match[2]} ${ampm}`
+                                      }
+                                      return t
+                                   }
+                                   time = `${formatTo12h(meta.start)} - ${formatTo12h(meta.end)}`
+                               }
+                               if (days && time) restrictions = `${days} • ${time}`
+                               else if (days) restrictions = days
+                               else if (time) restrictions = time
+                             } catch(e) {}
+                          }
+                          return (
                           <div key={item.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg">
@@ -507,11 +648,21 @@ export default function MenuScheduler() {
                               <div>
                                 <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{item.name}</p>
                                 <p className="text-[11px] font-medium text-slate-500">{item.category_name}</p>
+                                {restrictions && <p className="text-[10px] text-orange-600 font-bold mt-0.5 bg-orange-50 dark:bg-orange-900/20 w-fit px-1.5 py-0.5 rounded">{restrictions}</p>}
                               </div>
                             </div>
-                            <span className="font-black text-orange-600">₹{item.price}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="font-black text-orange-600">₹{item.price}</span>
+                              <button 
+                                onClick={() => handleRemoveFromDb(slot.id, item.id)}
+                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
+                                title="Remove from schedule completely"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-                        ))
+                        )})
                       )}
                     </div>
                   </div>
