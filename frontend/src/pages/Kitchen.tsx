@@ -215,6 +215,31 @@ const Kitchen = () => {
     return { readyCount, servedCount, totalCount: items.length }
   }
 
+  const sectionCards = useMemo(() => {
+    const sectionsMap: Record<string, { section: string; allSectionItems: Order['items']; orders: { order: Order; items: Order['items'] }[] }> = {}
+
+    orders.forEach((o) => {
+      const visibleItems = o.items.filter((li) => li.status !== 'cancelled')
+      if (!visibleItems.length) return
+
+      const groupedItems = visibleItems.reduce((acc, i) => {
+        const section = menuItems.find((m) => m.id === i.menu_item_id)?.category_name || 'Other'
+        if (!acc[section]) acc[section] = []
+        acc[section].push(i)
+        return acc
+      }, {} as Record<string, typeof visibleItems>)
+
+      Object.entries(groupedItems).forEach(([section, items]) => {
+        if (!sectionsMap[section]) {
+          sectionsMap[section] = { section, allSectionItems: [], orders: [] }
+        }
+        sectionsMap[section].allSectionItems.push(...items)
+        sectionsMap[section].orders.push({ order: o, items })
+      })
+    })
+    return Object.values(sectionsMap).sort((a, b) => a.section.localeCompare(b.section))
+  }, [orders, menuItems])
+
   return (
     <div className="space-y-6 pb-24">
       <audio ref={audio} src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=" />
@@ -235,33 +260,23 @@ const Kitchen = () => {
             Manage Stock
           </button>
           <div className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-4 py-2 rounded-xl text-sm font-black shadow-sm border border-amber-200 dark:border-amber-800/50">
-            {orders.length} ACTIVE
+            {sectionCards.length} SECTIONS
           </div>
         </div>
       </div>
 
       {/* Tablet/Phone Optimized Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-        {orders.map((o) => {
-          const visibleItems = o.items.filter((li) => li.status !== 'cancelled')
-          if (!visibleItems.length) return null
-          const status = getOrderStatus(visibleItems)
-          const progress = getOrderProgress(visibleItems)
+        {sectionCards.map(({ section, allSectionItems, orders: sectionOrderGroups }) => {
+          const status = getOrderStatus(allSectionItems)
+          const progress = getOrderProgress(allSectionItems)
           const allReady = progress.readyCount === progress.totalCount && progress.servedCount === 0
           const partialReady = progress.readyCount > 0 && progress.readyCount < progress.totalCount
           const allServed = progress.servedCount === progress.totalCount
-          
-          // Group items by category (Kitchen Section)
-          const groupedItems = visibleItems.reduce((acc, i) => {
-            const section = menuItems.find(m => m.id === i.menu_item_id)?.category_name || 'Other'
-            if (!acc[section]) acc[section] = []
-            acc[section].push(i)
-            return acc
-          }, {} as Record<string, typeof visibleItems>)
 
           return (
             <div
-              key={o.id}
+              key={section}
               className={`rounded-2xl border-2 p-5 shadow-sm hover:shadow-md transition ${
                 allServed
                   ? 'border-gray-300 bg-gray-50 dark:bg-gray-900/30'
@@ -273,20 +288,14 @@ const Kitchen = () => {
               }`}
             >
               {/* Ticket Header */}
-                <div className="flex justify-between items-start mb-3">
+              <div className="flex justify-between items-start mb-3">
                 <div>
-                  <h2 className="font-bold text-lg">
-                    Order #{o.id}
+                  <h2 className="font-bold text-xl flex items-center gap-2">
+                    <ChefHat className="w-5 h-5 text-orange-600" /> {section}
                   </h2>
-                    {o.customer_name && (
-                      <div className="text-lg font-semibold text-slate-700 dark:text-slate-200 mt-0.5">
-                        {o.customer_name}
-                      </div>
-                    )}
-                  {/* <p className="text-xs text-slate-500">
-                    <Clock className="inline h-3 w-3 mr-1" />
-                    {progress.readyCount}/{progress.totalCount} Ready
-                  </p> */}
+                  <div className="text-xs font-semibold text-slate-500 mt-1">
+                    {sectionOrderGroups.length} Orders • {allSectionItems.length} Items
+                  </div>
                 </div>
 
                 <div className="text-right">
@@ -314,15 +323,24 @@ const Kitchen = () => {
                 />
               </div>
               
-              {/* ITEMS GROUPED BY SECTION */}
-              <div className="space-y-3 text-sm">
-                {Object.entries(groupedItems).map(([section, items]) => (
-                  <div key={section} className="bg-slate-50/50 dark:bg-slate-800/20 rounded-xl p-2 border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 px-3 py-1.5 rounded-lg flex items-center gap-2 font-black text-xs uppercase tracking-widest border border-orange-200 dark:border-orange-500/30 shadow-sm">
-                        <ChefHat className="w-4 h-4" /> {section}
+              {/* ITEMS BY ORDER */}
+              <div className="space-y-4 text-sm mt-4">
+                {sectionOrderGroups.map(({ order: o, items }) => (
+                  <div key={o.id} className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-3 border border-slate-100 dark:border-slate-800">
+                    <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                        <span className="text-base font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 shadow-sm">
+                          Order #{o.id}
+                        </span>
+                        {o.table_name && (
+                          <span className="text-base font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 shadow-sm">
+                            Table {o.table_name}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700 rounded-full" />
+                      {o.customer_name && (
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-lg shadow-sm">{o.customer_name}</span>
+                      )}
                     </div>
                     <div className="space-y-2">
                       {items.map((li) => (
@@ -387,29 +405,17 @@ const Kitchen = () => {
                   </div>
                 ))}
               </div>
-
-              {/* FOOTER */}
-              <div className="mt-4 flex justify-between items-center gap-2">
-                <div>
-                  {o.table_name && o.seat_count && (
-                    <div className="text-xs text-slate-500">
-                      Table {o.table_name} • {o.seat_count} seat{o.seat_count > 1 ? 's' : ''}
-                      {o.customer_name && ` • ${o.customer_name}`}
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           )
         })}
       </div>
 
       {/* EMPTY STATE */}
-      {!orders.length && (
+      {!sectionCards.length && (
         <div className="text-center py-20 border rounded-2xl bg-white dark:bg-slate-900">
           <ChefHat className="mx-auto h-10 w-10 text-slate-400" />
           <p className="mt-2 text-slate-500">
-            No active kitchen orders
+            No active kitchen sections
           </p>
         </div>
       )}
