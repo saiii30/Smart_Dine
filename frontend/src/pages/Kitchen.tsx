@@ -78,6 +78,7 @@ const Kitchen = () => {
   const [menuSearch, setMenuSearch] = useState('')
   const [schedule, setSchedule] = useState<any[]>([])
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [selectedSection, setSelectedSection] = useState<string>('All')
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 30000)
@@ -240,6 +241,16 @@ const Kitchen = () => {
     return Object.values(sectionsMap).sort((a, b) => a.section.localeCompare(b.section))
   }, [orders, menuItems])
 
+  const allCategories = useMemo(() => {
+    const cats = sectionCards.map(s => s.section)
+    return ['All', ...cats.sort()]
+  }, [sectionCards])
+
+  const filteredSections = useMemo(() => {
+    if (selectedSection === 'All') return sectionCards
+    return sectionCards.filter(s => s.section === selectedSection)
+  }, [sectionCards, selectedSection])
+
   return (
     <div className="space-y-6 pb-24">
       <audio ref={audio} src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=" />
@@ -253,6 +264,19 @@ const Kitchen = () => {
           <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Live Kitchen Display</p>
         </div>
         <div className="flex items-center gap-3">
+          {allCategories.length > 1 && (
+            <select
+              value={selectedSection}
+              onChange={(e) => setSelectedSection(e.target.value)}
+              className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 md:px-4 py-2 rounded-xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+            >
+              {allCategories.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat === 'All' ? 'All Sections' : cat}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             onClick={() => setShowStockModal(true)}
             className="bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:scale-105 transition-transform"
@@ -260,14 +284,14 @@ const Kitchen = () => {
             Manage Stock
           </button>
           <div className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-4 py-2 rounded-xl text-sm font-black shadow-sm border border-amber-200 dark:border-amber-800/50">
-            {sectionCards.length} SECTIONS
+            {filteredSections.length} SECTIONS
           </div>
         </div>
       </div>
 
       {/* Tablet/Phone Optimized Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-        {sectionCards.map(({ section, allSectionItems, orders: sectionOrderGroups }) => {
+        {filteredSections.map(({ section, allSectionItems, orders: sectionOrderGroups }) => {
           const status = getOrderStatus(allSectionItems)
           const progress = getOrderProgress(allSectionItems)
           const allReady = progress.readyCount === progress.totalCount && progress.servedCount === 0
@@ -411,11 +435,11 @@ const Kitchen = () => {
       </div>
 
       {/* EMPTY STATE */}
-      {!sectionCards.length && (
+      {!filteredSections.length && (
         <div className="text-center py-20 border rounded-2xl bg-white dark:bg-slate-900">
           <ChefHat className="mx-auto h-10 w-10 text-slate-400" />
           <p className="mt-2 text-slate-500">
-            No active kitchen sections
+            No active kitchen sections {selectedSection !== 'All' ? `in ${selectedSection}` : ''}
           </p>
         </div>
       )}
