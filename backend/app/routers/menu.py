@@ -146,6 +146,7 @@ async def upload_menu_image(
 class ScheduleItemIn(BaseModel):
     id: int
     name: str
+    description: str | None = None
     category_name: str | None = None
     price: float
     is_veg: bool
@@ -174,6 +175,7 @@ def get_schedule(db: Session = Depends(get_db)):
                 menu_items.append({
                     "id": mi.id,
                     "name": mi.name,
+                    "description": mi.description,
                     "category_name": mi.category.name if mi.category else None,
                     "price": mi.price,
                     "is_veg": mi.is_veg,
