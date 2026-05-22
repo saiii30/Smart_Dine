@@ -125,8 +125,35 @@ const Kitchen = () => {
       return null
     }
 
+    const slotActiveMap = new Map<string, boolean>()
+    schedule.forEach(slot => {
+        let isSlotTimeActive = false;
+        if (slot.time && !slot.time.toLowerCase().includes('all day')) {
+           const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
+           const startMins = parseTime(startStr || '')
+           const endMins = parseTime(endStr || '')
+           if (startMins !== null && endMins !== null) {
+              if (startMins <= endMins) {
+                 isSlotTimeActive = currentMins >= startMins && currentMins <= endMins
+              } else {
+                 isSlotTimeActive = currentMins >= startMins || currentMins <= endMins
+              }
+           }
+        } else {
+           isSlotTimeActive = true;
+        }
+        slotActiveMap.set(slot.id || slot.name, isSlotTimeActive)
+    })
+
     const activeIds = new Set<number>()
     const slotOosIds = new Set<number>()
+
+    const itemHasActiveSlot = new Set<number>();
+    schedule.forEach(slot => {
+        if (slotActiveMap.get(slot.id || slot.name)) {
+            slot.items.forEach((i: any) => itemHasActiveSlot.add(i.id));
+        }
+    });
 
     schedule.forEach(slot => {
       slot.items.forEach((i: any) => {
@@ -143,21 +170,7 @@ const Kitchen = () => {
            } catch(e) {}
         }
 
-        let isSlotTimeActive = false;
-        if (slot.time && !slot.time.toLowerCase().includes('all day')) {
-           const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
-           const startMins = parseTime(startStr || '')
-           const endMins = parseTime(endStr || '')
-           if (startMins !== null && endMins !== null) {
-              if (startMins <= endMins) {
-                 isSlotTimeActive = currentMins >= startMins && currentMins <= endMins
-              } else {
-                 isSlotTimeActive = currentMins >= startMins || currentMins <= endMins
-              }
-           }
-        } else {
-           isSlotTimeActive = true;
-        }
+        let isSlotTimeActive = slotActiveMap.get(slot.id || slot.name) || false;
 
         let isItemActive = false;
         const itemTimeStr = (itemStart && itemEnd) ? `${itemStart} - ${itemEnd}` : '';
@@ -182,12 +195,16 @@ const Kitchen = () => {
         const isItemCurrentlyActive = itemTimeStr ? isItemActive : (isSlotTimeActive && isItemActive);
         if (isItemCurrentlyActive) {
            activeIds.add(i.id)
-           const key = `${today}_${slot.name}`;
-           if (i.description && i.description.includes('|META|')) {
-              try {
-                  const meta = JSON.parse(i.description.split('|META|')[1]);
-                  if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
-              } catch(e) {}
+           
+           const shouldCheckOos = itemHasActiveSlot.has(i.id) ? isSlotTimeActive : true;
+           if (shouldCheckOos) {
+               const key = `${today}_${slot.name}`;
+               if (i.description && i.description.includes('|META|')) {
+                  try {
+                      const meta = JSON.parse(i.description.split('|META|')[1]);
+                      if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
+                  } catch(e) {}
+               }
            }
         }
       })
@@ -242,22 +259,8 @@ const Kitchen = () => {
       return null
     }
 
-    const activeSlotsForThisItem = schedule.filter(slot => {
-        if (!slot.items.some((i: any) => i.id === item.id)) return false;
-        
-        let itemDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        let itemStart = ''
-        let itemEnd = ''
-
-        if (item.description && item.description.includes('|META|')) {
-           try {
-             const m = JSON.parse(item.description.split('|META|')[1]);
-             if (m.days && m.days.length > 0) itemDays = m.days;
-             if (m.start) itemStart = m.start;
-             if (m.end) itemEnd = m.end;
-           } catch(e) {}
-        }
-
+    const slotActiveMap = new Map<string, boolean>()
+    schedule.forEach(slot => {
         let isSlotTimeActive = false;
         if (slot.time && !slot.time.toLowerCase().includes('all day')) {
            const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
@@ -273,28 +276,18 @@ const Kitchen = () => {
         } else {
            isSlotTimeActive = true;
         }
+        slotActiveMap.set(slot.id || slot.name, isSlotTimeActive)
+    })
 
-        let isItemActive = false;
-        const itemTimeStr = (itemStart && itemEnd) ? `${itemStart} - ${itemEnd}` : '';
-        if (!itemTimeStr) {
-            isItemActive = itemDays.includes(today);
-        } else {
-            const startMins = parseTime(itemStart);
-            const endMins = parseTime(itemEnd);
-            if (startMins !== null && endMins !== null) {
-                if (startMins <= endMins) {
-                    isItemActive = itemDays.includes(today) && currentMins >= startMins && currentMins <= endMins;
-                } else {
-                    const activeTonight = itemDays.includes(today) && currentMins >= startMins;
-                    const activeFromLastNight = itemDays.includes(yesterday) && currentMins <= endMins;
-                    isItemActive = activeTonight || activeFromLastNight;
-                }
-            } else {
-                isItemActive = itemDays.includes(today);
-            }
-        }
-        return itemTimeStr ? isItemActive : (isSlotTimeActive && isItemActive);
+    let targetSlots = schedule.filter(slot => {
+        if (!slot.items.some((i: any) => i.id === item.id)) return false;
+        return slotActiveMap.get(slot.id || slot.name);
     });
+
+    if (targetSlots.length === 0) {
+        targetSlots = schedule.filter(slot => slot.items.some((i: any) => i.id === item.id));
+    }
+    const activeSlotsForThisItem = targetSlots;
 
     if (targetStatus) {
         activeSlotsForThisItem.forEach(s => {

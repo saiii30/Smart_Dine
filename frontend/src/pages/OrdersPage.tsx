@@ -160,8 +160,35 @@ const OrdersPage = () => {
       return null
     }
 
+    const slotActiveMap = new Map<string, boolean>()
+    schedule.forEach(slot => {
+        let isSlotTimeActive = false;
+        if (slot.time && !slot.time.toLowerCase().includes('all day')) {
+           const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
+           const startMins = parseTime(startStr || '')
+           const endMins = parseTime(endStr || '')
+           if (startMins !== null && endMins !== null) {
+              if (startMins <= endMins) {
+                 isSlotTimeActive = currentMins >= startMins && currentMins <= endMins
+              } else {
+                 isSlotTimeActive = currentMins >= startMins || currentMins <= endMins
+              }
+           }
+        } else {
+           isSlotTimeActive = true;
+        }
+        slotActiveMap.set(slot.id || slot.name, isSlotTimeActive)
+    })
+
     const activeIds = new Set<number>()
     const slotOosIds = new Set<number>()
+
+    const itemHasActiveSlot = new Set<number>();
+    schedule.forEach(slot => {
+        if (slotActiveMap.get(slot.id || slot.name)) {
+            slot.items.forEach((i: any) => itemHasActiveSlot.add(i.id));
+        }
+    });
 
     schedule.forEach(slot => {
       slot.items.forEach((i: any) => {
@@ -178,21 +205,7 @@ const OrdersPage = () => {
            } catch(e) {}
         }
 
-        let isSlotTimeActive = false;
-        if (slot.time && !slot.time.toLowerCase().includes('all day')) {
-           const [startStr, endStr] = slot.time.split('-').map((s: string) => s.trim())
-           const startMins = parseTime(startStr || '')
-           const endMins = parseTime(endStr || '')
-           if (startMins !== null && endMins !== null) {
-              if (startMins <= endMins) {
-                 isSlotTimeActive = currentMins >= startMins && currentMins <= endMins
-              } else {
-                 isSlotTimeActive = currentMins >= startMins || currentMins <= endMins
-              }
-           }
-        } else {
-           isSlotTimeActive = true;
-        }
+        let isSlotTimeActive = slotActiveMap.get(slot.id || slot.name) || false;
 
         let isItemActive = false;
         const itemTimeStr = (itemStart && itemEnd) ? `${itemStart} - ${itemEnd}` : '';
@@ -217,12 +230,16 @@ const OrdersPage = () => {
         const isItemCurrentlyActive = itemTimeStr ? isItemActive : (isSlotTimeActive && isItemActive);
         if (isItemCurrentlyActive) {
            activeIds.add(i.id)
-           const key = `${today}_${slot.name}`;
-           if (i.description && i.description.includes('|META|')) {
-              try {
-                  const meta = JSON.parse(i.description.split('|META|')[1]);
-                  if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
-              } catch(e) {}
+           
+           const shouldCheckOos = itemHasActiveSlot.has(i.id) ? isSlotTimeActive : true;
+           if (shouldCheckOos) {
+               const key = `${today}_${slot.name}`;
+               if (i.description && i.description.includes('|META|')) {
+                  try {
+                      const meta = JSON.parse(i.description.split('|META|')[1]);
+                      if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
+                  } catch(e) {}
+               }
            }
         }
       })
