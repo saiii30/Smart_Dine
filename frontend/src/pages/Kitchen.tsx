@@ -179,7 +179,8 @@ const Kitchen = () => {
             }
         }
 
-        if (isSlotTimeActive && isItemActive) {
+        const isItemCurrentlyActive = itemTimeStr ? isItemActive : (isSlotTimeActive && isItemActive);
+        if (isItemCurrentlyActive) {
            activeIds.add(i.id)
            const key = `${today}_${slot.name}`;
            if (i.description && i.description.includes('|META|')) {
@@ -292,7 +293,7 @@ const Kitchen = () => {
                 isItemActive = itemDays.includes(today);
             }
         }
-        return isSlotTimeActive && isItemActive;
+        return itemTimeStr ? isItemActive : (isSlotTimeActive && isItemActive);
     });
 
     if (targetStatus) {
