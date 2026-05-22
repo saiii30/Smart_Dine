@@ -220,6 +220,15 @@ const OrdersPage = () => {
             }
         }
 
+        if (isItemActive && i.description && i.description.includes('|META|')) {
+           try {
+              const meta = JSON.parse(i.description.split('|META|')[1]);
+              if (meta.hidden && meta.hidden.includes(`${today}_${slot.name}`)) {
+                 isItemActive = false;
+              }
+           } catch(e) {}
+        }
+
         const isItemCurrentlyActive = isSlotTimeActive && isItemActive;
         if (isItemCurrentlyActive) {
            activeIds.add(i.id)

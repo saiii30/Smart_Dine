@@ -64,19 +64,40 @@ const MenuPage = () => {
         return
       }
 
-      let existingOos: string[] = [];
+      let existingMeta: any = { oos: [], hidden: [], days: ALL_DAYS };
+      let oldDays: string[] = ALL_DAYS;
       if (editId) {
           const m = items.find(i => i.id === editId);
           if (m && m.description && m.description.includes('|META|')) {
               try {
                   const parsed = JSON.parse(m.description.split('|META|')[1]);
-                  if (parsed.oos) existingOos = parsed.oos;
+                  existingMeta = { ...existingMeta, ...parsed };
+                  if (parsed.days) oldDays = parsed.days;
               } catch(e) {}
           }
+      } else {
+          oldDays = []; 
       }
 
-      const meta: any = { days: selectedDays, start: form.available_time_start, end: form.available_time_end };
-      if (existingOos.length > 0) meta.oos = existingOos;
+      const addedDays = selectedDays.filter(d => !oldDays.includes(d));
+
+      const meta: any = { days: selectedDays, start: form.available_time_start, end: form.available_time_end, oos: existingMeta.oos, hidden: existingMeta.hidden || [] };
+
+      if (addedDays.length > 0) {
+          try {
+              const scheduleRes = await api.get('/schedule');
+              const slots = scheduleRes.data;
+              slots.forEach((slot: any) => {
+                  addedDays.forEach(day => {
+                      const hiddenKey = `${day}_${slot.name}`;
+                      if (!meta.hidden.includes(hiddenKey)) {
+                          meta.hidden.push(hiddenKey);
+                      }
+                  });
+              });
+          } catch(e) {}
+      }
+
       const baseDesc = form.description.split('|META|')[0].trim();
       const finalDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
 

@@ -181,15 +181,21 @@ export default function MenuScheduler() {
   const getItemsForViewDay = (slotItems: MenuItem[], slotName: string) => {
     return slotItems.filter((item) => {
       let days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      let hidden: string[] = [];
       if (item.description && item.description.includes('|META|')) {
          try {
            const meta = JSON.parse(item.description.split('|META|')[1]);
            if (meta.days && meta.days.length > 0) days = meta.days;
+           if (meta.hidden) hidden = meta.hidden;
          } catch(e) {}
       }
       
       let targetDay = viewDay;
       if (targetDay === 'Today') targetDay = today;
+
+      if (hidden.includes(`${targetDay}_${slotName}`)) {
+          return false;
+      }
 
       if (viewDay === 'All Days') return true;
       return days.includes(targetDay);
@@ -312,7 +318,7 @@ export default function MenuScheduler() {
     return null
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     
     if (!over) return // Dropped outside a slot
@@ -324,14 +330,39 @@ export default function MenuScheduler() {
     if (!slot) return;
 
     const dbSlot = savedSchedule.find(s => s.id === slotId);
-    if (dbSlot && dbSlot.items.find((i: MenuItem) => i.id === draggedItem.id)) {
-        toast.error(`${draggedItem.name} is already assigned to ${dbSlot.name}`);
-        return;
+
+    let meta: any = { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], start: '', end: '', hidden: [] };
+    let baseDesc = draggedItem.description || '';
+    if (draggedItem.description && draggedItem.description.includes('|META|')) {
+       try { 
+           const parts = draggedItem.description.split('|META|');
+           baseDesc = parts[0].trim();
+           meta = { ...meta, ...JSON.parse(parts[1]) }; 
+           if (!meta.hidden) meta.hidden = [];
+       } catch(e) {}
     }
 
-    let meta = { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], start: '', end: '' };
-    if (draggedItem.description && draggedItem.description.includes('|META|')) {
-       try { meta = JSON.parse(draggedItem.description.split('|META|')[1]); } catch(e) {}
+    if (dbSlot && dbSlot.items.find((i: MenuItem) => i.id === draggedItem.id)) {
+        const slotHidden = meta.hidden.filter((h: string) => h.endsWith(`_${dbSlot.name}`));
+        if (slotHidden.length > 0) {
+            meta.hidden = meta.hidden.filter((h: string) => !h.endsWith(`_${dbSlot.name}`));
+            const newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
+            
+            try {
+                await api.patch(`/menu-items/${draggedItem.id}`, { description: newDesc });
+                const updateItem = (i: MenuItem) => i.id === draggedItem.id ? { ...i, description: newDesc } : i;
+                setSavedSchedule(prev => prev.map(s => s.id === dbSlot.id ? { ...s, items: s.items.map(updateItem) } : s));
+                setSlots(prev => prev.map(s => s.id === dbSlot.id ? { ...s, items: s.items.map(updateItem) } : s));
+                setMenuPool(prev => prev.map(updateItem));
+                toast.success(`${draggedItem.name} restored to ${dbSlot.name}`);
+            } catch {
+                toast.error('Failed to restore');
+            }
+            return;
+        }
+
+        toast.error(`${draggedItem.name} is already assigned to ${dbSlot.name}`);
+        return;
     }
 
     let isTimeValid = true;
@@ -462,23 +493,69 @@ export default function MenuScheduler() {
     const slot = savedSchedule.find(s => s.id === slotId);
     if (!slot) return;
 
-    if (!confirm(`Remove ${item.name} from ${slot.name}?`)) return;
+    let targetDay = viewDay;
+    if (targetDay === 'Today') targetDay = today;
 
-    const updated = savedSchedule.map(s => {
-       if (s.id === slotId) {
-          return { ...s, items: s.items.filter((i: MenuItem) => i.id !== item.id) };
-       }
-       return s;
-    });
-    
-    setSavedSchedule(updated);
-    setSlots(updated.map(s => ({ ...s, items: [] })));
-    
-    try {
-       await api.post('/schedule', { slots: updated });
-       toast.success(`${item.name} removed from ${slot.name}`);
-    } catch {
-       toast.error('Failed to remove');
+    if (viewDay === 'All Days') {
+        if (!confirm(`Remove ${item.name} from ${slot.name} completely?`)) return;
+
+        const updated = savedSchedule.map(s => {
+           if (s.id === slotId) {
+              return { ...s, items: s.items.filter((i: MenuItem) => i.id !== item.id) };
+           }
+           return s;
+        });
+        
+        setSavedSchedule(updated);
+        setSlots(updated.map(s => ({ ...s, items: [] })));
+        
+        try {
+           await api.post('/schedule', { slots: updated });
+           toast.success(`${item.name} removed from ${slot.name}`);
+        } catch {
+           toast.error('Failed to remove');
+        }
+    } else {
+        if (!confirm(`Remove ${item.name} from ${slot.name} on ${targetDay}?`)) return;
+
+        let desc = item.description || '';
+        let meta: any = { days: [], start: '', end: '', oos: [], hidden: [] };
+        let baseDesc = desc;
+
+        if (desc.includes('|META|')) {
+           const parts = desc.split('|META|');
+           baseDesc = parts[0].trim();
+           try { meta = { ...meta, ...JSON.parse(parts[1]) }; } catch(e) {}
+           if (!meta.hidden) meta.hidden = [];
+        }
+        
+        const hiddenKey = `${targetDay}_${slot.name}`;
+        if (!meta.hidden.includes(hiddenKey)) {
+            meta.hidden.push(hiddenKey);
+        }
+        
+        const newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
+
+        try {
+           await api.patch(`/menu-items/${item.id}`, { description: newDesc });
+           
+           const updated = savedSchedule.map(s => {
+              if (s.id === slotId) {
+                  return { 
+                      ...s, 
+                      items: s.items.map((i: MenuItem) => i.id === item.id ? { ...i, description: newDesc } : i) 
+                  };
+              }
+              return s;
+           });
+
+           setSavedSchedule(updated);
+           setSlots(updated.map(s => ({ ...s, items: [] })));
+           toast.success(`${item.name} removed from ${slot.name} on ${targetDay}`);
+           setMenuPool(prev => prev.map(m => m.id === item.id ? { ...m, description: newDesc } : m));
+        } catch {
+           toast.error('Failed to update database');
+        }
     }
   }
 
@@ -712,7 +789,7 @@ export default function MenuScheduler() {
                               <button 
                                 onClick={() => handleRemoveFromDb(slot.id, item)}
                                 className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 text-slate-500 hover:text-red-600 bg-slate-100 hover:bg-red-50 dark:bg-slate-700/50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                title={`Remove from ${slot.name}`}
+                                title={viewDay === 'All Days' ? `Remove from ${slot.name} completely` : `Remove from ${slot.name} on ${viewDay === 'Today' ? today : viewDay}`}
                               >
                                 <X className="w-3 h-3" /> Remove
                               </button>
