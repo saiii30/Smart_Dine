@@ -183,13 +183,6 @@ const OrdersPage = () => {
     const activeIds = new Set<number>()
     const slotOosIds = new Set<number>()
 
-    const itemHasActiveSlot = new Set<number>();
-    schedule.forEach(slot => {
-        if (slotActiveMap.get(slot.id || slot.name)) {
-            slot.items.forEach((i: any) => itemHasActiveSlot.add(i.id));
-        }
-    });
-
     schedule.forEach(slot => {
       slot.items.forEach((i: any) => {
         let itemDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -227,19 +220,16 @@ const OrdersPage = () => {
             }
         }
 
-        const isItemCurrentlyActive = itemTimeStr ? isItemActive : (isSlotTimeActive && isItemActive);
+        const isItemCurrentlyActive = isSlotTimeActive && isItemActive;
         if (isItemCurrentlyActive) {
            activeIds.add(i.id)
            
-           const shouldCheckOos = itemHasActiveSlot.has(i.id) ? isSlotTimeActive : true;
-           if (shouldCheckOos) {
-               const key = `${today}_${slot.name}`;
-               if (i.description && i.description.includes('|META|')) {
-                  try {
-                      const meta = JSON.parse(i.description.split('|META|')[1]);
-                      if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
-                  } catch(e) {}
-               }
+           const key = `${today}_${slot.name}`;
+           if (i.description && i.description.includes('|META|')) {
+              try {
+                  const meta = JSON.parse(i.description.split('|META|')[1]);
+                  if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
+              } catch(e) {}
            }
         }
       })
