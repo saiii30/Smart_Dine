@@ -178,18 +178,27 @@ export default function MenuScheduler() {
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short' })
 
-  const getItemsForViewDay = (slotItems: MenuItem[]) => {
+  const getItemsForViewDay = (slotItems: MenuItem[], slotName: string) => {
     return slotItems.filter((item) => {
       let days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      let hidden: string[] = [];
       if (item.description && item.description.includes('|META|')) {
          try {
            const meta = JSON.parse(item.description.split('|META|')[1]);
            if (meta.days && meta.days.length > 0) days = meta.days;
+           if (meta.hidden) hidden = meta.hidden;
          } catch(e) {}
       }
+      
+      let targetDay = viewDay;
+      if (targetDay === 'Today') targetDay = today;
+      
+      if (hidden.includes(`${targetDay}_${slotName}`)) {
+          return false;
+      }
+
       if (viewDay === 'All Days') return true;
-      if (viewDay === 'Today') return days.includes(today);
-      return days.includes(viewDay);
+      return days.includes(targetDay);
     });
   }
 
@@ -479,23 +488,26 @@ export default function MenuScheduler() {
          toast.error('Failed to remove');
       }
     } else {
+      const slot = savedSchedule.find(s => s.id === slotId);
+      if (!slot) return;
+
       if (!confirm(`Remove ${item.name} from ${dayToRemove}?`)) return;
       
       let desc = item.description || '';
-      let meta = { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], start: '', end: '' };
+      let meta: any = { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], start: '', end: '', oos: [], hidden: [] };
       let baseDesc = desc;
 
       if (desc.includes('|META|')) {
          const parts = desc.split('|META|');
          baseDesc = parts[0].trim();
-         try { meta = JSON.parse(parts[1]); } catch(e) {}
-         if (!meta.days || meta.days.length === 0) {
-             meta.days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-         }
+         try { meta = { ...meta, ...JSON.parse(parts[1]) }; } catch(e) {}
+         if (!meta.hidden) meta.hidden = [];
       }
       
-      const newDays = meta.days.filter((d: string) => d !== dayToRemove);
-      meta.days = newDays;
+      const hiddenKey = `${dayToRemove}_${slot.name}`;
+      if (!meta.hidden.includes(hiddenKey)) {
+          meta.hidden.push(hiddenKey);
+      }
       
       const newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
 
@@ -504,27 +516,18 @@ export default function MenuScheduler() {
          
          const updated = savedSchedule.map(s => {
             if (s.id === slotId) {
-               if (newDays.length === 0) {
-                   return { ...s, items: s.items.filter((i: MenuItem) => i.id !== item.id) };
-               } else {
-                   return { 
-                       ...s, 
-                       items: s.items.map((i: MenuItem) => i.id === item.id ? { ...i, description: newDesc } : i) 
-                   };
-               }
+                return { 
+                    ...s, 
+                    items: s.items.map((i: MenuItem) => i.id === item.id ? { ...i, description: newDesc } : i) 
+                };
             }
             return s;
          });
 
          setSavedSchedule(updated);
+         setSlots(updated.map(s => ({ ...s, items: [] })));
 
-         if (newDays.length === 0) {
-             await api.post('/schedule', { slots: updated });
-             toast.success(`${item.name} removed completely (no days left)`);
-         } else {
-             toast.success(`${item.name} removed from ${dayToRemove}`);
-         }
-
+         toast.success(`${item.name} removed from ${slot.name} on ${dayToRemove}`);
          setMenuPool(prev => prev.map(m => m.id === item.id ? { ...m, description: newDesc } : m));
 
       } catch {
@@ -669,7 +672,7 @@ export default function MenuScheduler() {
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {savedSchedule.map(slot => {
-                const viewItems = getItemsForViewDay(slot.items);
+                const viewItems = getItemsForViewDay(slot.items, slot.name);
                 return (
                   <div key={slot.id} className="flex flex-col bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <div className="bg-slate-50 dark:bg-slate-800 p-4 border-b border-slate-200 dark:border-slate-700">

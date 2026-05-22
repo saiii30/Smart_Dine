@@ -229,18 +229,30 @@ const OrdersPage = () => {
 
         const isItemCurrentlyActive = itemTimeStr ? isItemActive : (isSlotTimeActive && isItemActive);
         if (isItemCurrentlyActive) {
-           activeIds.add(i.id)
-           
-           const shouldCheckOos = itemHasActiveSlot.has(i.id) ? isSlotTimeActive : true;
-           if (shouldCheckOos) {
-               const key = `${today}_${slot.name}`;
-               if (i.description && i.description.includes('|META|')) {
-                  try {
-                      const meta = JSON.parse(i.description.split('|META|')[1]);
-                      if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
-                  } catch(e) {}
+            let isHidden = false;
+            if (i.description && i.description.includes('|META|')) {
+               try {
+                  const meta = JSON.parse(i.description.split('|META|')[1]);
+                  if (meta.hidden && meta.hidden.includes(`${today}_${slot.name}`)) {
+                     isHidden = true;
+                  }
+               } catch(e) {}
+            }
+
+            if (!isHidden) {
+               activeIds.add(i.id)
+               
+               const shouldCheckOos = itemHasActiveSlot.has(i.id) ? isSlotTimeActive : true;
+               if (shouldCheckOos) {
+                   const key = `${today}_${slot.name}`;
+                   if (i.description && i.description.includes('|META|')) {
+                      try {
+                          const meta = JSON.parse(i.description.split('|META|')[1]);
+                          if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
+                      } catch(e) {}
+                   }
                }
-           }
+            }
         }
       })
     })
