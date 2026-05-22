@@ -173,7 +173,7 @@ export default function MenuScheduler() {
   const [slots, setSlots] = useState<any[]>([])
   const [savedSchedule, setSavedSchedule] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'manage' | 'today'>('manage')
+  const [activeTab, setActiveTab] = useState<'manage' | 'today'>('today')
   const [viewDay, setViewDay] = useState<string>('Today')
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short' })
@@ -548,16 +548,7 @@ export default function MenuScheduler() {
 
           {/* TABS */}
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 self-start sm:self-auto">
-            <button
-              onClick={() => setActiveTab('manage')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                activeTab === 'manage'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              Manage Schedule
-            </button>
+
             <button
               onClick={() => setActiveTab('today')}
               className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
@@ -569,6 +560,17 @@ export default function MenuScheduler() {
               <CalendarDays className="w-4 h-4" />
               View Schedule
             </button>
+            <button
+              onClick={() => setActiveTab('manage')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                activeTab === 'manage'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              Manage Schedule
+            </button>
+            
           </div>
 
           <div className="flex items-center gap-3">
