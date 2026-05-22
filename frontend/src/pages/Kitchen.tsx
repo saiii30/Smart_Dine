@@ -194,30 +194,18 @@ const Kitchen = () => {
 
         const isItemCurrentlyActive = itemTimeStr ? isItemActive : (isSlotTimeActive && isItemActive);
         if (isItemCurrentlyActive) {
-            let isHidden = false;
-            if (i.description && i.description.includes('|META|')) {
-               try {
-                  const meta = JSON.parse(i.description.split('|META|')[1]);
-                  if (meta.hidden && meta.hidden.includes(`${today}_${slot.name}`)) {
-                     isHidden = true;
-                  }
-               } catch(e) {}
-            }
-
-            if (!isHidden) {
-               activeIds.add(i.id)
-               
-               const shouldCheckOos = itemHasActiveSlot.has(i.id) ? isSlotTimeActive : true;
-               if (shouldCheckOos) {
-                   const key = `${today}_${slot.name}`;
-                   if (i.description && i.description.includes('|META|')) {
-                      try {
-                          const meta = JSON.parse(i.description.split('|META|')[1]);
-                          if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
-                      } catch(e) {}
-                   }
+           activeIds.add(i.id)
+           
+           const shouldCheckOos = itemHasActiveSlot.has(i.id) ? isSlotTimeActive : true;
+           if (shouldCheckOos) {
+               const key = `${today}_${slot.name}`;
+               if (i.description && i.description.includes('|META|')) {
+                  try {
+                      const meta = JSON.parse(i.description.split('|META|')[1]);
+                      if (meta.oos && meta.oos.includes(key)) slotOosIds.add(i.id);
+                  } catch(e) {}
                }
-            }
+           }
         }
       })
     })
@@ -293,17 +281,7 @@ const Kitchen = () => {
 
     let targetSlots = schedule.filter(slot => {
         if (!slot.items.some((i: any) => i.id === item.id)) return false;
-        
-        let isHidden = false;
-        if (item.description && item.description.includes('|META|')) {
-           try {
-              const meta = JSON.parse(item.description.split('|META|')[1]);
-              if (meta.hidden && meta.hidden.includes(`${todayStr}_${slot.name}`)) {
-                 isHidden = true;
-              }
-           } catch(e) {}
-        }
-        return slotActiveMap.get(slot.id || slot.name) && !isHidden;
+        return slotActiveMap.get(slot.id || slot.name);
     });
 
     if (targetSlots.length === 0) {
