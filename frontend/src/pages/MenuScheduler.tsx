@@ -342,29 +342,6 @@ export default function MenuScheduler() {
        } catch(e) {}
     }
 
-    if (dbSlot && dbSlot.items.find((i: MenuItem) => i.id === draggedItem.id)) {
-        const slotHidden = meta.hidden.filter((h: string) => h.endsWith(`_${dbSlot.name}`));
-        if (slotHidden.length > 0) {
-            meta.hidden = meta.hidden.filter((h: string) => !h.endsWith(`_${dbSlot.name}`));
-            const newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
-            
-            try {
-                await api.patch(`/menu-items/${draggedItem.id}`, { description: newDesc });
-                const updateItem = (i: MenuItem) => i.id === draggedItem.id ? { ...i, description: newDesc } : i;
-                setSavedSchedule(prev => prev.map(s => s.id === dbSlot.id ? { ...s, items: s.items.map(updateItem) } : s));
-                setSlots(prev => prev.map(s => s.id === dbSlot.id ? { ...s, items: s.items.map(updateItem) } : s));
-                setMenuPool(prev => prev.map(updateItem));
-                toast.success(`${draggedItem.name} restored to ${dbSlot.name}`);
-            } catch {
-                toast.error('Failed to restore');
-            }
-            return;
-        }
-
-        toast.error(`${draggedItem.name} is already assigned to ${dbSlot.name}`);
-        return;
-    }
-
     let isTimeValid = true;
     
     if (meta.start && meta.end) {
@@ -410,15 +387,55 @@ export default function MenuScheduler() {
         return;
     }
 
+    const isInDbSlot = dbSlot && dbSlot.items.find((i: MenuItem) => i.id === draggedItem.id);
+    const slotHidden = meta.hidden.filter((h: string) => h.endsWith(`_${slot.name}`));
+
+    if (isInDbSlot) {
+        if (slotHidden.length > 0) {
+            meta.hidden = meta.hidden.filter((h: string) => !h.endsWith(`_${slot.name}`));
+            const newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
+            
+            try {
+                await api.patch(`/menu-items/${draggedItem.id}`, { description: newDesc });
+                const updateItem = (i: MenuItem) => i.id === draggedItem.id ? { ...i, description: newDesc } : i;
+                setSavedSchedule(prev => prev.map(s => s.id === dbSlot.id ? { ...s, items: s.items.map(updateItem) } : s));
+                setSlots(prev => prev.map(s => s.id === dbSlot.id ? { ...s, items: s.items.map(updateItem) } : s));
+                setMenuPool(prev => prev.map(updateItem));
+                toast.success(`${draggedItem.name} restored to ${dbSlot.name}`);
+            } catch {
+                toast.error('Failed to restore');
+            }
+            return;
+        }
+
+        toast.error(`${draggedItem.name} is already assigned to ${dbSlot.name}`);
+        return;
+    }
+
+    let updatedDraggedItem = { ...draggedItem };
+
+    if (slotHidden.length > 0) {
+        meta.hidden = meta.hidden.filter((h: string) => !h.endsWith(`_${slot.name}`));
+        const newDesc = baseDesc ? `${baseDesc} |META|${JSON.stringify(meta)}` : `|META|${JSON.stringify(meta)}`;
+        try {
+            await api.patch(`/menu-items/${draggedItem.id}`, { description: newDesc });
+            updatedDraggedItem.description = newDesc;
+            const updateItem = (i: MenuItem) => i.id === draggedItem.id ? { ...i, description: newDesc } : i;
+            setMenuPool(prev => prev.map(updateItem));
+        } catch {
+            toast.error('Failed to update item visibility');
+            return;
+        }
+    }
+
     setSlots(prevSlots => prevSlots.map(s => {
       if (s.id === slotId) {
-        // Prevent duplicates in the same slot
-        if (s.items.find((i: MenuItem) => i.id === draggedItem.id)) {
-          toast.error(`${draggedItem.name} is already in ${s.name}`)
+        if (s.items.find((i: MenuItem) => i.id === updatedDraggedItem.id)) {
+          toast.error(`${updatedDraggedItem.name} is already in ${s.name}`)
           return s
         }
-        toast.success(`Staged ${draggedItem.name} for ${s.name}`)
-        return { ...s, items: [...s.items, draggedItem] }
+        toast.success(`Staged ${updatedDraggedItem.name} for ${s.name}`)
+        return { ...s, items: [...s.items, updatedDraggedItem] }
       }
       return s
     }))
