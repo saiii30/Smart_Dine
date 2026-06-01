@@ -115,6 +115,25 @@ const Reports = () => {
     return { dailyData, monthlyData, hourlyData, topItemsData, totalSales: total, bestItem };
   }, [orders]);
 
+  // Generic Local Export Function for Individual Charts
+  const exportChartData = (data: any[], filename: string) => {
+    if (!data || !data.length) return;
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(h => `"${row[h]}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const csv = async () => {
     try {
       const res = await api.get('/reports/export/orders.csv', { responseType: 'blob' })
@@ -143,12 +162,12 @@ const Reports = () => {
           <h1 className="text-3xl font-black text-slate-900 dark:text-white">Analytics & Reports</h1>
           <p className="text-sm text-slate-500 mt-1">Detailed breakdown of sales and performance.</p>
         </div>
-        <button 
+        {/* <button 
           onClick={csv} 
           className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold shadow-md hover:bg-slate-800 transition-colors self-start md:self-auto"
         >
           <Download className="w-4 h-4" /> Export CSV
-        </button>
+        </button> */}
       </div>
 
       {/* Summary Cards */}
@@ -186,7 +205,12 @@ const Reports = () => {
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Daily Sales Chart */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-emerald-500" /> Daily Sales Trend (Last 14 Days)</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-emerald-500" /> Daily Sales Trend (Last 14 Days)</h2>
+            <button onClick={() => exportChartData(dailyData, 'Daily_Sales')} className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-colors" title="Export Daily Sales">
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={dailyData}>
@@ -208,7 +232,12 @@ const Reports = () => {
 
         {/* Monthly Sales Chart */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-500" /> Monthly Revenue</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-500" /> Monthly Revenue</h2>
+            <button onClick={() => exportChartData(monthlyData, 'Monthly_Revenue')} className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-colors" title="Export Monthly Revenue">
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyData}>
@@ -224,7 +253,12 @@ const Reports = () => {
 
         {/* Peak Sales Hours Chart */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><Clock className="w-5 h-5 text-purple-500" /> Peak Sales Hours</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold flex items-center gap-2"><Clock className="w-5 h-5 text-purple-500" /> Peak Sales Hours</h2>
+            <button onClick={() => exportChartData(hourlyData, 'Peak_Sales_Hours')} className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-colors" title="Export Hourly Sales">
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hourlyData}>
@@ -232,7 +266,7 @@ const Reports = () => {
                 <XAxis dataKey="time" tick={{fontSize: 12}} tickMargin={10} axisLine={false} tickLine={false} />
                 <YAxis tick={{fontSize: 12}} tickFormatter={(val) => `₹${val}`} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
-                <Line type="smooth" dataKey="Sales" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="Sales" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -240,7 +274,12 @@ const Reports = () => {
 
         {/* Top Selling Items */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><UtensilsCrossed className="w-5 h-5 text-orange-500" /> Fast Moving Items</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold flex items-center gap-2"><UtensilsCrossed className="w-5 h-5 text-orange-500" /> Fast Moving Items</h2>
+            <button onClick={() => exportChartData(topItemsData, 'Top_Selling_Items')} className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-colors" title="Export Top Items">
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topItemsData} layout="vertical" margin={{ left: 20 }}>

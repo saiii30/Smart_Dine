@@ -883,13 +883,13 @@ export default function MenuScheduler() {
                               >
                                 {!isSlotOOS ? 'Mark Out of Stock' : 'Mark Available'}
                               </button>
-                              <button 
+                              {/* <button 
                                 onClick={() => handleRemoveFromDb(slot.id, item)}
                                 className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 text-slate-500 hover:text-red-600 bg-slate-100 hover:bg-red-50 dark:bg-slate-700/50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                                 title={viewDay === 'All Days' ? `Remove from ${slot.name} completely` : `Remove from ${slot.name} on ${viewDay === 'Today' ? today : viewDay}`}
                               >
                                 <X className="w-3 h-3" /> Remove
-                              </button>
+                              </button> */}
                             </div>
                           </div>
                         )})
