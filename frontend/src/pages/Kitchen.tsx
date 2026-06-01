@@ -332,11 +332,14 @@ const Kitchen = () => {
   })
 
   const getOrderStatus = (items: Order['items']) => {
-    const allServed = items.every(i => i.status === 'served')
-    const allReadyOrServed = items.every(
+    const activeItems = items.filter(i => i.status !== 'cancelled')
+    if (activeItems.length === 0 && items.length > 0) return 'cancelled'
+
+    const allServed = activeItems.every(i => i.status === 'served')
+    const allReadyOrServed = activeItems.every(
       i => i.status === 'ready' || i.status === 'served'
     )
-    const anyPreparing = items.some(i => i.status === 'preparing')
+    const anyPreparing = activeItems.some(i => i.status === 'preparing')
 
     if (allServed) return 'served'
     if (allReadyOrServed) return 'ready'
@@ -353,16 +356,17 @@ const Kitchen = () => {
 
   // Calculate order progress
   const getOrderProgress = (items: Order['items']) => {
-    const readyCount = items.filter(i => i.status === 'ready').length
-    const servedCount = items.filter(i => i.status === 'served').length
-    return { readyCount, servedCount, totalCount: items.length }
+    const activeItems = items.filter(i => i.status !== 'cancelled')
+    const readyCount = activeItems.filter(i => i.status === 'ready').length
+    const servedCount = activeItems.filter(i => i.status === 'served').length
+    return { readyCount, servedCount, totalCount: activeItems.length }
   }
 
   const sectionCards = useMemo(() => {
     const sectionsMap: Record<string, { section: string; allSectionItems: Order['items']; orders: { order: Order; items: Order['items'] }[] }> = {}
 
     orders.forEach((o) => {
-      const visibleItems = o.items.filter((li) => li.status !== 'cancelled')
+      const visibleItems = o.items // Show all items including cancelled ones so the kitchen is notified
       if (!visibleItems.length) return
 
       const groupedItems = visibleItems.reduce((acc, i) => {
@@ -436,15 +440,18 @@ const Kitchen = () => {
         {filteredSections.map(({ section, allSectionItems, orders: sectionOrderGroups }) => {
           const status = getOrderStatus(allSectionItems)
           const progress = getOrderProgress(allSectionItems)
-          const allReady = progress.readyCount === progress.totalCount && progress.servedCount === 0
-          const partialReady = progress.readyCount > 0 && progress.readyCount < progress.totalCount
-          const allServed = progress.servedCount === progress.totalCount
+          const allReady = progress.totalCount > 0 && progress.readyCount === progress.totalCount && progress.servedCount === 0
+          const partialReady = progress.totalCount > 0 && progress.readyCount > 0 && progress.readyCount < progress.totalCount
+          const allServed = progress.totalCount > 0 && progress.servedCount === progress.totalCount
+          const allCancelled = progress.totalCount === 0 && allSectionItems.length > 0
 
           return (
             <div
               key={section}
               className={`rounded-2xl border-2 p-5 shadow-sm hover:shadow-md transition ${
-                allServed
+                allCancelled
+                  ? 'border-red-300 bg-red-50 dark:bg-red-900/10'
+                  : allServed
                   ? 'border-gray-300 bg-gray-50 dark:bg-gray-900/30'
                   : allReady
                   ? 'border-green-400 bg-green-50/40 dark:bg-green-900/20'
@@ -475,7 +482,9 @@ const Kitchen = () => {
               <div className="h-2 bg-gray-300 rounded-full overflow-hidden mb-3">
                 <div
                   className={`h-full transition-all ${
-                    allServed
+                    allCancelled
+                      ? 'bg-red-500'
+                      : allServed
                       ? 'bg-gray-500'
                       : allReady
                       ? 'bg-green-500'
@@ -484,7 +493,7 @@ const Kitchen = () => {
                       : 'bg-yellow-500'
                   }`}
                   style={{
-                    width: `${((progress.readyCount + progress.servedCount) / progress.totalCount) * 100}%`,
+                    width: `${progress.totalCount === 0 ? (allCancelled ? 100 : 0) : ((progress.readyCount + progress.servedCount) / progress.totalCount) * 100}%`,
                   }}
                 />
               </div>
@@ -513,7 +522,9 @@ const Kitchen = () => {
                         <div
                           key={li.id}
                           className={`border rounded-lg p-2 space-y-2 transition-all ${
-                            li.status === 'served'
+                            li.status === 'cancelled'
+                              ? 'bg-red-50 dark:bg-red-900/20 border-red-300 opacity-75'
+                              : li.status === 'served'
                               ? 'bg-gray-100 dark:bg-gray-800/50 border-gray-400'
                               : li.status === 'ready'
                               ? 'bg-green-100 dark:bg-green-900/30 border-green-400'
@@ -524,7 +535,7 @@ const Kitchen = () => {
                         >
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex-1">
-                              <div className="font-medium">{li.menu_item_name}</div>
+                              <div className={`font-medium ${li.status === 'cancelled' ? 'line-through text-red-700 dark:text-red-400' : ''}`}>{li.menu_item_name}</div>
                               <div className="text-xs opacity-60">×{li.quantity}</div>
                               {li.special_instructions && (
                                 <p className="text-xs text-slate-600 italic mt-1">
@@ -542,10 +553,16 @@ const Kitchen = () => {
                                 ✓ SERVED
                               </span>
                             )}
+                            {li.status === 'cancelled' && (
+                              <span className="text-xs px-2 py-1 bg-red-500 text-white rounded font-semibold">
+                                ✕ CANCELLED
+                              </span>
+                            )}
                           </div>
                           
                           {/* Item status buttons */}
-                          <div className="flex gap-1 flex-wrap">
+                          {li.status !== 'cancelled' && (
+                            <div className="flex gap-1 flex-wrap">
                             {['preparing', 'ready', 'served'].map((s) => (
                               <button
                                 key={s}
@@ -564,7 +581,8 @@ const Kitchen = () => {
                                 {s === 'ready' || s === 'served' ? '✓' : ''} {s}
                               </button>
                             ))}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
