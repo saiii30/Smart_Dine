@@ -6,7 +6,7 @@ import type { MenuItem } from '../types'
 import { Search, Clock, X, GripVertical, Trash2, CalendarDays } from 'lucide-react'
 
 // --- DRAGGABLE MENU ITEM ---
-const DraggableItem = ({ item }: { item: MenuItem }) => {
+const DraggableItem = ({ item, assignedSlots }: { item: MenuItem, assignedSlots: string[] }) => {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: `menu-item-${item.id}`,
     data: item,
@@ -52,12 +52,25 @@ const DraggableItem = ({ item }: { item: MenuItem }) => {
       <GripVertical className="w-5 h-5 text-slate-400 group-hover:text-orange-500" />
       <div className="flex-1">
         <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{item.name}</h4>
-        <p className="text-xs text-slate-500">{item.category_name}</p>
-        {restrictions && <p className="text-[10px] text-orange-600 font-bold mt-0.5 bg-orange-50 dark:bg-orange-900/20 w-fit px-1.5 py-0.5 rounded">{restrictions}</p>}
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-1.5 py-0.5 rounded">
+            {item.category_name}
+          </span>
+          {restrictions && <span className="text-[9px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded">{restrictions}</span>}
+          {assignedSlots.length > 0 ? (
+            <span className="text-[9px] text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">
+              In: {assignedSlots.join(', ')}
+            </span>
+          ) : (
+            <span className="text-[9px] text-slate-500 font-bold bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+              Unassigned
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex flex-col items-end">
         <span className="font-bold text-orange-600 text-sm">₹{item.price}</span>
-        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 mt-1">
+        <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded mt-1 ${item.is_veg ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20'}`}>
           {item.is_veg ? 'VEG' : 'NON-VEG'}
         </span>
       </div>
@@ -142,9 +155,11 @@ const DroppableSlot = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
-                  <p className="text-[10px] text-slate-500 truncate">{item.category_name}</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {restrictions && <p className="text-[9px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 w-fit px-1 py-0.5 rounded">{restrictions}</p>}
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-1.5 py-0.5 rounded">
+                      {item.category_name}
+                    </span>
+                    {restrictions && <span className="text-[9px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded">{restrictions}</span>}
                     {item.is_available === false && (
                       <span className="text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold px-1.5 py-0.5 rounded">OUT OF STOCK</span>
                     )}
@@ -738,9 +753,15 @@ export default function MenuScheduler() {
 
             {/* Draggable Items List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-              {filteredMenu.map(item => (
-                <DraggableItem key={item.id} item={item} />
-              ))}
+              {filteredMenu.map(item => {
+                const assignedTo = savedSchedule.map(s => {
+                  const isSaved = s.items.some((i: MenuItem) => i.id === item.id);
+                  const isStaged = slots.find(slot => slot.id === s.id)?.items.some((i: MenuItem) => i.id === item.id);
+                  return (isSaved || isStaged) ? s.name : null;
+                }).filter(Boolean) as string[];
+
+                return <DraggableItem key={item.id} item={item} assignedSlots={assignedTo} />
+              })}
               {filteredMenu.length === 0 && (
                 <div className="text-center text-slate-400 py-10 text-sm">
                   No items found. Add items in Menu Management first.
@@ -840,11 +861,13 @@ export default function MenuScheduler() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
-                                  <p className="text-[11px] font-medium text-slate-500 truncate">{item.category_name}</p>
                                   <div className="flex flex-wrap gap-1 mt-1.5">
-                                    {restrictions && <p className="text-[10px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 w-fit px-1.5 py-0.5 rounded">{restrictions}</p>}
+                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-1.5 py-0.5 rounded truncate max-w-full">
+                                      {item.category_name}
+                                    </span>
+                                    {restrictions && <span className="text-[10px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded">{restrictions}</span>}
                                     {isSlotOOS && (
-                                      <p className="text-[10px] text-red-600 font-bold bg-red-50 dark:bg-red-900/20 w-fit px-1.5 py-0.5 rounded">OUT OF STOCK</p>
+                                      <span className="text-[10px] text-red-600 font-bold bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded">OUT OF STOCK</span>
                                     )}
                                   </div>
                                 </div>
