@@ -427,12 +427,10 @@ const getOrderStatus = (order: Order) => {
     if (order.status === 'completed' || order.status === 'cancelled') return false;
     if (user?.role === 'KITCHEN') return false;
     if (cancelPolicy === 'none') return false;
+    // Prevent cancelling full order if any item is already served
+    if (order.items.some((i) => i.status === 'served')) return false;
     const activeItems = order.items.filter((i) => i.status !== 'cancelled' && i.status !== 'served');
     if (activeItems.length === 0) return false;
-    if (cancelPolicy === 'all') return true;
-    if (cancelPolicy === 'pending') return activeItems.every((i) => i.status === 'pending');
-    if (cancelPolicy === 'preparing') return activeItems.every((i) => ['pending', 'preparing'].includes(i.status));
-    if (cancelPolicy === 'ready') return activeItems.every((i) => ['pending', 'preparing', 'ready'].includes(i.status));
     return true;
   }
 
