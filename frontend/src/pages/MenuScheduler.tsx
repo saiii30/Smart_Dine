@@ -166,6 +166,25 @@ const DroppableSlot = ({
   )
 }
 
+// --- HELPERS ---
+const parseTime = (ts: string) => {
+  if (!ts) return null;
+  const match12 = ts.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i)
+  if (match12) {
+      let [, h, m, ampm] = match12
+      let hours = parseInt(h, 10)
+      if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
+      if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0
+      return hours * 60 + parseInt(m || '0', 10)
+  }
+  const match24 = ts.match(/^(\d{1,2}):(\d{2})$/)
+  if (match24) {
+       let [, h, m] = match24
+       return parseInt(h, 10) * 60 + parseInt(m, 10)
+  }
+  return null
+}
+
 export default function MenuScheduler() {
   const [menuPool, setMenuPool] = useState<MenuItem[]>([])
   const [search, setSearch] = useState('')
@@ -178,15 +197,19 @@ export default function MenuScheduler() {
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short' })
 
-  const getItemsForViewDay = (slotItems: MenuItem[], slotName: string) => {
+  const getItemsForViewDay = (slotItems: MenuItem[], slotName: string, slotTime: string) => {
     return slotItems.filter((item) => {
       let days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       let hidden: string[] = [];
+      let itemStartStr = '';
+      let itemEndStr = '';
       if (item.description && item.description.includes('|META|')) {
          try {
            const meta = JSON.parse(item.description.split('|META|')[1]);
            if (meta.days && meta.days.length > 0) days = meta.days;
            if (meta.hidden) hidden = meta.hidden;
+           if (meta.start) itemStartStr = meta.start;
+           if (meta.end) itemEndStr = meta.end;
          } catch(e) {}
       }
       
@@ -197,6 +220,24 @@ export default function MenuScheduler() {
           return false;
       }
 
+      // Hide the item if the times do not overlap with the slot's operating hours
+      if (itemStartStr && itemEndStr && slotTime && !slotTime.toLowerCase().includes('all day')) {
+          const itemStart = parseTime(itemStartStr);
+          const itemEnd = parseTime(itemEndStr);
+          const slotParts = slotTime.split('-');
+          if (slotParts.length === 2) {
+              const sStart = parseTime(slotParts[0].trim());
+              const sEnd = parseTime(slotParts[1].trim());
+
+              if (itemStart !== null && itemEnd !== null && sStart !== null && sEnd !== null) {
+                  const overlaps = (itemStart >= sStart && itemStart <= sEnd) || 
+                                   (itemEnd >= sStart && itemEnd <= sEnd) || 
+                                   (sStart >= itemStart && sStart <= itemEnd);
+                  if (!overlaps) return false;
+              }
+          }
+      }
+
       if (viewDay === 'All Days') return true;
       return days.includes(targetDay);
     });
@@ -205,26 +246,60 @@ export default function MenuScheduler() {
   useEffect(() => {
     setLoading(true)
     // Load master menu
-    const menuPromise = api.get<MenuItem[]>('/menu-items').then(r => setMenuPool(r.data));
+    const menuPromise = api.get<MenuItem[]>('/menu-items');
 
     // Load saved slots and settings
     const schedulePromise = api.get('/schedule');
     const settingsPromise = api.get('/settings');
 
-    Promise.all([menuPromise, schedulePromise, settingsPromise]).then(([, scheduleRes, settingsRes]) => {
+    Promise.all([menuPromise, schedulePromise, settingsPromise]).then(([menuRes, scheduleRes, settingsRes]) => {
+      setMenuPool(menuRes.data);
+      const menuMap = new Map<number, MenuItem>(menuRes.data.map((m: MenuItem) => [m.id, m]));
       const settings = settingsRes.data;
       if (scheduleRes.data && scheduleRes.data.length > 0) {
         const updatedSlots = scheduleRes.data.map((slot: any) => {
+          let sTime = slot.time;
           if (slot.name === 'Breakfast' && settings.breakfast_time) {
-            return { ...slot, time: settings.breakfast_time };
+            sTime = settings.breakfast_time;
           }
           if (slot.name === 'Lunch' && settings.lunch_time) {
-            return { ...slot, time: settings.lunch_time };
+            sTime = settings.lunch_time;
           }
           if (slot.name === 'Dinner' && settings.dinner_time) {
-            return { ...slot, time: settings.dinner_time };
+            sTime = settings.dinner_time;
           }
-          return slot;
+
+          const validItems = slot.items.filter((item: MenuItem) => {
+              const latestItem = menuMap.get(item.id) || item;
+              let itemStartStr = '';
+              let itemEndStr = '';
+              if (latestItem.description && latestItem.description.includes('|META|')) {
+                  try {
+                      const meta = JSON.parse(latestItem.description.split('|META|')[1]);
+                      if (meta.start) itemStartStr = meta.start;
+                      if (meta.end) itemEndStr = meta.end;
+                  } catch(e) {}
+              }
+              if (itemStartStr && itemEndStr && sTime && !sTime.toLowerCase().includes('all day')) {
+                  const itemStart = parseTime(itemStartStr);
+                  const itemEnd = parseTime(itemEndStr);
+                  const slotParts = sTime.split('-');
+                  if (slotParts.length === 2) {
+                      const sStart = parseTime(slotParts[0].trim());
+                      const sEnd = parseTime(slotParts[1].trim());
+
+                      if (itemStart !== null && itemEnd !== null && sStart !== null && sEnd !== null) {
+                          const overlaps = (itemStart >= sStart && itemStart <= sEnd) || 
+                                           (itemEnd >= sStart && itemEnd <= sEnd) || 
+                                           (sStart >= itemStart && sStart <= itemEnd);
+                          if (!overlaps) return false;
+                      }
+                  }
+              }
+              return true;
+          }).map((item: MenuItem) => menuMap.get(item.id) || item);
+
+          return { ...slot, time: sTime, items: validItems };
         });
         setSavedSchedule(updatedSlots);
         setSlots(updatedSlots.map((s: any) => ({ ...s, items: [] })));
@@ -298,24 +373,6 @@ export default function MenuScheduler() {
     } catch (err) {
       toast.error('Failed to update stock status')
     }
-  }
-
-  const parseTime = (ts: string) => {
-    if (!ts) return null;
-    const match12 = ts.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i)
-    if (match12) {
-        let [, h, m, ampm] = match12
-        let hours = parseInt(h, 10)
-        if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12
-        if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0
-        return hours * 60 + parseInt(m || '0', 10)
-    }
-    const match24 = ts.match(/^(\d{1,2}):(\d{2})$/)
-    if (match24) {
-         let [, h, m] = match24
-         return parseInt(h, 10) * 60 + parseInt(m, 10)
-    }
-    return null
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -712,7 +769,7 @@ export default function MenuScheduler() {
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {savedSchedule.map(slot => {
-                const viewItems = getItemsForViewDay(slot.items, slot.name);
+                const viewItems = getItemsForViewDay(slot.items, slot.name, slot.time);
                 return (
                   <div key={slot.id} className="flex flex-col bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <div className="bg-slate-50 dark:bg-slate-800 p-4 border-b border-slate-200 dark:border-slate-700">
