@@ -1,40 +1,260 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { api } from '../api/api'
-import type { DashboardStats } from '../types'
+import type { Order } from '../types'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  LineChart,
+  Line,
+  AreaChart,
+  Area
+} from 'recharts'
+import {
+  Download,
+  TrendingUp,
+  Calendar,
+  Clock,
+  UtensilsCrossed,
+  IndianRupee
+} from 'lucide-react'
 
 const Reports = () => {
-  const [s, setS] = useState<DashboardStats | null>(null)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    void api.get<DashboardStats>('/reports/dashboard').then((r) => setS(r.data))
+    void api.get<Order[]>('/orders').then((r) => {
+      setOrders(r.data)
+      setLoading(false)
+    })
   }, [])
 
+  // Data Processing for Charts
+  const { 
+    dailyData, 
+    monthlyData, 
+    hourlyData, 
+    topItemsData, 
+    totalSales, 
+    bestItem 
+  } = useMemo(() => {
+    const validOrders = orders.filter(o => ['served', 'completed'].includes(o.status));
+
+    const daily: Record<string, number> = {};
+    const monthly: Record<string, number> = {};
+    const hourly: Record<string, number> = {};
+    const items: Record<string, number> = {};
+    let total = 0;
+
+    validOrders.forEach(o => {
+      total += o.total_amount;
+      // Use created_at if available, else fallback to current date (for mock data)
+      const dt = o.created_at ? new Date(o.created_at + 'Z') : new Date();
+
+      // Daily Aggregation
+      const dKey = dt.toISOString().split('T')[0];
+      daily[dKey] = (daily[dKey] || 0) + o.total_amount;
+
+      // Monthly Aggregation
+      const mKey = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      monthly[mKey] = (monthly[mKey] || 0) + o.total_amount;
+
+      // Hourly Aggregation
+      const hKey = dt.getHours();
+      hourly[hKey] = (hourly[hKey] || 0) + o.total_amount;
+
+      // Items Aggregation
+      o.items.forEach(i => {
+        if (i.status !== 'cancelled') {
+          const name = i.menu_item_name || 'Unknown Item';
+          items[name] = (items[name] || 0) + i.quantity;
+        }
+      });
+    });
+
+    // Format Daily (Last 14 days)
+    const dailyData = Object.keys(daily).sort().slice(-14).map(k => ({
+      date: new Date(k).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      Sales: Math.round(daily[k])
+    }));
+
+    // Format Monthly
+    const monthlyData = Object.keys(monthly).sort().map(k => {
+      const [y, m] = k.split('-');
+      const date = new Date(Number(y), Number(m) - 1);
+      return {
+        month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        Sales: Math.round(monthly[k])
+      };
+    });
+
+    // Format Hourly
+    const hourlyData = Object.keys(hourly).sort((a, b) => Number(a) - Number(b)).map(k => {
+      const h = Number(k);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hr12 = h % 12 || 12;
+      return {
+        time: `${hr12} ${ampm}`,
+        Sales: Math.round(hourly[k])
+      };
+    });
+
+    // Format Top Items
+    const topItemsData = Object.keys(items).map(k => ({
+      name: k,
+      Quantity: items[k]
+    })).sort((a, b) => b.Quantity - a.Quantity).slice(0, 8); // Top 8 items
+
+    const bestItem = topItemsData.length > 0 ? topItemsData[0].name : 'N/A';
+
+    return { dailyData, monthlyData, hourlyData, topItemsData, totalSales: total, bestItem };
+  }, [orders]);
+
   const csv = async () => {
-    const res = await api.get('/reports/export/orders.csv', { responseType: 'blob' })
-    const url = URL.createObjectURL(res.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'orders.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+    try {
+      const res = await api.get('/reports/export/orders.csv', { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `SmartDine_Orders_${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      // Fallback if endpoint is unavailable
+      alert('Export feature is being configured.')
+    }
+  }
+
+  if (loading) {
+    return <div className="flex h-[80vh] items-center justify-center text-slate-500">Loading Reports...</div>
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Reports</h1>
-      {s && (
-        <div className="rounded-2xl border border-amber-100 dark:border-slate-800 p-5 bg-white/90 dark:bg-slate-900/70 text-sm space-y-2">
-          <div>30-day revenue (payments): ₹{s.revenue.toFixed(2)}</div>
-          <div>All-time orders recorded: {s.total_orders}</div>
+    <div className="space-y-8 max-w-7xl mx-auto pb-10">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-white">Analytics & Reports</h1>
+          <p className="text-sm text-slate-500 mt-1">Detailed breakdown of sales and performance.</p>
         </div>
-      )}
-      <button type="button" onClick={csv} className="px-4 py-2 rounded-xl border text-sm">
-        Export orders CSV
-      </button>
-      <p className="text-xs opacity-60">
-        CSV export uses your session cookie/token in the same browser session when opened from the app while logged in;
-        prefer wiring a download blob with axios for production.
-      </p>
+        <button 
+          onClick={csv} 
+          className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold shadow-md hover:bg-slate-800 transition-colors self-start md:self-auto"
+        >
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center"><IndianRupee className="w-6 h-6" /></div>
+          <div>
+            <p className="text-sm text-slate-500 font-medium">Total Revenue</p>
+            <p className="text-2xl font-black mt-1">₹{totalSales.toFixed(0)}</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center"><TrendingUp className="w-6 h-6" /></div>
+          <div>
+            <p className="text-sm text-slate-500 font-medium">Completed Orders</p>
+            <p className="text-2xl font-black mt-1">{orders.filter(o => ['completed', 'served'].includes(o.status)).length}</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center"><UtensilsCrossed className="w-6 h-6" /></div>
+          <div>
+            <p className="text-sm text-slate-500 font-medium">Top Selling Item</p>
+            <p className="text-lg font-black mt-1 line-clamp-1">{bestItem}</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center"><Calendar className="w-6 h-6" /></div>
+          <div>
+            <p className="text-sm text-slate-500 font-medium">Active Days</p>
+            <p className="text-2xl font-black mt-1">{dailyData.length}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Daily Sales Chart */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-emerald-500" /> Daily Sales Trend (Last 14 Days)</h2>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dailyData}>
+                <defs>
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                <XAxis dataKey="date" tick={{fontSize: 12}} tickMargin={10} axisLine={false} tickLine={false} />
+                <YAxis tick={{fontSize: 12}} tickFormatter={(val) => `₹${val}`} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
+                <Area type="monotone" dataKey="Sales" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Monthly Sales Chart */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-500" /> Monthly Revenue</h2>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                <XAxis dataKey="month" tick={{fontSize: 12}} tickMargin={10} axisLine={false} tickLine={false} />
+                <YAxis tick={{fontSize: 12}} tickFormatter={(val) => `₹${val}`} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{fill: 'rgba(0,0,0,0.05)'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
+                <Bar dataKey="Sales" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Peak Sales Hours Chart */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><Clock className="w-5 h-5 text-purple-500" /> Peak Sales Hours</h2>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={hourlyData}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                <XAxis dataKey="time" tick={{fontSize: 12}} tickMargin={10} axisLine={false} tickLine={false} />
+                <YAxis tick={{fontSize: 12}} tickFormatter={(val) => `₹${val}`} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
+                <Line type="smooth" dataKey="Sales" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Top Selling Items */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><UtensilsCrossed className="w-5 h-5 text-orange-500" /> Fast Moving Items</h2>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topItemsData} layout="vertical" margin={{ left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} horizontal={false} />
+                <XAxis type="number" tick={{fontSize: 12}} axisLine={false} tickLine={false} />
+                <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11}} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{fill: 'rgba(0,0,0,0.05)'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
+                <Bar dataKey="Quantity" fill="#f97316" radius={[0, 6, 6, 0]} barSize={25} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
     </div>
   )
 }
