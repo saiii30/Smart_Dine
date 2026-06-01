@@ -37,6 +37,7 @@ const OrdersPage = () => {
   const [addCart, setAddCart] = useState<{ menu_item_id: number; name: string; price: number; quantity: number; special_instructions?: string }[]>([])
   const [menuSearch, setMenuSearch] = useState('')
   const [showMobileCart, setShowMobileCart] = useState(false)
+  const [cancelPolicy, setCancelPolicy] = useState('all')
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
@@ -53,6 +54,11 @@ const OrdersPage = () => {
     void api.get('/tables').then((r) => setTables(r.data))
     void api.get('/menu-items').then((r) => setMenu(r.data))
     void api.get('/schedule').then((r) => setSchedule(r.data)).catch(() => {})
+    void api.get('/settings').then((r) => {
+      if (r.data && r.data.cancellation_policy) {
+        setCancelPolicy(r.data.cancellation_policy)
+      }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -407,6 +413,29 @@ const getOrderStatus = (order: Order) => {
     )
   }
  
+  const canCancelItem = (status: string) => {
+    if (status === 'served' || status === 'cancelled') return false;
+    if (cancelPolicy === 'none') return false;
+    if (cancelPolicy === 'all') return true;
+    if (cancelPolicy === 'pending') return status === 'pending';
+    if (cancelPolicy === 'preparing') return ['pending', 'preparing'].includes(status);
+    if (cancelPolicy === 'ready') return ['pending', 'preparing', 'ready'].includes(status);
+    return true; 
+  }
+
+  const canCancelOrder = (order: Order) => {
+    if (order.status === 'completed' || order.status === 'cancelled') return false;
+    if (user?.role === 'KITCHEN') return false;
+    if (cancelPolicy === 'none') return false;
+    const activeItems = order.items.filter((i) => i.status !== 'cancelled' && i.status !== 'served');
+    if (activeItems.length === 0) return false;
+    if (cancelPolicy === 'all') return true;
+    if (cancelPolicy === 'pending') return activeItems.every((i) => i.status === 'pending');
+    if (cancelPolicy === 'preparing') return activeItems.every((i) => ['pending', 'preparing'].includes(i.status));
+    if (cancelPolicy === 'ready') return activeItems.every((i) => ['pending', 'preparing', 'ready'].includes(i.status));
+    return true;
+  }
+
   return (
     <div className="space-y-8">
 
@@ -606,26 +635,29 @@ const getOrderStatus = (order: Order) => {
                   {/* Item status buttons - only show for non-completed and non-cancelled items */}
                   {o.status !== 'completed' && o.status !== 'cancelled' && i.status !== 'served' && i.status !== 'cancelled' && (
                     <div className="flex gap-1 flex-wrap">
-                      {['preparing', 'ready', 'served', 'cancelled'].map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          className={`px-2 py-1 rounded text-xs capitalize font-medium transition-all ${
-                            i.status === s
-                              ? s === 'ready'
-                                ? 'bg-green-500 text-white'
-                                : s === 'served'
-                                ? 'bg-gray-600 text-white'
-                                : s === 'cancelled'
-                                ? 'bg-red-500 text-white'
-                                : 'bg-blue-500 text-white'
-                              : 'bg-white/80 dark:bg-slate-700 border border-gray-300 hover:bg-gray-100'
-                          }`}
-                          onClick={() => updateItemStatus(o.id, i.id, s)}
-                        >
-                          {s === 'ready' || s === 'served' || s === 'cancelled' ? '✓' : ''} {s}
-                        </button>
-                      ))}
+                      {['preparing', 'ready', 'served', 'cancelled'].map((s) => {
+                        if (s === 'cancelled' && !canCancelItem(i.status)) return null;
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            className={`px-2 py-1 rounded text-xs capitalize font-medium transition-all ${
+                              i.status === s
+                                ? s === 'ready'
+                                  ? 'bg-green-500 text-white'
+                                  : s === 'served'
+                                  ? 'bg-gray-600 text-white'
+                                  : s === 'cancelled'
+                                  ? 'bg-red-500 text-white'
+                                  : 'bg-blue-500 text-white'
+                                : 'bg-white/80 dark:bg-slate-700 border border-gray-300 hover:bg-gray-100'
+                            }`}
+                            onClick={() => updateItemStatus(o.id, i.id, s)}
+                          >
+                            {s === 'ready' || s === 'served' || s === 'cancelled' ? '✓' : ''} {s}
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -664,7 +696,7 @@ const getOrderStatus = (order: Order) => {
             {/* ADD ITEMS BUTTON */}
             <div className="flex gap-2 flex-wrap">
               
-              {o.status !== 'completed' && o.status !== 'cancelled' && user?.role !== 'KITCHEN' && (
+              {canCancelOrder(o) && (
                 <button
                   onClick={async () => {
                     await api.patch(`/orders/${o.id}/status`, null, {

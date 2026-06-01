@@ -50,6 +50,7 @@ const Settings = () => {
     dinner_start: '',
     dinner_end: '',
   })
+  const [cancelPolicy, setCancelPolicy] = useState('all')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -70,6 +71,7 @@ const Settings = () => {
           dinner_start: dinner.start,
           dinner_end: dinner.end,
         })
+      setCancelPolicy(dbSettings.cancellation_policy || 'all')
       })
       .finally(() => setLoading(false))
   }, [])
@@ -79,6 +81,7 @@ const Settings = () => {
       breakfast_time: timeInputs.breakfast_start && timeInputs.breakfast_end ? `${formatTo12h(timeInputs.breakfast_start)} - ${formatTo12h(timeInputs.breakfast_end)}` : '',
       lunch_time: timeInputs.lunch_start && timeInputs.lunch_end ? `${formatTo12h(timeInputs.lunch_start)} - ${formatTo12h(timeInputs.lunch_end)}` : '',
       dinner_time: timeInputs.dinner_start && timeInputs.dinner_end ? `${formatTo12h(timeInputs.dinner_start)} - ${formatTo12h(timeInputs.dinner_end)}` : '',
+      cancellation_policy: cancelPolicy,
     };
 
     try {
@@ -153,7 +156,8 @@ const Settings = () => {
               Loading settings...
             </div>
           ) : (
-            <div className="grid md:grid-cols-3 gap-6">
+            <>
+              <div className="grid md:grid-cols-3 gap-6">
               {/* Breakfast */}
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -235,51 +239,41 @@ const Settings = () => {
                 </div>
               </div>
             </div>
+
+        {/* Order Management Settings */}
+        <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+            Cancellation Policy
+          </h2>
+          <p className="text-sm text-slate-500 mt-1 mb-4">
+            Select when waiters are allowed to cancel an order or item.
+          </p>
+          <div className="max-w-md space-y-3">
+            <select value={cancelPolicy} onChange={(e) => setCancelPolicy(e.target.value)} className="w-full border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="none">Disabled (No Cancellations)</option>
+              <option value="pending">Pending Only (Not Started)</option>
+              <option value="preparing">Up to Preparing State</option>
+              <option value="ready">Up to Ready State</option>
+              <option value="all">All Enabled (Anytime before served)</option>
+            </select>
+          </div>
+        </div>
+            </>
           )}
 
           {/* Save Button */}
-          <div className="flex justify-end">
+      <div className="flex justify-end mt-6">
             <button
               onClick={handleSave}
               className="px-5 py-2.5 rounded-xl bg-orange-600 text-white font-medium hover:bg-orange-700 transition"
             >
-              Save Schedule Times
+          Save Settings
             </button>
           </div>
         </div>
       )}
 
-      {/* Environment Configuration */}
-      <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3 shadow-sm">
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-          Environment Configuration
-        </h2>
-
-        <p className="text-sm opacity-80">
-          Configure{' '}
-          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">
-            VITE_BACKEND_URL
-          </code>
-          ,{' '}
-          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">
-            CORS_ORIGINS
-          </code>{' '}
-          and{' '}
-          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">
-            FRONTEND_PUBLIC_URL
-          </code>{' '}
-          on the API for QR links and WebSocket URLs.
-        </p>
-
-        <p className="text-sm opacity-80">
-          Default GST-style tax on new orders is 5% (editable at billing).
-          Multi-branch records use the{' '}
-          <code className="text-xs bg-black/5 dark:bg-white/10 px-1 rounded">
-            branches
-          </code>{' '}
-          table.
-        </p>
-      </div>
+     
     </div>
   )
 }
