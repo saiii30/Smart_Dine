@@ -96,11 +96,10 @@ const Dashboard = () => {
 
       </div>
 
-      {/* MAIN GRID */}
-      <div className="grid lg:grid-cols-3 gap-5">
+            <div className="grid lg:grid-cols-3 gap-5">
 
-        {/* CHART */}
-        <div className="lg:col-span-2 p-5 rounded-2xl border border-orange-100 bg-white">
+        
+        {/* <div className="lg:col-span-2 p-5 rounded-2xl border border-orange-100 bg-white">
 
           <div className="flex justify-between mb-4">
             <h2 className="font-semibold text-slate-900">
@@ -122,9 +121,9 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </div>
 
-        </div>
+        </div> */}
 
-        {/* RIGHT PANEL */}
+       
         <div className="space-y-4">
 
           <div className="p-5 rounded-2xl border border-orange-100 bg-orange-50">

@@ -46,7 +46,20 @@ const OrdersPage = () => {
   const initialized = useRef(false)
 
   const load = () => {
-    void api.get<Order[]>('/orders').then((r) => setOrders(r.data))
+    void api.get<Order[]>('/orders').then((r) => {
+      const todayOrders = r.data.filter((o) => {
+        if (!(o as any).created_at) return true;
+        const createdAt = (o as any).created_at as string;
+        const orderDate = new Date(createdAt.endsWith('Z') ? createdAt : createdAt + 'Z');
+        const today = new Date();
+        return (
+          orderDate.getDate() === today.getDate() &&
+          orderDate.getMonth() === today.getMonth() &&
+          orderDate.getFullYear() === today.getFullYear()
+        );
+      });
+      setOrders(todayOrders);
+    })
   }
 
   useEffect(() => {
@@ -81,14 +94,25 @@ const OrdersPage = () => {
         
         try {
           const res = await api.get<Order[]>('/orders')
-          setOrders(res.data)
+          const todayOrders = res.data.filter((o) => {
+            if (!(o as any).created_at) return true;
+            const createdAt = (o as any).created_at as string;
+            const orderDate = new Date(createdAt.endsWith('Z') ? createdAt : createdAt + 'Z');
+            const today = new Date();
+            return (
+              orderDate.getDate() === today.getDate() &&
+              orderDate.getMonth() === today.getMonth() &&
+              orderDate.getFullYear() === today.getFullYear()
+            );
+          });
+          setOrders(todayOrders)
           
           setTableId(tId)
           if (sCount) setSeatCount(sCount)
           if (sName) setCustomerName(sName)
           
           
-          const active = res.data.filter(o => o.table_id === tId && o.status !== 'completed' && o.status !== 'cancelled')
+          const active = todayOrders.filter(o => o.table_id === tId && o.status !== 'completed' && o.status !== 'cancelled')
           
           if (sName && sName.startsWith('Seat')) {
             const seatOrder = active.find(o => o.customer_name === sName)
