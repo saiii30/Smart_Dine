@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { MenuItem } from '../types'
 import { useAuth } from '../contexts/AuthContext'
-import { Trash2, Pencil } from 'lucide-react'
+import { Trash2, Pencil, X } from 'lucide-react'
 
 const MenuPage = () => {
   const { user } = useAuth()
@@ -30,7 +30,19 @@ const MenuPage = () => {
     is_veg: false,
     available_time_start: '',
     available_time_end: '',
+    notes: [] as string[],
   })
+
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string>('')
+  const [noteInput, setNoteInput] = useState('')
+
+  const getImageUrl = (url?: string) => {
+    if (!url) return '';
+    if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
+    const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+    return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
 
   const load = () => {
     void api
@@ -81,7 +93,7 @@ const MenuPage = () => {
 
       const addedDays = selectedDays.filter(d => !oldDays.includes(d));
 
-      const meta: any = { days: selectedDays, start: form.available_time_start, end: form.available_time_end, oos: existingMeta.oos, hidden: existingMeta.hidden || [] };
+      const meta: any = { days: selectedDays, start: form.available_time_start, end: form.available_time_end, oos: existingMeta.oos, hidden: existingMeta.hidden || [], notes: form.notes };
 
       if (addedDays.length > 0) {
           try {
@@ -109,8 +121,17 @@ const MenuPage = () => {
           category_id: Number(form.category_id),
           is_veg: form.is_veg,
         })
+
+        if (imageFile) {
+          const formData = new FormData()
+          formData.append('file', imageFile)
+          await api.post(`/menu-items/${editId}/image`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+        }
+
       } else {
-        await api.post('/menu-items', {
+        const res = await api.post('/menu-items', {
           name: form.name,
           description: finalDesc,
           price: Number(form.price),
@@ -118,6 +139,14 @@ const MenuPage = () => {
           is_veg: form.is_veg,
           is_available: true,
         })
+
+        if (imageFile) {
+          const formData = new FormData()
+          formData.append('file', imageFile)
+          await api.post(`/menu-items/${res.data.id}/image`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+        }
       }
 
       toast.success(editId ? 'Menu updated successfully' : 'Menu added successfully')
@@ -133,7 +162,11 @@ const MenuPage = () => {
         is_veg: false,
         available_time_start: '',
         available_time_end: '',
+        notes: [],
       })
+      setImagePreview('')
+      setImageFile(null)
+      setNoteInput('')
       setSelectedDays(ALL_DAYS)
 
       load()
@@ -190,7 +223,11 @@ const MenuPage = () => {
                   is_veg: false,
                   available_time_start: '',
                   available_time_end: '',
+                  notes: [],
                 })
+                setImagePreview('')
+                setImageFile(null)
+                setNoteInput('')
                 setShowAdd(true)
               }}
               className="h-11 px-5 rounded-xl bg-orange-600 text-white font-medium shadow-lg"
@@ -228,7 +265,7 @@ const MenuPage = () => {
             <div className="relative h-52 overflow-hidden bg-slate-100 dark:bg-slate-800">
               {m.image_url ? (
                 <img
-                  src={m.image_url}
+                  src={getImageUrl(m.image_url)}
                   alt={m.name}
                   className="h-full w-full object-cover group-hover:scale-105 transition duration-500"
                 />
@@ -302,6 +339,7 @@ const MenuPage = () => {
                           let start = '';
                           let end = '';
                           let days = ALL_DAYS;
+                          let notes: string[] = [];
                           let desc = m.description || '';
 
                           if (m.description && m.description.includes('|META|')) {
@@ -312,6 +350,7 @@ const MenuPage = () => {
                               if (meta.days) days = meta.days;
                               if (meta.start) start = meta.start;
                               if (meta.end) end = meta.end;
+                              if (meta.notes) notes = meta.notes;
                             } catch(e) {}
                           }
 
@@ -323,9 +362,13 @@ const MenuPage = () => {
                             is_veg: m.is_veg,
                             available_time_start: start,
                             available_time_end: end,
+                            notes: notes,
                           })
                           setSelectedDays(days)
                           setEditId(m.id)
+                          setImagePreview(m.image_url || '')
+                          setImageFile(null)
+                          setNoteInput('')
                           setShowAdd(true)
                         }}
                       >
@@ -372,6 +415,32 @@ const MenuPage = () => {
               <p className="text-sm text-slate-500 mt-1">
                 {editId ? 'Update restaurant item details' : 'Create new restaurant item'}
               </p>
+            </div>
+
+            {/* IMAGE UPLOAD */}
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden">
+                {imagePreview ? (
+                  <img src={getImageUrl(imagePreview)} className="w-full h-full object-cover" alt="Preview" />
+                ) : (
+                  <span className="text-2xl">🍔</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">Menu Image</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setImageFile(file);
+                      setImagePreview(URL.createObjectURL(file));
+                    }
+                  }}
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 transition-colors cursor-pointer"
+                />
+              </div>
             </div>
 
             <input
@@ -501,6 +570,53 @@ const MenuPage = () => {
               Veg Item
             </label>
 
+            {/* QUICK NOTES COMPONENT */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-slate-500 ml-1">Custom Notes (Checkout Options)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. Extra Spicy, No Garlic"
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (noteInput.trim()) {
+                        setForm(prev => ({ ...prev, notes: [...prev.notes, noteInput.trim()] }));
+                        setNoteInput('');
+                      }
+                    }
+                  }}
+                  className="flex-1 h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (noteInput.trim()) {
+                      setForm(prev => ({ ...prev, notes: [...prev.notes, noteInput.trim()] }));
+                      setNoteInput('');
+                    }
+                  }}
+                  className="px-4 rounded-xl bg-slate-200 dark:bg-slate-800 font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors text-sm"
+                >
+                  Add
+                </button>
+              </div>
+              {form.notes.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {form.notes.map((note, idx) => (
+                    <span key={idx} className="flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 rounded-full text-xs font-bold">
+                      {note}
+                      <button type="button" onClick={() => setForm(prev => ({ ...prev, notes: prev.notes.filter((_, i) => i !== idx) }))} className="hover:text-red-500 transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -515,7 +631,11 @@ const MenuPage = () => {
                     is_veg: false,
                     available_time_start: '',
                     available_time_end: '',
+                    notes: [],
                   })
+                  setImagePreview('')
+                  setImageFile(null)
+                  setNoteInput('')
                 }}
                 className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700"
               >

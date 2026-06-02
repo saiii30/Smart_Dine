@@ -16,6 +16,51 @@ const statusColor: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700',
 }
 
+const getImageUrl = (url?: string) => {
+  if (!url) return '';
+  if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
+  const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+  return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
+// Helper function to get custom quick notes based on item description or fallback category
+const getQuickNotes = (menuItem: any): string[] => {
+  if (!menuItem) return [];
+  
+  // Return the custom notes added in Menu Creation
+  if (menuItem.description && menuItem.description.includes('|META|')) {
+     try {
+        const meta = JSON.parse(menuItem.description.split('|META|')[1]);
+        if (meta.notes && Array.isArray(meta.notes) && meta.notes.length > 0) {
+           return meta.notes as string[];
+        }
+     } catch(e) {}
+  }
+
+  // Fallback defaults if no custom notes provided
+  const name = menuItem.name || '';
+  const category = menuItem.category_name || '';
+  const lowerName = name.toLowerCase();
+  const lowerCat = category.toLowerCase();
+  const notes = new Set(['Extra Spicy', 'Less Spicy', 'No Onion', 'No Garlic']);
+
+  if (lowerName.includes('dosa') || lowerName.includes('roast') || lowerName.includes('idly')) {
+    ['Roast', 'Soft', 'Ghee Roast', 'Extra Chutney', 'Extra Sambar'].forEach(n => notes.add(n));
+  }
+  if (lowerName.includes('biriyani') || lowerName.includes('briyani') || lowerName.includes('biryani')) {
+    ['Extra Leg Piece', 'Extra Egg', 'Extra Raita'].forEach(n => notes.add(n));
+  }
+  if (lowerName.includes('fried rice') || lowerName.includes('noodles')) {
+    ['No Capsicum', 'No Cabbage', 'Extra Sauce'].forEach(n => notes.add(n));
+  }
+  if (lowerCat.includes('drink') || lowerCat.includes('beverage') || lowerName.includes('juice') || lowerName.includes('tea')) {
+    notes.clear(); // Clear food notes
+    ['Less Sugar', 'No Sugar', 'No Ice', 'Extra Ice'].forEach(n => notes.add(n));
+  }
+
+  return Array.from(notes);
+};
+
 const OrdersPage = () => {
   const { user } = useAuth()
   const location = useLocation()
@@ -837,7 +882,7 @@ const getOrderStatus = (order: Order) => {
                             </div>
                           )}
                           {m.image_url ? (
-                            <img src={m.image_url} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                            <img src={getImageUrl(m.image_url)} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-4xl group-hover:scale-110 transition duration-500">
                               {m.is_veg ? '🥗' : '🍔'}
@@ -881,28 +926,70 @@ const getOrderStatus = (order: Order) => {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {currentCart.map((item, index) => (
-                        <div key={item.menu_item_id} className={`flex flex-col py-4 ${index < currentCart.length - 1 ? 'border-b border-slate-100 dark:border-slate-800' : ''}`}>
-                          <div className="flex gap-4 items-center">
-                            <div className="flex-1">
-                              <div className="font-bold text-sm sm:text-base leading-tight pr-2">{item.name}</div>
-                              <div className="font-bold text-orange-600 mt-1">₹{item.price * item.quantity}</div>
+                      {currentCart.map((item, index) => {
+                        const menuItem = menu.find(m => m.id === item.menu_item_id);
+                        const quickNotes = getQuickNotes(menuItem);
+                        return (
+                          <div key={item.menu_item_id} className={`flex flex-col py-4 ${index < currentCart.length - 1 ? 'border-b border-slate-100 dark:border-slate-800' : ''}`}>
+                            <div className="flex gap-4 items-center">
+                              {menuItem?.image_url ? (
+                                <img src={getImageUrl(menuItem.image_url)} alt={item.name} className="w-12 h-12 rounded-lg object-cover shadow-sm shrink-0" />
+                              ) : (
+                                <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl shrink-0">
+                                  {menuItem?.is_veg ? '🥗' : '🍔'}
+                                </div>
+                              )}
+                              <div className="flex-1">
+                                <div className="font-bold text-sm sm:text-base leading-tight pr-2">{item.name}</div>
+                                <div className="font-bold text-orange-600 mt-1">₹{item.price * item.quantity}</div>
+                              </div>
+                              <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg">
+                                <button onClick={() => updateQuantity(item.menu_item_id, -1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Minus className="w-4 h-4" /></button>
+                                <span className="font-bold min-w-[1.5rem] text-center">{item.quantity}</span>
+                                <button onClick={() => updateQuantity(item.menu_item_id, 1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Plus className="w-4 h-4" /></button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg">
-                              <button onClick={() => updateQuantity(item.menu_item_id, -1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Minus className="w-4 h-4" /></button>
-                              <span className="font-bold min-w-[1.5rem] text-center">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.menu_item_id, 1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><Plus className="w-4 h-4" /></button>
+                            <div className="mt-3 flex flex-col gap-2">
+                              {quickNotes.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {quickNotes.map((mod: string) => {
+                                    const parts = (item.special_instructions || '').split(',').map(s => s.trim()).filter(Boolean);
+                                    const isSelected = parts.includes(mod);
+                                    return (
+                                      <button
+                                        key={mod}
+                                        onClick={() => {
+                                          let newParts = [...parts];
+                                          if (isSelected) {
+                                            newParts = newParts.filter(p => p !== mod);
+                                          } else {
+                                            newParts.push(mod);
+                                          }
+                                          updateInstruction(item.menu_item_id, newParts.join(', '));
+                                        }}
+                                        className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${
+                                          isSelected 
+                                            ? 'bg-orange-100 border-orange-500 text-orange-700 dark:bg-orange-900/30 dark:border-orange-500 dark:text-orange-300' 
+                                            : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                        }`}
+                                      >
+                                        {mod}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                              <input
+                                type="text"
+                                placeholder="Add note (e.g. extra spicy)..."
+                                value={item.special_instructions || ''}
+                                onChange={(e) => updateInstruction(item.menu_item_id, e.target.value)}
+                                className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-orange-500 transition-colors"
+                              />
                             </div>
                           </div>
-                          <input
-                            type="text"
-                            placeholder="Add note (e.g. extra spicy)..."
-                            value={item.special_instructions || ''}
-                            onChange={(e) => updateInstruction(item.menu_item_id, e.target.value)}
-                            className="mt-3 w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-orange-500 transition-colors"
-                          />
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
