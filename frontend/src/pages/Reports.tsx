@@ -12,7 +12,11 @@ import {
   LineChart,
   Line,
   AreaChart,
-  Area
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
 } from 'recharts'
 import {
   Download,
@@ -20,7 +24,8 @@ import {
   Calendar,
   Clock,
   UtensilsCrossed,
-  IndianRupee
+  IndianRupee,
+  ShoppingBag
 } from 'lucide-react'
 
 const Reports = () => {
@@ -40,6 +45,7 @@ const Reports = () => {
     monthlyData, 
     hourlyData, 
     topItemsData, 
+    orderTypeData,
     totalSales, 
     bestItem 
   } = useMemo(() => {
@@ -50,11 +56,19 @@ const Reports = () => {
     const hourly: Record<string, number> = {};
     const items: Record<string, number> = {};
     let total = 0;
+    let diningSales = 0;
+    let takeawaySales = 0;
 
     validOrders.forEach(o => {
       total += o.total_amount;
       // Use created_at if available, else fallback to current date (for mock data)
       const dt = o.created_at ? new Date(o.created_at + 'Z') : new Date();
+
+      if (o.table_name || o.table_id) {
+        diningSales += o.total_amount;
+      } else {
+        takeawaySales += o.total_amount;
+      }
 
       // Daily Aggregation
       const dKey = dt.toISOString().split('T')[0];
@@ -112,7 +126,12 @@ const Reports = () => {
 
     const bestItem = topItemsData.length > 0 ? topItemsData[0].name : 'N/A';
 
-    return { dailyData, monthlyData, hourlyData, topItemsData, totalSales: total, bestItem };
+    const orderTypeData = [
+      { name: 'Dine-in', Sales: Math.round(diningSales) },
+      { name: 'Takeaway', Sales: Math.round(takeawaySales) }
+    ].filter(d => d.Sales > 0);
+
+    return { dailyData, monthlyData, hourlyData, topItemsData, orderTypeData, totalSales: total, bestItem };
   }, [orders]);
 
   // Generic Local Export Function for Individual Charts
@@ -290,6 +309,42 @@ const Reports = () => {
                 <Bar dataKey="Quantity" fill="#f97316" radius={[0, 6, 6, 0]} barSize={25} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Dine-in vs Takeaway Split */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-indigo-500" /> Dining vs Takeaway</h2>
+            <button onClick={() => exportChartData(orderTypeData, 'Order_Types')} className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-colors" title="Export Order Types">
+              <Download className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="h-[300px] w-full flex items-center justify-center">
+            {orderTypeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={orderTypeData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="Sales"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {orderTypeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={['#f97316', '#8b5cf6'][index % 2]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `₹${value}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
+                  <Legend verticalAlign="bottom" height={36} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-slate-400 text-sm">No data available</div>
+            )}
           </div>
         </div>
       </div>

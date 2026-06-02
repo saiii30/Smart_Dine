@@ -513,7 +513,23 @@ const getOrderStatus = (order: Order) => {
           <p className="text-slate-500">Real-time kitchen operations</p>
         </div>
 
-       
+        {user?.role === 'ADMIN' && (
+          <button
+            onClick={() => {
+              setTableId('')
+              setCustomerName('')
+              setSeatCount(1)
+              setCart([])
+              setAddCart([])
+              setAddToOrderId(null)
+              setOpen(true)
+            }}
+            className="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center gap-2"
+          >
+            <ShoppingBag className="w-5 h-5" />
+            New Takeaway
+          </button>
+        )}
       </div>
 
       {/* FILTERS */}
@@ -618,10 +634,15 @@ const getOrderStatus = (order: Order) => {
              <div className="mt-4 flex justify-between items-center gap-2">
               <div>
                 
-                {o.table_name && o.seat_count && (
+                {o.table_name ? (
                   <div className=" font-bold text-lg">
-                    Table {o.table_name} • {o.seat_count} seat{o.seat_count > 1 ? 's' : ''}
+                    Table {o.table_name} {o.seat_count && o.seat_count > 0 ? `• ${o.seat_count} seat${o.seat_count > 1 ? 's' : ''}` : ''}
                     {o.customer_name && ` • ${o.customer_name}`}
+                  </div>
+                ) : (
+                  <div className=" font-bold text-lg text-indigo-600 dark:text-indigo-400">
+                    Takeaway
+                    {/* {o.customer_name && ` • ${o.customer_name}`} */}
                   </div>
                 )}
               </div>
@@ -812,7 +833,7 @@ const getOrderStatus = (order: Order) => {
               <div>
                 <h2 className="text-2xl font-black tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
                   <ShoppingBag className="text-orange-600" />
-                  {addToOrderId ? 'Add to Order' : 'New Order'}
+                  {addToOrderId ? 'Add to Order' : (tableId ? `Table ${tables.find(t => t.id === tableId)?.table_number || ''}` : 'Takeaway Order')}
                 </h2>
                 {addToOrderId && <p className="text-sm font-semibold text-slate-500 mt-1">Appending to Order #{addToOrderId}</p>}
               </div>
@@ -925,6 +946,18 @@ const getOrderStatus = (order: Order) => {
                   </button>
                   <span className="font-bold text-lg">Back to Menu</span>
                 </div>
+
+                {!addToOrderId && !tableId && (
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                    <input
+                      type="text"
+                      placeholder="Customer Name / Phone (Optional)"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-orange-500 text-sm font-medium transition-shadow"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                    />
+                  </div>
+                )}
 
                 <div className="flex-1 overflow-auto p-5">
                   {currentCart.length === 0 ? (
