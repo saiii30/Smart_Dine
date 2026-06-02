@@ -615,10 +615,24 @@ const getOrderStatus = (order: Order) => {
             }`}
           >
 
+             <div className="mt-4 flex justify-between items-center gap-2">
+              <div>
+                
+                {o.table_name && o.seat_count && (
+                  <div className=" font-bold text-lg">
+                    Table {o.table_name} • {o.seat_count} seat{o.seat_count > 1 ? 's' : ''}
+                    {o.customer_name && ` • ${o.customer_name}`}
+                  </div>
+                )}
+              </div>
+
+          
+            </div>
+
             {/* HEADER */}
             <div className="flex justify-between items-start mb-3">
               <div>
-                <h2 className="font-bold text-lg">
+                <h2 className="text-xs text-slate-500">
                   Order #{o.id}
                 </h2>
                 {o.customer_name && (
@@ -735,12 +749,7 @@ const getOrderStatus = (order: Order) => {
             <div className="mt-4 flex justify-between items-center gap-2">
               <div>
                 <div className="font-bold text-lg">₹{o.total_amount.toFixed(2)}</div>
-                {o.table_name && o.seat_count && (
-                  <div className="text-xs text-slate-500">
-                    Table {o.table_name} • {o.seat_count} seat{o.seat_count > 1 ? 's' : ''}
-                    {o.customer_name && ` • ${o.customer_name}`}
-                  </div>
-                )}
+               
               </div>
 
               {/* <select
