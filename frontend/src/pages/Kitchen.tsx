@@ -72,13 +72,13 @@ const DroppableColumn = ({ id, title, items, isAvailableCol }: { id: string, tit
 
 const Kitchen = () => {
   const [orders, setOrders] = useState<Order[]>([])
+  const [dailySequenceMap, setDailySequenceMap] = useState<Map<number, number>>(new Map())
   const audio = useRef<HTMLAudioElement | null>(null)
   const [showStockModal, setShowStockModal] = useState(false)
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [menuSearch, setMenuSearch] = useState('')
   const [schedule, setSchedule] = useState<any[]>([])
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [selectedSection, setSelectedSection] = useState<string>('All')
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 30000)
@@ -92,6 +92,28 @@ const Kitchen = () => {
 
   const load = useCallback(() => {
     void api.get<Order[]>('/kitchen/orders').then((r) => setOrders(r.data))
+
+    // Fetch all orders to compute an accurate, stable daily sequence number
+    void api.get<Order[]>('/orders').then((r) => {
+      const todayOrders = r.data.filter((o) => {
+        if (!(o as any).created_at) return true;
+        const createdAt = (o as any).created_at as string;
+        const orderDate = new Date(createdAt.endsWith('Z') ? createdAt : createdAt + 'Z');
+        const today = new Date();
+        return (
+          orderDate.getDate() === today.getDate() &&
+          orderDate.getMonth() === today.getMonth() &&
+          orderDate.getFullYear() === today.getFullYear()
+        );
+      });
+      const allTodayItems = todayOrders.flatMap(o => o.items);
+      allTodayItems.sort((a, b) => a.id - b.id);
+      const map = new Map<number, number>();
+      allTodayItems.forEach((item, index) => {
+        map.set(item.id, index + 1);
+      });
+      setDailySequenceMap(map);
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -362,40 +384,9 @@ const Kitchen = () => {
     return { readyCount, servedCount, totalCount: activeItems.length }
   }
 
-  const sectionCards = useMemo(() => {
-    const sectionsMap: Record<string, { section: string; allSectionItems: Order['items']; orders: { order: Order; items: Order['items'] }[] }> = {}
-
-    orders.forEach((o) => {
-      const visibleItems = o.items // Show all items including cancelled ones so the kitchen is notified
-      if (!visibleItems.length) return
-
-      const groupedItems = visibleItems.reduce((acc, i) => {
-        const section = menuItems.find((m) => m.id === i.menu_item_id)?.category_name || 'Other'
-        if (!acc[section]) acc[section] = []
-        acc[section].push(i)
-        return acc
-      }, {} as Record<string, typeof visibleItems>)
-
-      Object.entries(groupedItems).forEach(([section, items]) => {
-        if (!sectionsMap[section]) {
-          sectionsMap[section] = { section, allSectionItems: [], orders: [] }
-        }
-        sectionsMap[section].allSectionItems.push(...items)
-        sectionsMap[section].orders.push({ order: o, items })
-      })
-    })
-    return Object.values(sectionsMap).sort((a, b) => a.section.localeCompare(b.section))
-  }, [orders, menuItems])
-
-  const allCategories = useMemo(() => {
-    const cats = sectionCards.map(s => s.section)
-    return ['All', ...cats.sort()]
-  }, [sectionCards])
-
-  const filteredSections = useMemo(() => {
-    if (selectedSection === 'All') return sectionCards
-    return sectionCards.filter(s => s.section === selectedSection)
-  }, [sectionCards, selectedSection])
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort((a, b) => a.id - b.id)
+  }, [orders])
 
   return (
     <div className="space-y-6 pb-24">
@@ -410,19 +401,6 @@ const Kitchen = () => {
           <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Live Kitchen Display</p>
         </div>
         <div className="flex items-center gap-3">
-          {allCategories.length > 1 && (
-            <select
-              value={selectedSection}
-              onChange={(e) => setSelectedSection(e.target.value)}
-              className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 md:px-4 py-2 rounded-xl text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
-            >
-              {allCategories.map(cat => (
-                <option key={cat} value={cat}>
-                  {cat === 'All' ? 'All Sections' : cat}
-                </option>
-              ))}
-            </select>
-          )}
           <button
             onClick={() => setShowStockModal(true)}
             className="bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:scale-105 transition-transform"
@@ -430,24 +408,27 @@ const Kitchen = () => {
             Manage Stock
           </button>
           <div className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-4 py-2 rounded-xl text-sm font-black shadow-sm border border-amber-200 dark:border-amber-800/50">
-            {filteredSections.length} SECTIONS
+            {sortedOrders.length} ORDERS
           </div>
         </div>
       </div>
 
       {/* Tablet/Phone Optimized Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-        {filteredSections.map(({ section, allSectionItems, orders: sectionOrderGroups }) => {
-          const status = getOrderStatus(allSectionItems)
-          const progress = getOrderProgress(allSectionItems)
+        {sortedOrders.map((o) => {
+          const visibleItems = o.items
+          if (!visibleItems.length) return null
+
+          const status = getOrderStatus(visibleItems)
+          const progress = getOrderProgress(visibleItems)
           const allReady = progress.totalCount > 0 && progress.readyCount === progress.totalCount && progress.servedCount === 0
           const partialReady = progress.totalCount > 0 && progress.readyCount > 0 && progress.readyCount < progress.totalCount
           const allServed = progress.totalCount > 0 && progress.servedCount === progress.totalCount
-          const allCancelled = progress.totalCount === 0 && allSectionItems.length > 0
+          const allCancelled = progress.totalCount === 0 && visibleItems.length > 0
 
           return (
             <div
-              key={section}
+              key={o.id}
               className={`rounded-2xl border-2 p-5 shadow-sm hover:shadow-md transition ${
                 allCancelled
                   ? 'border-red-300 bg-red-50 dark:bg-red-900/10'
@@ -464,15 +445,16 @@ const Kitchen = () => {
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h2 className="font-bold text-xl flex items-center gap-2">
-                    <ChefHat className="w-5 h-5 text-orange-600" /> {section}
+                    <ChefHat className="w-5 h-5 text-orange-600" /> Order #{o.id}
                   </h2>
-                  <div className="text-xs font-semibold text-slate-500 mt-1">
-                    {sectionOrderGroups.length} Orders • {allSectionItems.length} Items
+                  <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">
+                    {o.table_name ? `Table ${o.table_name}` : 'Takeaway'}
+                    {o.customer_name ? ` • ${o.customer_name}` : ''}
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <span className={`text-xs px-3 py-1 rounded-full font-semibold ${statusColor[status]}`}>
+                  <span className={`text-xs px-3 py-1 rounded-full font-semibold ${statusColor[status] || statusColor.pending}`}>
                     {status}
                   </span>
                 </div>
@@ -498,27 +480,11 @@ const Kitchen = () => {
                 />
               </div>
               
-              {/* ITEMS BY ORDER */}
-              <div className="space-y-4 text-sm mt-4">
-                {sectionOrderGroups.map(({ order: o, items }) => (
-                  <div key={o.id} className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-3 border border-slate-100 dark:border-slate-800">
-                    <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 shadow-sm">
-                          Order #{o.id}
-                        </span>
-                        {o.table_name && (
-                          <span className="text-base font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 shadow-sm">
-                            Table {o.table_name}
-                          </span>
-                        )}
-                      </div>
-                      {o.customer_name && (
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-lg shadow-sm">{o.customer_name}</span>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      {items.map((li) => (
+              {/* ITEMS */}
+              <div className="space-y-2 text-sm mt-4">
+                {visibleItems.map((li) => {
+                  const currentNumber = dailySequenceMap.get(li.id) || 0;
+                  return (
                         <div
                           key={li.id}
                           className={`border rounded-lg p-2 space-y-2 transition-all ${
@@ -535,7 +501,12 @@ const Kitchen = () => {
                         >
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex-1">
-                              <div className={`font-medium ${li.status === 'cancelled' ? 'line-through text-red-700 dark:text-red-400' : ''}`}>{li.menu_item_name}</div>
+                              <div className={`font-medium flex items-start gap-2.5 ${li.status === 'cancelled' ? 'line-through text-red-700 dark:text-red-400' : ''}`}>
+                                <span className="bg-orange-500 text-white min-w-[28px] px-1.5 py-0.5 rounded-md text-[13px] font-black text-center shrink-0 shadow-sm border border-orange-600">
+                                  #{currentNumber || '?'}
+                                </span>
+                                <span className="mt-0.5 text-base">{li.menu_item_name}</span>
+                              </div>
                               <div className="text-xs opacity-60">×{li.quantity}</div>
                               {li.special_instructions && (
                                 <p className="text-xs text-slate-600 italic mt-1">
@@ -584,10 +555,8 @@ const Kitchen = () => {
                             </div>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )
@@ -595,11 +564,11 @@ const Kitchen = () => {
       </div>
 
       {/* EMPTY STATE */}
-      {!filteredSections.length && (
+      {!sortedOrders.length && (
         <div className="text-center py-20 border rounded-2xl bg-white dark:bg-slate-900">
           <ChefHat className="mx-auto h-10 w-10 text-slate-400" />
           <p className="mt-2 text-slate-500">
-            No active kitchen sections {selectedSection !== 'All' ? `in ${selectedSection}` : ''}
+            No active orders in the kitchen
           </p>
         </div>
       )}

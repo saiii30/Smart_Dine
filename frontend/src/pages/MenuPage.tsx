@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { MenuItem } from '../types'
 import { useAuth } from '../contexts/AuthContext'
-import { Trash2, Pencil, X } from 'lucide-react'
+import { Trash2, Pencil, X, ListPlus, Search, Check } from 'lucide-react'
 
 const MenuPage = () => {
   const { user } = useAuth()
@@ -22,6 +22,10 @@ const MenuPage = () => {
   const [showAdd, setShowAdd] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
 
+  const [globalNotes, setGlobalNotes] = useState<string[]>([])
+  const [showNotesPopup, setShowNotesPopup] = useState(false)
+  const [noteSearch, setNoteSearch] = useState('')
+
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -35,7 +39,6 @@ const MenuPage = () => {
 
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string>('')
-  const [noteInput, setNoteInput] = useState('')
 
   const getImageUrl = (url?: string) => {
     if (!url) return '';
@@ -61,6 +64,12 @@ const MenuPage = () => {
     void api.get('/categories').then((r) => {
       setCategories(r.data)
     })
+
+    void api.get('/settings').then((r) => {
+      if (r.data && r.data.global_notes) {
+        setGlobalNotes(r.data.global_notes.split('|').filter(Boolean))
+      }
+    }).catch(() => {})
   }, [veg])
 
   const search = () => load()
@@ -166,7 +175,6 @@ const MenuPage = () => {
       })
       setImagePreview('')
       setImageFile(null)
-      setNoteInput('')
       setSelectedDays(ALL_DAYS)
 
       load()
@@ -227,7 +235,6 @@ const MenuPage = () => {
                 })
                 setImagePreview('')
                 setImageFile(null)
-                setNoteInput('')
                 setShowAdd(true)
               }}
               className="h-11 px-5 rounded-xl bg-orange-600 text-white font-medium shadow-lg"
@@ -368,7 +375,6 @@ const MenuPage = () => {
                           setEditId(m.id)
                           setImagePreview(m.image_url || '')
                           setImageFile(null)
-                          setNoteInput('')
                           setShowAdd(true)
                         }}
                       >
@@ -573,36 +579,17 @@ const MenuPage = () => {
             {/* QUICK NOTES COMPONENT */}
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-slate-500 ml-1">Custom Notes (Checkout Options)</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="e.g. Extra Spicy, No Garlic"
-                  value={noteInput}
-                  onChange={(e) => setNoteInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (noteInput.trim()) {
-                        setForm(prev => ({ ...prev, notes: [...prev.notes, noteInput.trim()] }));
-                        setNoteInput('');
-                      }
-                    }
-                  }}
-                  className="flex-1 h-12 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-transparent outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (noteInput.trim()) {
-                      setForm(prev => ({ ...prev, notes: [...prev.notes, noteInput.trim()] }));
-                      setNoteInput('');
-                    }
-                  }}
-                  className="px-4 rounded-xl bg-slate-200 dark:bg-slate-800 font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors text-sm"
-                >
-                  Add
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setNoteSearch('')
+                  setShowNotesPopup(true)
+                }}
+                className="flex items-center justify-center gap-2 h-12 w-full rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                <ListPlus className="w-5 h-5" />
+                Select Custom Notes
+              </button>
               {form.notes.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-1">
                   {form.notes.map((note, idx) => (
@@ -635,7 +622,6 @@ const MenuPage = () => {
                   })
                   setImagePreview('')
                   setImageFile(null)
-                  setNoteInput('')
                 }}
                 className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700"
               >
@@ -648,6 +634,114 @@ const MenuPage = () => {
                 className="px-5 py-2.5 rounded-xl bg-orange-600 text-white font-medium"
               >
                 {editId ? 'Update Menu' : 'Create Menu'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NOTES POPUP */}
+      {showNotesPopup && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-2xl flex flex-col gap-5 animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+                  <ListPlus className="w-6 h-6 text-orange-600" />
+                  Custom Notes
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">Select modifiers available for this item.</p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowNotesPopup(false)} 
+                className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search */}
+            {globalNotes.length > 0 && (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search notes..."
+                  value={noteSearch}
+                  onChange={(e) => setNoteSearch(e.target.value)}
+                  className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl pl-9 pr-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-orange-500 transition-shadow"
+                />
+              </div>
+            )}
+            
+            {/* List */}
+            <div className="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1 pb-1">
+              {globalNotes.length === 0 ? (
+                <div className="col-span-2 text-center py-8 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                  <ListPlus className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500 font-medium">No custom notes found.</p>
+                  <p className="text-xs text-slate-400 mt-1">Add them globally in the Settings page.</p>
+                </div>
+              ) : (
+                globalNotes
+                  .filter(n => n.toLowerCase().includes(noteSearch.toLowerCase()))
+                  .map(note => {
+                  const isSelected = form.notes.includes(note);
+                  return (
+                    <label 
+                      key={note} 
+                      className={`flex items-center gap-3 p-3 rounded-2xl border-2 cursor-pointer transition-all duration-200 active:scale-[0.98] ${
+                        isSelected 
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10 shadow-sm' 
+                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
+                      }`}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={isSelected}
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setForm(prev => ({ ...prev, notes: [...prev.notes, note] }))
+                          } else {
+                            setForm(prev => ({ ...prev, notes: prev.notes.filter(n => n !== note) }))
+                          }
+                        }}
+                      />
+                      <div className={`w-5 h-5 shrink-0 rounded-md flex items-center justify-center border-2 transition-colors ${
+                        isSelected 
+                          ? 'bg-orange-500 border-orange-500' 
+                          : 'bg-transparent border-slate-300 dark:border-slate-600'
+                      }`}>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                      </div>
+                      <span className={`text-sm font-bold truncate ${
+                        isSelected ? 'text-orange-700 dark:text-orange-300' : 'text-slate-700 dark:text-slate-300'
+                      }`}>
+                        {note}
+                      </span>
+                    </label>
+                  )
+                })
+              )}
+              {globalNotes.length > 0 && globalNotes.filter(n => n.toLowerCase().includes(noteSearch.toLowerCase())).length === 0 && (
+                <div className="col-span-2 text-center py-6 text-sm text-slate-500">
+                  No notes matching "{noteSearch}"
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowNotesPopup(false)}
+                className="w-full py-3.5 rounded-xl bg-orange-600 hover:bg-orange-700 active:bg-orange-800 transition-all text-white font-bold shadow-lg shadow-orange-600/20"
+              >
+                Done
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import { useAuth } from '../contexts/AuthContext'
+import { X } from 'lucide-react'
  
 // Helper to convert "HH:mm" (24h) to "HH:mm AM/PM"
 const formatTo12h = (time24: string): string => {
@@ -51,6 +52,8 @@ const Settings = () => {
     dinner_end: '',
   })
   const [cancelPolicy, setCancelPolicy] = useState('all')
+  const [globalNotes, setGlobalNotes] = useState<string[]>([])
+  const [newNote, setNewNote] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -72,6 +75,9 @@ const Settings = () => {
           dinner_end: dinner.end,
         })
       setCancelPolicy(dbSettings.cancellation_policy || 'all')
+      if (dbSettings.global_notes) {
+        setGlobalNotes(dbSettings.global_notes.split('|').filter(Boolean))
+      }
       })
       .finally(() => setLoading(false))
   }, [])
@@ -82,6 +88,7 @@ const Settings = () => {
       lunch_time: timeInputs.lunch_start && timeInputs.lunch_end ? `${formatTo12h(timeInputs.lunch_start)} - ${formatTo12h(timeInputs.lunch_end)}` : '',
       dinner_time: timeInputs.dinner_start && timeInputs.dinner_end ? `${formatTo12h(timeInputs.dinner_start)} - ${formatTo12h(timeInputs.dinner_end)}` : '',
       cancellation_policy: cancelPolicy,
+      global_notes: globalNotes.join('|'),
     };
 
     try {
@@ -256,6 +263,90 @@ const Settings = () => {
               <option value="ready">Up to Ready State</option>
               <option value="all">All Enabled (Anytime before served)</option>
             </select>
+          </div>
+        </div>
+
+        {/* Global Custom Notes Settings */}
+        <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+            Global Custom Notes
+          </h2>
+          <p className="text-sm text-slate-500 mt-1 mb-4">
+            Manage predefined custom notes (e.g., Less Spicy, No Garlic) to be used across menu items.
+          </p>
+          <div className="max-w-3xl space-y-4">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2">
+              <input
+                type="text"
+                placeholder="Add new note..."
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newNote.trim() && !globalNotes.includes(newNote.trim())) {
+                      setGlobalNotes(prev => [...prev, newNote.trim()]);
+                      setNewNote('');
+                    }
+                  }
+                }}
+                className="flex-1 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <button
+                onClick={() => {
+                  if (newNote.trim() && !globalNotes.includes(newNote.trim())) {
+                    setGlobalNotes(prev => [...prev, newNote.trim()]);
+                    setNewNote('');
+                  }
+                }}
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-300 dark:hover:bg-slate-700 transition"
+              >
+                Add
+              </button>
+            </div>
+            
+            {/* Category Quick Load Buttons */}
+            <div className="flex flex-wrap gap-2 py-2 border-y border-slate-100 dark:border-slate-800/50">
+              <span className="text-xs font-semibold text-slate-500 w-full uppercase tracking-wider mb-1">Quick Load By Category:</span>
+              {Object.entries({
+                "Spice & Dietary": ['Vegan', 'Gluten-Free', 'Dairy-Free', 'Nut-Free', 'Allergy Alert', 'Jain (No Onion/Garlic)', 'Mild', 'Medium Spicy', 'Spicy', 'Extra Spicy', 'No Onion', 'No Garlic', 'No Cabbage', 'No Capsicum'],
+                "Starters & Soups": ['Extra Dip', 'Extra Crispy', 'Less Oil', 'Extra Ketchup', 'Extra Mayo', 'Piping Hot', 'No Croutons', 'Clear Soup', 'Thick Soup', 'Dressing on Side', 'Extra Dressing', 'No Olive Oil', 'No Vinegar'],
+                "Mains & Biryani": ['Extra Gravy', 'Dry', 'Semi-Gravy', 'Boneless', 'With Bone', 'Extra Meat', 'Well Cooked', 'Extra Raita', 'Extra Salna', 'Double Masala', 'Extra Leg Piece', 'Extra Ghee', 'Extra Butter', 'No Butter', 'Soft'],
+                "Fast Food & Pizza": ['Al Dente', 'Extra Sauce', 'No MSG', 'Extra Cheese', 'Thin Crust', 'Thick Crust', 'Well Baked', 'No Mushrooms', 'No Mayo', 'Extra Cheese Slice', 'Toasted', 'Grilled', 'No Lettuce', 'No Tomato'],
+                "Grills & Seafood": ['Extra Lemon', 'Deep Fried', 'Tawa Fry', 'No Fishy Smell', 'Extra Char', 'Medium Rare', 'Medium', 'Well Done', 'Extra BBQ Sauce', 'Well Roasted', 'Extra Mint Chutney'],
+                "Beverages & Desserts": ['Less Sweet', 'Warm', 'Extra Nuts', 'No Raisins', 'Eggless', 'With Ice Cream', 'No Ice', 'Less Ice', 'Extra Ice', 'No Sugar', 'Less Sugar', 'Thick', 'No Water', 'Room Temp', 'Strong', 'Light', 'Without Milk', 'Extra Milk'],
+                "Breakfast & Misc": ['Extra Sweet Chutney', 'Extra Spicy Chutney', 'No Yogurt (Dahi)', 'Extra Sev', 'Extra Sambar', 'Extra Chutney', 'Sunny Side Up', 'Scrambled', 'Hard Boiled', 'Roast', 'Non-Spicy', 'Kid Size', 'Upgrade Drink', 'Extra Fries', 'Extra Portion']
+              }).map(([catName, notes]) => (
+                <button
+                  key={catName}
+                  onClick={() => setGlobalNotes(prev => Array.from(new Set([...prev, ...notes])))}
+                  className="px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 text-[11px] font-bold rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/40 transition whitespace-nowrap"
+                >
+                  + {catName}
+                </button>
+              ))}
+              <button
+                onClick={() => setGlobalNotes([])}
+                className="px-2.5 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition whitespace-nowrap"
+              >
+                Clear All
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {globalNotes.length === 0 && <span className="text-sm text-slate-500 italic">No notes added yet.</span>}
+              {globalNotes.map(note => (
+                <span key={note} className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700">
+                  {note}
+                  <button
+                    onClick={() => setGlobalNotes(prev => prev.filter(n => n !== note))}
+                    className="text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
             </>
