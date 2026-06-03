@@ -375,7 +375,13 @@ const handleSeatCustomer = async (tableId: number, seatCount?: number, seatName?
                 ) : (
                 occCount < t.capacity ? (
                   <button
-                    onClick={() => handleSeatCustomer(t.id, t.capacity - occCount, 'Full Table')}
+                    onClick={() => {
+                      if (occCount > 0) {
+                        toast.error('Please switch to Floor Plan view to select specific seats!')
+                      } else {
+                        handleSeatCustomer(t.id, t.capacity, 'Full Table')
+                      }
+                    }}
                     className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all duration-200 font-bold text-sm"
                   >
                     Seat Customer

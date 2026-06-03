@@ -31,6 +31,7 @@ const VisualTable = ({
   userRole,
   onAddMenu,
   onSeatCustomer,
+  onUpdate,
 }: {
   table: FloorPlanTable
   allTables: FloorPlanTable[]
@@ -44,6 +45,7 @@ const VisualTable = ({
   userRole?: string
   onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
   onSeatCustomer?: (id: number, seatCount?: number, seatName?: string) => void
+  onUpdate: () => void
 }) => {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([])
   const isStaff = userRole === 'WAITER' || userRole === 'KITCHEN'
@@ -133,6 +135,10 @@ className={`absolute w-9 h-9 flex items-center justify-center transition-transfo
 
   // Only waiter can select seats
   if (userRole !== 'WAITER') return
+  if (isOccupied) {
+    toast.error('This seat is already occupied!');
+    return;
+  }
 
   setSelectedSeats(prev =>
     prev.includes(i)
@@ -233,22 +239,45 @@ className={`absolute w-9 h-9 flex items-center justify-center transition-transfo
             <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
               {tableOrders.map((o: any) => (
                 <div key={o.id} className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-white/5">
-                  <div className="flex flex-col max-w-[110px]">
+                  <div className="flex flex-col max-w-[80px]">
                     <span className="text-xs font-bold text-emerald-400 truncate" title={o.customer_name || 'Full Table'}>
                       {o.customer_name || 'Full Table'}
                     </span>
                     <span className="text-[10px] text-slate-400">{o.seat_count} {o.seat_count > 1 ? 'Seats' : 'Seat'}</span>
                   </div>
-                  <button 
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddMenu?.(table.id, o.seat_count, o.customer_name || 'Full Table');
-                    }}
-                    className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap"
-                  >
-                    + Add
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {userRole === 'WAITER' && (!o.items || o.items.length === 0) && (
+                      <button 
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Free these seats?')) {
+                            try {
+                              await api.patch(`/orders/${o.id}/status`, null, { params: { status: 'cancelled' } });
+                              toast.success('Seats freed');
+                              onUpdate();
+                            } catch {
+                              toast.error('Failed to free seats');
+                            }
+                          }
+                        }}
+                        className="px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 text-[10px] font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap"
+                        title="Remove Seating"
+                      >
+                        Free
+                      </button>
+                    )}
+                    <button 
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddMenu?.(table.id, o.seat_count, o.customer_name || 'Full Table');
+                      }}
+                      className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap"
+                    >
+                      + Add
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -345,7 +374,11 @@ className={`absolute w-9 h-9 flex items-center justify-center transition-transfo
                   onSeatCustomer?.(table.id, selectedSeats.length, `Seat ${selectedSeats.map(i => i + 1).join(', ')}`);
                   setSelectedSeats([]);
                 } else {
-                  onSeatCustomer?.(table.id, cap - occupied.size, 'Full Table'); 
+                  if (occupied.size > 0) {
+                    toast.error('Please select specific available seats by clicking on them!');
+                    return;
+                  }
+                  onSeatCustomer?.(table.id, cap, 'Full Table'); 
                 }
               }}
               className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
@@ -658,7 +691,7 @@ export default function FloorPlan({
       <div className="min-w-[800px] min-h-[700px] relative">
         <DndContext onDragEnd={handleDragEnd}>
           {localTables.map((table) => (
-            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} />
+            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} onUpdate={onUpdate} />
           ))}
         </DndContext>
       </div>
