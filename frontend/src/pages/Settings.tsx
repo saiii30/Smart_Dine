@@ -268,17 +268,30 @@ const Settings = () => {
 
         {/* Global Custom Notes Settings */}
         <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-            Global Custom Notes
-          </h2>
-          <p className="text-sm text-slate-500 mt-1 mb-4">
-            Manage predefined custom notes (e.g., Less Spicy, No Garlic) to be used across menu items.
-          </p>
-          <div className="max-w-3xl space-y-4">
-            <div className="flex flex-wrap sm:flex-nowrap gap-2">
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                Global Custom Notes
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Manage predefined modifiers (e.g., Less Spicy, No Garlic) for menu items.
+              </p>
+            </div>
+            {globalNotes.length > 0 && (
+              <button
+                onClick={() => setGlobalNotes([])}
+                className="text-sm font-semibold text-red-500 hover:text-red-600 transition"
+              >
+                Clear All Notes
+              </button>
+            )}
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800/40 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <input
                 type="text"
-                placeholder="Add new note..."
+                placeholder="Type a new custom note and press Enter..."
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 onKeyDown={(e) => {
@@ -290,7 +303,7 @@ const Settings = () => {
                     }
                   }
                 }}
-                className="flex-1 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 bg-transparent outline-none focus:ring-2 focus:ring-orange-500"
+                className="flex-1 border border-slate-300 dark:border-slate-700 rounded-2xl px-5 py-3 bg-white dark:bg-slate-900 outline-none focus:ring-2 focus:ring-orange-500 transition-all font-medium text-slate-700 dark:text-slate-200 shadow-sm"
               />
               <button
                 onClick={() => {
@@ -299,54 +312,35 @@ const Settings = () => {
                     setNewNote('');
                   }
                 }}
-                className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-300 dark:hover:bg-slate-700 transition"
+                className="px-6 py-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors shadow-sm whitespace-nowrap"
               >
-                Add
-              </button>
-            </div>
-            
-            {/* Category Quick Load Buttons */}
-            <div className="flex flex-wrap gap-2 py-2 border-y border-slate-100 dark:border-slate-800/50">
-              <span className="text-xs font-semibold text-slate-500 w-full uppercase tracking-wider mb-1">Quick Load By Category:</span>
-              {Object.entries({
-                "Spice & Dietary": ['Vegan', 'Gluten-Free', 'Dairy-Free', 'Nut-Free', 'Allergy Alert', 'Jain (No Onion/Garlic)', 'Mild', 'Medium Spicy', 'Spicy', 'Extra Spicy', 'No Onion', 'No Garlic', 'No Cabbage', 'No Capsicum'],
-                "Starters & Soups": ['Extra Dip', 'Extra Crispy', 'Less Oil', 'Extra Ketchup', 'Extra Mayo', 'Piping Hot', 'No Croutons', 'Clear Soup', 'Thick Soup', 'Dressing on Side', 'Extra Dressing', 'No Olive Oil', 'No Vinegar'],
-                "Mains & Biryani": ['Extra Gravy', 'Dry', 'Semi-Gravy', 'Boneless', 'With Bone', 'Extra Meat', 'Well Cooked', 'Extra Raita', 'Extra Salna', 'Double Masala', 'Extra Leg Piece', 'Extra Ghee', 'Extra Butter', 'No Butter', 'Soft'],
-                "Fast Food & Pizza": ['Al Dente', 'Extra Sauce', 'No MSG', 'Extra Cheese', 'Thin Crust', 'Thick Crust', 'Well Baked', 'No Mushrooms', 'No Mayo', 'Extra Cheese Slice', 'Toasted', 'Grilled', 'No Lettuce', 'No Tomato'],
-                "Grills & Seafood": ['Extra Lemon', 'Deep Fried', 'Tawa Fry', 'No Fishy Smell', 'Extra Char', 'Medium Rare', 'Medium', 'Well Done', 'Extra BBQ Sauce', 'Well Roasted', 'Extra Mint Chutney'],
-                "Beverages & Desserts": ['Less Sweet', 'Warm', 'Extra Nuts', 'No Raisins', 'Eggless', 'With Ice Cream', 'No Ice', 'Less Ice', 'Extra Ice', 'No Sugar', 'Less Sugar', 'Thick', 'No Water', 'Room Temp', 'Strong', 'Light', 'Without Milk', 'Extra Milk'],
-                "Breakfast & Misc": ['Extra Sweet Chutney', 'Extra Spicy Chutney', 'No Yogurt (Dahi)', 'Extra Sev', 'Extra Sambar', 'Extra Chutney', 'Sunny Side Up', 'Scrambled', 'Hard Boiled', 'Roast', 'Non-Spicy', 'Kid Size', 'Upgrade Drink', 'Extra Fries', 'Extra Portion']
-              }).map(([catName, notes]) => (
-                <button
-                  key={catName}
-                  onClick={() => setGlobalNotes(prev => Array.from(new Set([...prev, ...notes])))}
-                  className="px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 text-[11px] font-bold rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/40 transition whitespace-nowrap"
-                >
-                  + {catName}
-                </button>
-              ))}
-              <button
-                onClick={() => setGlobalNotes([])}
-                className="px-2.5 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition whitespace-nowrap"
-              >
-                Clear All
+                Add Note
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {globalNotes.length === 0 && <span className="text-sm text-slate-500 italic">No notes added yet.</span>}
-              {globalNotes.map(note => (
-                <span key={note} className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700">
-                  {note}
-                  <button
-                    onClick={() => setGlobalNotes(prev => prev.filter(n => n !== note))}
-                    className="text-slate-400 hover:text-red-500 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </span>
-              ))}
-            </div>
+            {globalNotes.length === 0 ? (
+              <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                   <span className="text-xl">📝</span>
+                </div>
+                <p className="text-slate-500 font-medium">No custom notes added yet.</p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2.5">
+                {globalNotes.map(note => (
+                  <div key={note} className="flex items-center gap-2 pl-4 pr-1.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:border-orange-500 transition-colors group">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{note}</span>
+                    <button
+                      onClick={() => setGlobalNotes(prev => prev.filter(n => n !== note))}
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-red-500 rounded-lg transition-colors"
+                      title="Remove"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
             </>
