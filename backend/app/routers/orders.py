@@ -65,7 +65,55 @@ async def list_orders(
     orders = q.order_by(models.Order.id.desc()).limit(200).all()
     return [_serialize_order(o) for o in orders]
 
+@router.patch("/{order_id}/items/{item_id}/quantity", response_model=schemas.OrderOut)
+async def patch_item_quantity(
+    order_id: int,
+    item_id: int,
+    quantity: int = Query(...),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_roles("ADMIN", "MANAGER", "WAITER", "CASHIER")),
+):
+    li = (
+        db.query(models.OrderItem)
+        .filter(
+            models.OrderItem.id == item_id,
+            models.OrderItem.order_id == order_id,
+        )
+        .first()
+    )
 
+    if not li:
+        raise HTTPException(status_code=404, detail="Line item not found in this order")
+
+    if li.status != models.OrderItemStatus.PENDING.value:
+        raise HTTPException(status_code=400, detail="Only pending items can have their quantity modified")
+
+    o = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Calculate change in subtotal based on quantity difference
+    quantity_diff = quantity - li.quantity
+    subtotal_diff = quantity_diff * li.unit_price
+    o.subtotal += subtotal_diff
+
+    if quantity <= 0:
+        li.status = models.OrderItemStatus.CANCELLED.value
+        li.quantity = 0
+    else:
+        li.quantity = quantity
+
+    # Recalculate total amount
+    tax_amt = round(o.subtotal * o.tax_rate, 2)
+    o.total_amount = round(o.subtotal + tax_amt - o.discount_amount, 2)
+
+    db.commit()
+    db.refresh(o)
+
+    await emit_order(order_id, "order_updated")
+
+    return _serialize_order(o)
+    
 @router.get("/{order_id}", response_model=schemas.OrderOut)
 async def get_order(
     order_id: int,

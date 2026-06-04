@@ -445,6 +445,18 @@ const getOrderStatus = (order: Order) => {
     load()
   }
 
+  // Update individual item quantity
+  const updateItemQuantity = async (orderId: number, itemId: number, newQty: number) => {
+    if (newQty <= 0 && !window.confirm("Remove this item from the order?")) return;
+    try {
+      await api.patch(`/orders/${orderId}/items/${itemId}/quantity`, null, { params: { quantity: newQty } })
+      toast.success('Quantity updated')
+      load()
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to update quantity')
+    }
+  }
+
   // Cart helpers
   const currentCart = addToOrderId ? addCart : cart
   const cartTotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -711,7 +723,17 @@ const getOrderStatus = (order: Order) => {
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1">
                       <div className="font-medium">{i.menu_item_name}</div>
-                      <div className="text-xs opacity-60">×{i.quantity}</div>
+                      <div className="flex items-center gap-2 mt-1 mb-1">
+                        {i.status === 'pending' && o.status !== 'completed' && o.status !== 'cancelled' ? (
+                          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg w-fit">
+                            <button onClick={() => updateItemQuantity(o.id, i.id, i.quantity - 1)} className="p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded shadow-sm transition-all bg-white dark:bg-slate-700"><Minus className="w-3 h-3" /></button>
+                            <span className="font-bold min-w-[1.2rem] text-center text-xs">{i.quantity}</span>
+                            <button onClick={() => updateItemQuantity(o.id, i.id, i.quantity + 1)} className="p-1 text-orange-600 hover:bg-slate-200 dark:hover:bg-slate-700 rounded shadow-sm transition-all bg-white dark:bg-slate-700"><Plus className="w-3 h-3" /></button>
+                          </div>
+                        ) : (
+                          <div className="text-xs opacity-60">×{i.quantity}</div>
+                        )}
+                      </div>
                       {i.special_instructions && (
                         <p className="text-xs text-slate-600 italic mt-1">
                           Note: {i.special_instructions}
@@ -977,7 +999,15 @@ const getOrderStatus = (order: Order) => {
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${item.status === 'served' ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400' : item.status === 'cancelled' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : item.status === 'ready' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}`}>
                                 {item.status}
                               </span>
-                              <span className="font-black text-sm">×{item.quantity}</span>
+                              {item.status === 'pending' && existingOrder.status !== 'completed' && existingOrder.status !== 'cancelled' ? (
+                                <div className="flex items-center gap-2 bg-slate-200 dark:bg-slate-700/70 p-1 rounded-lg">
+                                  <button onClick={(e) => { e.stopPropagation(); updateItemQuantity(existingOrder.id, item.id, item.quantity - 1); }} className="p-1 text-slate-600 hover:text-slate-900 hover:bg-white dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-600 rounded shadow-sm transition-all"><Minus className="w-3 h-3" /></button>
+                                  <span className="font-bold min-w-[1.2rem] text-center text-sm">{item.quantity}</span>
+                                  <button onClick={(e) => { e.stopPropagation(); updateItemQuantity(existingOrder.id, item.id, item.quantity + 1); }} className="p-1 text-orange-600 hover:bg-white dark:hover:bg-slate-600 rounded shadow-sm transition-all"><Plus className="w-3 h-3" /></button>
+                                </div>
+                              ) : (
+                                <span className="font-black text-sm">×{item.quantity}</span>
+                              )}
                             </div>
                           </div>
                         ))}
