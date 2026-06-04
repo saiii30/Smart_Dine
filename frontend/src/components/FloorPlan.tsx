@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { DndContext, useDraggable, DragEndEvent } from '@dnd-kit/core'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
@@ -32,6 +33,7 @@ const VisualTable = ({
   onAddMenu,
   onSeatCustomer,
   onUpdate,
+  isMobile,
 }: {
   table: FloorPlanTable
   allTables: FloorPlanTable[]
@@ -46,8 +48,10 @@ const VisualTable = ({
   onAddMenu?: (id: number, seatCount?: number, seatName?: string) => void
   onSeatCustomer?: (id: number, seatCount?: number, seatName?: string) => void
   onUpdate: () => void
+  isMobile?: boolean
 }) => {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([])
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const isStaff = userRole === 'WAITER' || userRole === 'KITCHEN'
   const canPlaceOrder = userRole === 'WAITER' || userRole === 'MANAGER' || userRole === 'CASHIER'
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -78,7 +82,12 @@ const VisualTable = ({
     for (let i = 0; i < cap; i++) occupied.add(i)
   }
 
-  const style = {
+  const style = isMobile ? {
+    position: 'relative' as const,
+    width,
+    height,
+    margin: '2.5rem 0',
+  } : {
     position: 'absolute' as const,
     top: table.pos_y || 0,
     left: table.pos_x || 0,
@@ -187,11 +196,11 @@ className={`absolute w-9 h-9 flex items-center justify-center transition-transfo
   }
 
   return (
-    <div ref={setNodeRef} style={style} tabIndex={0} className={`group z-10 hover:z-30 focus:z-30 outline-none cursor-grab active:cursor-grabbing`}>
+    <div ref={setNodeRef} style={style} tabIndex={0} className={`group z-10 hover:z-30 focus:z-30 outline-none ${isMobile ? '' : 'cursor-grab active:cursor-grabbing'}`}>
       {/* Table Surface */}
       <div
-        {...listeners}
-        {...attributes}
+        {...(isMobile ? {} : listeners)}
+        {...(isMobile ? {} : attributes)}
         className={`w-full h-full relative transition-all duration-300 group-hover:scale-[1.02] flex items-center justify-center z-10
           ${shape === 'circle' ? 'rounded-full' : 'rounded-2xl'}
         `}
@@ -199,6 +208,9 @@ className={`absolute w-9 h-9 flex items-center justify-center transition-transfo
           background: 'linear-gradient(135deg, #b86b25 0%, #613008 100%)',
           boxShadow: 'inset 0 3px 6px rgba(255,255,255,0.25), inset 0 -5px 10px rgba(0,0,0,0.6), 0 20px 30px rgba(0,0,0,0.5)',
           border: '1px solid #4a2508',
+        }}
+        onClick={() => {
+          if (isMobile) setIsMenuOpen(true)
         }}
       >
         {/* Wood grain texture overlay */}
@@ -231,7 +243,7 @@ className={`absolute w-9 h-9 flex items-center justify-center transition-transfo
       <div className="absolute inset-0 pointer-events-none">{renderChairs()}</div>
 
       {/* Hover Controls */}
-      <div className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 focus-within:opacity-100 transition-all duration-300 absolute bottom-full mb-16 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.4)] p-4 gap-3 text-sm flex flex-col items-center pointer-events-auto border border-white/10 min-w-[220px] z-[100] transform scale-95 group-hover:scale-100 group-focus:scale-100 focus-within:scale-100">
+      <div className={`opacity-0 ${isMobile ? 'hidden' : 'group-hover:opacity-100 group-focus:opacity-100 focus-within:opacity-100'} transition-all duration-300 absolute bottom-full mb-16 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.4)] p-4 gap-3 text-sm flex flex-col items-center pointer-events-auto border border-white/10 min-w-[220px] z-[100] transform scale-95 group-hover:scale-100 group-focus:scale-100 focus-within:scale-100`}>
         
         {canPlaceOrder && tableOrders.length > 0 && (
           <div className="w-full space-y-1.5 bg-slate-800/80 p-2 rounded-xl border border-white/5 shadow-inner">
@@ -390,6 +402,99 @@ className={`absolute w-9 h-9 flex items-center justify-center transition-transfo
         </>
         )}
       </div>
+
+      {/* Mobile Action Modal */}
+      {isMobile && isMenuOpen && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); setSelectedSeats([]); }}
+        >
+          <div 
+            className="w-full max-w-sm bg-slate-900 rounded-3xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-8 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-xl text-white tracking-wide">Table {table.table_number}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{cap} Seats • {occupied.size} Occupied</p>
+              </div>
+              <button onClick={() => { setIsMenuOpen(false); setSelectedSeats([]); }} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-slate-300 hover:bg-slate-600">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto custom-scrollbar flex flex-col gap-5">
+              {canPlaceOrder && tableOrders.length > 0 && (
+                <div className="space-y-2.5">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Orders</label>
+                  <div className="space-y-2">
+                    {tableOrders.map((o: any) => (
+                      <div key={o.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-xl border border-slate-700">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-emerald-400">{o.customer_name || 'Full Table'}</span>
+                          <span className="text-xs text-slate-400">{o.seat_count} {o.seat_count > 1 ? 'Seats' : 'Seat'}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {userRole === 'WAITER' && (!o.items || o.items.length === 0) && (
+                            <button onClick={async () => { if(window.confirm('Free these seats?')){ await api.patch(`/orders/${o.id}/status`, null, { params: { status: 'cancelled' } }); onUpdate(); setIsMenuOpen(false); } }} className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg transition-colors">Free</button>
+                          )}
+                          <button onClick={() => { onAddMenu?.(table.id, o.seat_count, o.customer_name || 'Full Table'); setIsMenuOpen(false); }} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors">+ Menu</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {userRole === 'WAITER' && cap > occupied.size && (
+                <div className="space-y-2.5">
+                  <button onClick={() => { if(selectedSeats.length > 0) { onSeatCustomer?.(table.id, selectedSeats.length, `Seat ${selectedSeats.map(i => i + 1).join(', ')}`); setSelectedSeats([]); } else { if(occupied.size > 0) { toast.error('Select specific seats!'); return; } onSeatCustomer?.(table.id, cap, 'Full Table'); } setIsMenuOpen(false); }} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    {selectedSeats.length > 0 ? `Seat Customer (${selectedSeats.length} Seat${selectedSeats.length > 1 ? 's' : ''})` : 'Seat Customer (Full Table)'}
+                  </button>
+                </div>
+              )}
+
+              {!isStaff && (
+                <>
+                  <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-300">Table Capacity</span>
+                      <div className="flex items-center gap-3 bg-slate-900 p-1.5 rounded-lg border border-slate-700">
+                        <button onClick={() => onUpdateCapacity(table.id, -1)} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-md text-white font-bold transition-colors" disabled={cap <= 1}>-</button>
+                        <span className="font-bold text-white w-6 text-center">{cap}</span>
+                        <button onClick={() => onUpdateCapacity(table.id, 1)} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-md text-white font-bold transition-colors">+</button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-400">Assigned Waiter</label>
+                      <select value={table.waiter_id || ''} onChange={(e) => onAssignWaiter(table.id, e.target.value)} className="w-full text-sm p-3 border border-slate-600 rounded-xl bg-slate-900 text-slate-200 font-medium outline-none focus:border-amber-500 transition-colors">
+                        <option value="">None</option>
+                        {waiters.map(w => <option key={w.id} value={w.user_id}>{w.full_name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button onClick={() => { handleMerge(); setIsMenuOpen(false); }} className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-800 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition-colors border border-slate-700">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                      <span className="text-xs font-semibold">Merge</span>
+                    </button>
+                    <button onClick={() => { if (table.is_merged) { onSplitTable(table.id); setIsMenuOpen(false); } else toast.error("Only merged tables can be split!"); }} className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl transition-colors border ${table.is_merged ? 'bg-slate-800 hover:bg-emerald-500/20 text-emerald-400 border-slate-700' : 'bg-slate-800/50 text-slate-600 border-slate-800 cursor-not-allowed'}`}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8v8"/><path d="M8 12l4 4 4-4"/><path d="M5 4h14"/></svg>
+                      <span className="text-xs font-semibold">Split</span>
+                    </button>
+                    <button onClick={() => { onDeleteTable(table.id); setIsMenuOpen(false); }} className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-800 hover:bg-red-500/20 text-red-400 rounded-xl transition-colors border border-slate-700">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      <span className="text-xs font-semibold">Delete</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
@@ -414,12 +519,21 @@ export default function FloorPlan({
     revertX: number
     revertY: number
   } | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => {
     setLocalTables(tables)
   }, [tables])
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (isMobile) return // Disable dragging on mobile list view
     const { active, delta } = event
     if (delta.x === 0 && delta.y === 0) return
 
@@ -675,11 +789,12 @@ export default function FloorPlan({
   // }
 
   return (
-    <div className="relative w-full h-[500px] md:h-[700px] min-w-[320px] overflow-auto touch-pan-x touch-pan-y bg-[#e2e8f0] dark:bg-[#0f172a] rounded-3xl mt-6 shadow-[inset_0_0_80px_rgba(0,0,0,0.15)] border-4 border-slate-300 dark:border-slate-800">
-      {/* Blueprint Grid Pattern */}
-      <div className="absolute min-w-[800px] min-h-[700px] inset-0 opacity-[0.05] dark:opacity-[0.08] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#000 2px, transparent 2px), linear-gradient(90deg, #000 2px, transparent 2px)', backgroundSize: '60px 60px' }} />
+    <div className={`relative w-full overflow-y-auto overflow-x-hidden bg-[#e2e8f0] dark:bg-[#0f172a] rounded-3xl mt-6 shadow-[inset_0_0_80px_rgba(0,0,0,0.15)] border-4 border-slate-300 dark:border-slate-800 ${isMobile ? 'h-[80vh] py-10 touch-pan-y' : 'h-[500px] md:h-[700px] min-w-[320px]'}`}>
+      {!isMobile && (
+        <div className="absolute min-w-[800px] min-h-[700px] inset-0 opacity-[0.05] dark:opacity-[0.08] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#000 2px, transparent 2px), linear-gradient(90deg, #000 2px, transparent 2px)', backgroundSize: '60px 60px' }} />
+      )}
 
-      {/* Bottom Tool Bar - Add Tables Without Form
+      {/* Bottom Tool Bar - Add Tables Without Form 
       {userRole !== 'WAITER' && userRole !== 'KITCHEN' && (
         <div className="fixed sm:absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-wrap justify-center gap-2 sm:gap-3 bg-white/95 backdrop-blur dark:bg-slate-900/95 p-2 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-slate-200 dark:border-slate-700 z-[100] w-[90%] sm:w-auto">
           <button onClick={() => onAddTable('circle')} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl text-sm font-semibold flex items-center gap-2 transition-transform active:scale-95"><div className="w-4 h-4 rounded-full border-2 border-slate-400"></div> Circle</button>
@@ -688,10 +803,10 @@ export default function FloorPlan({
         </div>
       )} */}
 
-      <div className="min-w-[800px] min-h-[700px] relative">
+      <div className={isMobile ? "flex flex-col items-center gap-12 w-full px-4" : "min-w-[800px] min-h-[700px] relative"}>
         <DndContext onDragEnd={handleDragEnd}>
           {localTables.map((table) => (
-            <VisualTable key={table.id} table={table} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} onUpdate={onUpdate} />
+            <VisualTable key={table.id} table={table} isMobile={isMobile} allTables={localTables} waiters={waiters} activeOrders={activeOrders} onUpdateCapacity={updateCapacity} onAssignWaiter={assignWaiter} onDeleteTable={onDeleteTable} onMergeTables={mergeTables} onSplitTable={splitTable} userRole={userRole} onAddMenu={onAddMenu} onSeatCustomer={onSeatCustomer} onUpdate={onUpdate} />
           ))}
         </DndContext>
       </div>
