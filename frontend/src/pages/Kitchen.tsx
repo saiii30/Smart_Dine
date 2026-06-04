@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
-import { DndContext, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/core'
+import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensors, useSensor, MouseSensor, TouchSensor } from '@dnd-kit/core'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { Order, MenuItem } from '../types'
@@ -85,6 +85,15 @@ const Kitchen = () => {
     const cats = new Set(menuItems.map(m => m.category_name).filter(Boolean))
     return ['All', ...Array.from(cats).sort()] as string[]
   }, [menuItems])
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 5 },
+    })
+  )
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 30000)
@@ -630,7 +639,7 @@ const Kitchen = () => {
               />
             </div>
 
-            <DndContext onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <div className="flex-1 overflow-hidden p-4 flex flex-col md:flex-row gap-4 bg-slate-100 dark:bg-slate-950">
                 
                 {/* AVAILABLE COLUMN */}

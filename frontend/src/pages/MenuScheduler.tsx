@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { DndContext, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/core'
+import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensors, useSensor, MouseSensor, TouchSensor } from '@dnd-kit/core'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
 import type { MenuItem } from '../types'
@@ -211,6 +211,15 @@ export default function MenuScheduler() {
   const [viewDay, setViewDay] = useState<string>('Today')
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short' })
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 5 },
+    })
+  )
 
   const getItemsForViewDay = (slotItems: MenuItem[], slotName: string, slotTime: string) => {
     return slotItems.filter((item) => {
@@ -651,7 +660,7 @@ export default function MenuScheduler() {
   const filteredMenu = menuPool.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.category_name?.toLowerCase().includes(search.toLowerCase()))
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="h-[calc(100vh-80px)] flex flex-col space-y-4">
         
         {/* Header */}
