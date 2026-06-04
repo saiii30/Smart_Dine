@@ -448,6 +448,7 @@ const getOrderStatus = (order: Order) => {
   // Cart helpers
   const currentCart = addToOrderId ? addCart : cart
   const cartTotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const existingOrder = addToOrderId ? orders.find(o => o.id === addToOrderId) : null
 
   const handleAddToCart = (m: MenuItem) => {
     const setCurrentCart = addToOrderId ? setAddCart : setCart
@@ -960,10 +961,38 @@ const getOrderStatus = (order: Order) => {
                 )}
 
                 <div className="flex-1 overflow-auto p-5">
+                  {addToOrderId && existingOrder && existingOrder.items.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Clock className="w-4 h-4" /> Already Ordered
+                      </h4>
+                      <div className="space-y-2">
+                        {existingOrder.items.map(item => (
+                          <div key={item.id} className="flex justify-between items-center bg-slate-100 dark:bg-slate-800/50 p-2.5 rounded-xl opacity-75 grayscale-[20%]">
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="font-bold text-sm truncate">{item.menu_item_name}</div>
+                              {item.special_instructions && <div className="text-[10px] text-slate-500 truncate mt-0.5">Note: {item.special_instructions}</div>}
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${item.status === 'served' ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400' : item.status === 'cancelled' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : item.status === 'ready' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                                {item.status}
+                              </span>
+                              <span className="font-black text-sm">×{item.quantity}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="my-5 border-t-2 border-slate-100 dark:border-slate-800 border-dashed" />
+                      <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Plus className="w-4 h-4" /> New Items To Add
+                      </h4>
+                    </div>
+                  )}
+
                   {currentCart.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                    <div className={`${addToOrderId ? 'py-8' : 'h-full'} flex flex-col items-center justify-center text-slate-400 opacity-60`}>
                       <ShoppingCart className="w-16 h-16 mb-4" />
-                      <p className="font-medium text-lg">Cart is empty</p>
+                      <p className="font-medium text-lg">{addToOrderId ? 'Select items to add' : 'Cart is empty'}</p>
                       <p className="text-sm">Click items to add them</p>
                     </div>
                   ) : (

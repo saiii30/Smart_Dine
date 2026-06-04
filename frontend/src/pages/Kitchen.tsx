@@ -79,6 +79,12 @@ const Kitchen = () => {
   const [menuSearch, setMenuSearch] = useState('')
   const [schedule, setSchedule] = useState<any[]>([])
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [selectedCategory, setSelectedCategory] = useState<string>('All')
+
+  const categories = useMemo(() => {
+    const cats = new Set(menuItems.map(m => m.category_name).filter(Boolean))
+    return ['All', ...Array.from(cats).sort()] as string[]
+  }, [menuItems])
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 30000)
@@ -413,10 +419,36 @@ const Kitchen = () => {
         </div>
       </div>
 
+      {/* Category Tabs */}
+      {categories.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto custom-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 mt-2">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`shrink-0 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                selectedCategory === cat
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-orange-300'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tablet/Phone Optimized Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mt-2">
         {sortedOrders.map((o) => {
-          const visibleItems = o.items
+          let visibleItems = o.items
+          if (selectedCategory !== 'All') {
+            visibleItems = visibleItems.filter((li) => {
+              const menuItem = menuItems.find(m => m.name === li.menu_item_name);
+              return menuItem?.category_name === selectedCategory;
+            });
+          }
+
           if (!visibleItems.length) return null
 
           const status = getOrderStatus(visibleItems)
@@ -564,11 +596,14 @@ const Kitchen = () => {
       </div>
 
       {/* EMPTY STATE */}
-      {!sortedOrders.length && (
-        <div className="text-center py-20 border rounded-2xl bg-white dark:bg-slate-900">
+      {!sortedOrders.some(o => {
+        if (selectedCategory === 'All') return o.items.length > 0;
+        return o.items.some(li => menuItems.find(m => m.name === li.menu_item_name)?.category_name === selectedCategory);
+      }) && (
+        <div className="text-center py-20 border rounded-2xl bg-white dark:bg-slate-900 mt-4">
           <ChefHat className="mx-auto h-10 w-10 text-slate-400" />
-          <p className="mt-2 text-slate-500">
-            No active orders in the kitchen
+          <p className="mt-2 text-slate-500 font-medium">
+            {sortedOrders.length === 0 ? 'No active orders in the kitchen' : `No active orders for ${selectedCategory}`}
           </p>
         </div>
       )}
