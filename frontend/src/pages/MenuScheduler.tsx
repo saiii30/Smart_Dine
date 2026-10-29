@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensors, useSensor, MouseSensor, TouchSensor } from '@dnd-kit/core'
 import toast from 'react-hot-toast'
 import { api } from '../api/api'
@@ -6,7 +6,17 @@ import type { MenuItem } from '../types'
 import { Search, Clock, X, GripVertical, Trash2, CalendarDays } from 'lucide-react'
 
 // --- DRAGGABLE MENU ITEM ---
-const DraggableItem = ({ item, assignedSlots }: { item: MenuItem, assignedSlots: string[] }) => {
+const DraggableItem = ({
+  item,
+  assignedSlots,
+  slots,
+  onAssignToSlot,
+}: {
+  item: MenuItem
+  assignedSlots: string[]
+  slots?: any[]
+  onAssignToSlot?: (slotId: string, item: MenuItem) => void
+}) => {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: `menu-item-${item.id}`,
     data: item,
@@ -47,33 +57,59 @@ const DraggableItem = ({ item, assignedSlots }: { item: MenuItem, assignedSlots:
       style={style}
       {...listeners}
       {...attributes}
-      className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-500 transition-colors group"
+      className="flex flex-col gap-2.5 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm cursor-grab active:cursor-grabbing hover:border-orange-500 transition-colors group"
     >
-      <GripVertical className="w-5 h-5 text-slate-400 group-hover:text-orange-500" />
-      <div className="flex-1">
-        <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{item.name}</h4>
-        <div className="flex flex-wrap gap-1 mt-1.5">
-          <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-1.5 py-0.5 rounded">
-            {item.category_name}
+      <div className="flex items-center gap-3 w-full">
+        <GripVertical className="w-5 h-5 text-slate-400 group-hover:text-orange-500" />
+        <div className="flex-1">
+          <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{item.name}</h4>
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-1.5 py-0.5 rounded">
+              {item.category_name}
+            </span>
+            {restrictions && <span className="text-[9px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded">{restrictions}</span>}
+            {assignedSlots.length > 0 ? (
+              <span className="text-[9px] text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">
+                In: {assignedSlots.join(', ')}
+              </span>
+            ) : (
+              <span className="text-[9px] text-slate-500 font-bold bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                Unassigned
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="font-bold text-orange-600 text-sm">₹{item.price}</span>
+          <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded mt-1 ${item.is_veg ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20'}`}>
+            {item.is_veg ? 'VEG' : 'NON-VEG'}
           </span>
-          {restrictions && <span className="text-[9px] text-orange-600 font-bold bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded">{restrictions}</span>}
-          {assignedSlots.length > 0 ? (
-            <span className="text-[9px] text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">
-              In: {assignedSlots.join(', ')}
-            </span>
-          ) : (
-            <span className="text-[9px] text-slate-500 font-bold bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
-              Unassigned
-            </span>
-          )}
         </div>
       </div>
-      <div className="flex flex-col items-end">
-        <span className="font-bold text-orange-600 text-sm">₹{item.price}</span>
-        <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded mt-1 ${item.is_veg ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20'}`}>
-          {item.is_veg ? 'VEG' : 'NON-VEG'}
-        </span>
-      </div>
+
+      {/* Alternative dropdown selection for accessibility and testing */}
+      {slots && slots.length > 0 && onAssignToSlot && (
+        <div className="w-full px-1" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <select
+            value=""
+            onChange={(e) => {
+              const sId = e.target.value;
+              if (sId) {
+                onAssignToSlot(sId, item);
+              }
+            }}
+            className="w-full text-[10px] py-1 px-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold outline-none cursor-pointer focus:ring-1 focus:ring-orange-500 transition-colors"
+            data-testid={`assign-select-${item.id}`}
+          >
+            <option value="">+ Assign to Slot...</option>
+            {slots.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.time})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   )
 }
@@ -399,14 +435,7 @@ export default function MenuScheduler() {
     }
   }
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    
-    if (!over) return // Dropped outside a slot
-    
-    const slotId = over.id as string
-    const draggedItem = active.data.current as MenuItem
-
+  const assignItemToSlot = async (slotId: string, draggedItem: MenuItem) => {
     const slot = slots.find(s => s.id === slotId);
     if (!slot) return;
 
@@ -522,6 +551,17 @@ export default function MenuScheduler() {
     }))
   }
 
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    
+    if (!over) return // Dropped outside a slot
+    
+    const slotId = over.id as string
+    const draggedItem = active.data.current as MenuItem
+
+    await assignItemToSlot(slotId, draggedItem)
+  }
+
   const removeItemFromSlot = async (slotId: string, itemId: number) => {
     if (!confirm('Are you sure you want to remove this item from the slot?')) return;
 
@@ -587,7 +627,8 @@ export default function MenuScheduler() {
     }
   }
 
-  const handleRemoveFromDb = async (slotId: string, item: MenuItem) => {
+  // @ts-ignore
+  const _handleRemoveFromDb = async (slotId: string, item: MenuItem) => {
     const slot = savedSchedule.find(s => s.id === slotId);
     if (!slot) return;
 
@@ -769,7 +810,15 @@ export default function MenuScheduler() {
                   return (isSaved || isStaged) ? s.name : null;
                 }).filter(Boolean) as string[];
 
-                return <DraggableItem key={item.id} item={item} assignedSlots={assignedTo} />
+                return (
+                  <DraggableItem
+                    key={item.id}
+                    item={item}
+                    assignedSlots={assignedTo}
+                    slots={slots}
+                    onAssignToSlot={assignItemToSlot}
+                  />
+                )
               })}
               {filteredMenu.length === 0 && (
                 <div className="text-center text-slate-400 py-10 text-sm">

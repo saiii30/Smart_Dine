@@ -21,6 +21,13 @@ export interface DiningTable {
   pos_y: number
   branch_id?: number | null
   qr_url?: string | null
+  shape?: string
+  width?: number
+  height?: number
+  is_merged?: boolean
+  merge_history?: any
+  waiter_id?: string | null
+  waiter_name?: string | null
 }
 
 export interface Category {

@@ -24,16 +24,20 @@ import { useTheme } from '../contexts/ThemeContext'
 
 const nav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
-  { to: '/tables', label: 'Tables', icon: UtensilsCrossed, roles: ['ADMIN', 'MANAGER', 'WAITER', 'CASHIER'] },
+  
   { to: '/menu', label: 'Menu', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'WAITER', 'CASHIER'] },
-  { to: '/menu-scheduler', label: 'Scheduler', icon: CalendarClock, roles: ['ADMIN', 'MANAGER'] },
+   { to: '/menu-scheduler', label: 'Scheduler', icon: CalendarClock, roles: ['ADMIN', 'MANAGER'] },
   { to: '/orders', label: 'Orders', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'WAITER', 'CASHIER', 'KITCHEN'] },
   { to: '/kitchen', label: 'Kitchen', icon: ChefHat, roles: ['ADMIN', 'MANAGER', 'KITCHEN'] },
-  { to: '/billing', label: 'Billing', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
+  
   { to: '/inventory', label: 'Inventory', icon: Package, roles: ['ADMIN', 'MANAGER'] },
   { to: '/employees', label: 'Team', icon: Users, roles: ['ADMIN', 'MANAGER'] },
   { to: '/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
   { to: '/settings', label: 'Settings', icon: Settings, roles: ['ADMIN', 'MANAGER'] },
+   { to: '/billing', label: 'Billing', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
+  { to: '/tables', label: 'Tables', icon: UtensilsCrossed, roles: ['ADMIN', 'MANAGER', 'WAITER', 'CASHIER'] },
+ 
+ 
 ]
 
 const Layout = () => {
