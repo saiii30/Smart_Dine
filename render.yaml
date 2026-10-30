@@ -8,15 +8,13 @@ services:
       - key: PORT
         value: 8000
       - key: DATABASE_URL
-        fromDatabase:
-          name: smart-dine-db
-          property: connectionString
+        value: postgresql://smart_dine_user:La7vbSBZo0l0UFKk1NsfcoQCONjmEfQI@dpg-dbhngd7f3r2c73dc0p50-a/smart_dine
       - key: SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
-        value: https://smart-dine-frontend.onrender.com
+        value: https://smart-dine-1zev.onrender.com
       - key: FRONTEND_PUBLIC_URL
-        value: https://smart-dine-frontend.onrender.com
+        value: https://smart-dine-1zev.onrender.com
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: 480
       - key: DEBUG
@@ -29,7 +27,7 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_URL
-        value: https://smart-dine-backend.onrender.com
+        value: https://smart-dine-ss74.onrender.com
 
 databases:
   - name: smart-dine-db
