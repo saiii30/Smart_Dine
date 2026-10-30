@@ -19,7 +19,7 @@ const statusColor: Record<string, string> = {
 const getImageUrl = (url?: string) => {
   if (!url) return '';
   if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
-  const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+  const baseUrl = import.meta.env.VITE_BACKEND_URL ;
   return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 

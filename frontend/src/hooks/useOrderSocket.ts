@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-const backend = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+const backend = import.meta.env.VITE_BACKEND_URL 
 
 export function useOrderSocket(onEvent: (payload: { event?: string; order_id?: number }) => void) {
   const cb = useRef(onEvent)
