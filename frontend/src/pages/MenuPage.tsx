@@ -11,7 +11,16 @@ const MenuPage = () => {
   const canDelete = user?.role === 'ADMIN' || user?.role === 'MANAGER'
 
   const [items, setItems] = useState<MenuItem[]>([])
-  const [categories, setCategories] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([
+  { id: 1, name: 'Biryani' },
+  { id: 2, name: 'Starters' },
+  { id: 3, name: 'Main Course' },
+  { id: 4, name: 'Veg' },
+  { id: 5, name: 'Non-Veg' },
+  { id: 6, name: 'Beverages' },
+  { id: 7, name: 'Desserts' },
+  { id: 8, name: 'Fast Food' },
+])
 
   const [q, setQ] = useState('')
   const [veg, setVeg] = useState(false)
@@ -61,9 +70,9 @@ const MenuPage = () => {
   useEffect(() => {
     load()
 
-    void api.get('/categories').then((r) => {
-      setCategories(r.data)
-    })
+    // void api.get('/categories').then((r) => {
+    //   setCategories(r.data)
+    // })
 
     void api.get('/settings').then((r) => {
       if (r.data && r.data.global_notes) {
