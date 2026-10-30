@@ -56,14 +56,13 @@ async def validation_handler(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": msgs})
 
 
-def _cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
-    return [o.strip() for o in raw.split(",") if o.strip()]
-
+CORS_ORIGINS = [
+    "https://smart-dine-1zev.onrender.com",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins(),
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
