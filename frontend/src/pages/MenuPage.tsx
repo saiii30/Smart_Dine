@@ -11,16 +11,7 @@ const MenuPage = () => {
   const canDelete = user?.role === 'ADMIN' || user?.role === 'MANAGER'
 
   const [items, setItems] = useState<MenuItem[]>([])
-  const [categories, setCategories] = useState<any[]>([
-  { id: 1, name: 'Biryani' },
-  { id: 2, name: 'Starters' },
-  { id: 3, name: 'Main Course' },
-  { id: 4, name: 'Veg' },
-  { id: 5, name: 'Non-Veg' },
-  { id: 6, name: 'Beverages' },
-  { id: 7, name: 'Desserts' },
-  { id: 8, name: 'Fast Food' },
-])
+ const [categories, setCategories] = useState<any[]>([])
 
   const [q, setQ] = useState('')
   const [veg, setVeg] = useState(false)
@@ -68,18 +59,25 @@ const MenuPage = () => {
   }
 
   useEffect(() => {
-    load()
+  load()
 
-    // void api.get('/categories').then((r) => {
-    //   setCategories(r.data)
-    // })
+  api.get('/categories')
+    .then((res) => {
+      console.log('Categories:', res.data)
+      setCategories(res.data)
+    })
+    .catch((err) => {
+      console.log('Category error:', err.response?.data)
+    })
 
-    void api.get('/settings').then((r) => {
+  api.get('/settings')
+    .then((r) => {
       if (r.data && r.data.global_notes) {
         setGlobalNotes(r.data.global_notes.split('|').filter(Boolean))
       }
-    }).catch(() => {})
-  }, [veg])
+    })
+    .catch(() => {})
+}, [veg])
 
   const search = () => load()
 
